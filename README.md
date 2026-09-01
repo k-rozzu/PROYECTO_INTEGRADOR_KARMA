@@ -7,7 +7,7 @@ inventario de productos y registrar las ventas realizadas en cada una de ellas.
 -Ibarra Heredia Alan Alejandro       
 -Martinez Zuñiga Carolina 
 -Nava Montiel Dana Paola
--Nava Montiel Miranda Lizet po
+-Nava Montiel Miranda Lizet
 -Atanacio Vazquez Diego Alejandro
 
 #Objetivo general
