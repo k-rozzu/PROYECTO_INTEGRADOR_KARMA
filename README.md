@@ -5,7 +5,7 @@ inventario de productos y registrar las ventas realizadas en cada una de ellas.
 
 #Integrantes del equipo:
 -Ibarra Heredia Alan Alejandro       
--Martinez Zuñiga Carolina yu
+-Martinez Zuñiga Carolina 
 -Nava Montiel Dana Paola
 -Nava Montiel Miranda Lizet po
 -Atanacio Vazquez Diego Alejandro re
