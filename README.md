@@ -8,7 +8,7 @@ inventario de productos y registrar las ventas realizadas en cada una de ellas.
 -Martinez Zuñiga Carolina 
 -Nava Montiel Dana Paola
 -Nava Montiel Miranda Lizet po
--Atanacio Vazquez Diego Alejandro re
+-Atanacio Vazquez Diego Alejandro
 
 #Objetivo general
 Desarrollar una aplicación web de punto de venta e inventario multi-sede enfocada en una concesionaria de vehículos, que permita administrar de manera centralizada las diferentes sucursales de la empresa, controlar el inventario de automóviles y registrar las ventas realizadas en cada una de ellas, asi como, Desarrollar una aplicación web de punto de venta e inventario multi-sede enfocada en una concesionaria de vehículos, que permita administrar de manera centralizada las diferentes sucursales de la empresa, controlar el inventario de automóviles y registrar las ventas realizadas en cada una de ellas.  
