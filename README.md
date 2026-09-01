@@ -29,4 +29,5 @@ Las tecnologías y herramientas seleccionadas para el desarrollo de Karma permit
 
 #Herramienta seleccionadas para gestion de proyecto
 -JIRA: estamos utilizando esto con la metodologia SCRUM
+Debido a que nos proporciona un entrono de trabajo en donde podemos establecer de manera mas eficiente las tareas, agregar fecha limite, asignar tareas a cada integrante del quipo, ver el prograso de el sprint actual y facilita la visualizacion al permitir verlo tanto en formato de tablas como en formato de sprints.
 
