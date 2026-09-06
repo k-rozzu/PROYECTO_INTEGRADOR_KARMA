@@ -80,3 +80,20 @@ CREATE TABLE productos (
         FOREIGN KEY (id_categoria) REFERENCES categorias(id_categoria) 
         ON UPDATE CASCADE ON DELETE RESTRICT
 ) ENGINE=InnoDB;
+
+-- Inventarios y Transacciones
+
+CREATE TABLE inventarios (
+    id_inventario INT AUTO_INCREMENT PRIMARY KEY,
+    id_sucursal INT NOT NULL,
+    id_producto INT NOT NULL,
+    stock_actual INT NOT NULL DEFAULT 0,
+    stock_minimo INT NOT NULL DEFAULT 5,
+    CONSTRAINT uq_sucursal_producto UNIQUE (id_sucursal, id_producto),
+    CONSTRAINT fk_inventarios_sucursales 
+        FOREIGN KEY (id_sucursal) REFERENCES sucursales(id_sucursal) 
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_inventarios_productos 
+        FOREIGN KEY (id_producto) REFERENCES productos(id_producto) 
+        ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE=InnoDB;
