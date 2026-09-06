@@ -97,3 +97,26 @@ CREATE TABLE inventarios (
         FOREIGN KEY (id_producto) REFERENCES productos(id_producto) 
         ON UPDATE CASCADE ON DELETE RESTRICT
 ) ENGINE=InnoDB;
+
+CREATE TABLE ventas (
+    id_venta INT AUTO_INCREMENT PRIMARY KEY,
+    id_sucursal INT NOT NULL,
+    id_usuario INT NOT NULL,
+    id_caja INT NOT NULL,
+    id_metodo_pago INT NOT NULL,
+    fecha_hora DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    subtotal DECIMAL(10, 2) NOT NULL,
+    total DECIMAL(10, 2) NOT NULL,
+    CONSTRAINT fk_ventas_sucursales 
+        FOREIGN KEY (id_sucursal) REFERENCES sucursales(id_sucursal) 
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_ventas_usuarios 
+        FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario) 
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_ventas_cajas 
+        FOREIGN KEY (id_caja) REFERENCES cajas(id_caja) 
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_ventas_metodos_pago 
+        FOREIGN KEY (id_metodo_pago) REFERENCES metodos_pago(id_metodo_pago) 
+        ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE=InnoDB;
