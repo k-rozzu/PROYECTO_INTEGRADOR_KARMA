@@ -6,7 +6,7 @@ USE pos_multisede;
 
 -- Tablas base sin referencias foraneas
 
-INSERT INTO roles(nombre_rol) VALUES ("Admin_General");
+INSERT INTO roles(nombre_rol) VALUES ("Administrador General");
 INSERT INTO roles(nombre_rol) VALUES ("Gerente");
 INSERT INTO roles(nombre_rol) VALUES ("Cajero");
 
@@ -36,7 +36,8 @@ CREATE TABLE metodos_pago (
 ) ENGINE=InnoDB;
 
 INSERT INTO metodos_pago(nombre_metodo) VALUES ("Efectivo");
-INSERT INTO metodos_pago(nombre_metodo) VALUES ("Tarjeta");
+INSERT INTO metodos_pago(nombre_metodo) VALUES ("Tarjeta de Débito");
+INSERT INTO metodos_pago(nombre_metodo) VALUES ("Tarjeta de Crédito");
 INSERT INTO metodos_pago(nombre_metodo) VALUES ("Transferencia");
 
 -- Tablas con dependencias de primer nivel
@@ -135,3 +136,4 @@ CREATE TABLE detalle_ventas (
         FOREIGN KEY (id_producto) REFERENCES productos(id_producto) 
         ON UPDATE CASCADE ON DELETE RESTRICT
 ) ENGINE=InnoDB;
+
