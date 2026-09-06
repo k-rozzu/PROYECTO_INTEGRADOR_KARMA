@@ -57,3 +57,14 @@ CONSTRAINT fk_usuarios_roles
         FOREIGN KEY (id_sucursal) REFERENCES sucursales(id_sucursal) 
         ON UPDATE CASCADE ON DELETE SET NULL
 )ENGINE=InnoDB;
+
+CREATE TABLE cajas (
+    id_caja INT AUTO_INCREMENT PRIMARY KEY,
+    id_sucursal INT NOT NULL,
+    numero_caja INT NOT NULL,
+    estado ENUM('abierta', 'cerrada', 'mantenimiento') DEFAULT 'cerrada' NOT NULL,
+    CONSTRAINT uq_caja_sucursal UNIQUE (id_sucursal, numero_caja),
+    CONSTRAINT fk_cajas_sucursales 
+        FOREIGN KEY (id_sucursal) REFERENCES sucursales(id_sucursal) 
+        ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB;
