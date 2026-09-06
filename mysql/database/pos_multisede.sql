@@ -120,3 +120,18 @@ CREATE TABLE ventas (
         FOREIGN KEY (id_metodo_pago) REFERENCES metodos_pago(id_metodo_pago) 
         ON UPDATE CASCADE ON DELETE RESTRICT
 ) ENGINE=InnoDB;
+
+CREATE TABLE detalle_ventas (
+    id_detalle INT AUTO_INCREMENT PRIMARY KEY,
+    id_venta INT NOT NULL,
+    id_producto INT NOT NULL,
+    cantidad INT NOT NULL,
+    precio_unitario DECIMAL(10, 2) NOT NULL,
+    subtotal_linea DECIMAL(10, 2) NOT NULL,
+    CONSTRAINT fk_detalle_ventas_ventas 
+        FOREIGN KEY (id_venta) REFERENCES ventas(id_venta) 
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_detalle_ventas_productos 
+        FOREIGN KEY (id_producto) REFERENCES productos(id_producto) 
+        ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE=InnoDB;
