@@ -68,3 +68,15 @@ CREATE TABLE cajas (
         FOREIGN KEY (id_sucursal) REFERENCES sucursales(id_sucursal) 
         ON UPDATE CASCADE ON DELETE CASCADE
 ) ENGINE=InnoDB;
+
+CREATE TABLE productos (
+    id_producto INT AUTO_INCREMENT PRIMARY KEY,
+    id_categoria INT NOT NULL,
+    codigo_barras VARCHAR(50) NOT NULL UNIQUE,
+    nombre VARCHAR(150) NOT NULL,
+    descripcion TEXT NULL,
+    precio_base DECIMAL(10, 2) NOT NULL,
+    CONSTRAINT fk_productos_categorias 
+        FOREIGN KEY (id_categoria) REFERENCES categorias(id_categoria) 
+        ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE=InnoDB;
