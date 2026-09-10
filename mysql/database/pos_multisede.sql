@@ -6,14 +6,14 @@ USE pos_multisede;
 
 -- Tablas base sin referencias foraneas
 
-INSERT INTO roles(nombre_rol) VALUES ("Admin_General");
-INSERT INTO roles(nombre_rol) VALUES ("Gerente");
-INSERT INTO roles(nombre_rol) VALUES ("Cajero");
-
 CREATE TABLE IF NOT EXISTS roles (
     id_rol INT AUTO_INCREMENT PRIMARY KEY,
     nombre_rol VARCHAR(50) NOT NULL UNIQUE
 ) ENGINE=InnoDB;
+
+INSERT INTO roles(nombre_rol) VALUES ("Admin_General");
+INSERT INTO roles(nombre_rol) VALUES ("Gerente");
+INSERT INTO roles(nombre_rol) VALUES ("Cajero");
 
 CREATE TABLE sucursales(
 id_sucursal INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
