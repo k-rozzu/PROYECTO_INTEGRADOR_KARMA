@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pantalla de Inicio de Sesión</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Fuente Montserrat de Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="login-container">
+        
+        <!-- 1. CAMPO PARA LA IMAGEN DEL LADO IZQUIERDO -->
+        <div class="left-panel">
+            <img src="imagen_rueda_audi.jpg" alt="Imagen Rueda Audi" class="left-image">
+        </div>
+
+        <!-- 2. CAMPO PARA LA IMAGEN DEL LOGO CENTRAL -->
+        <div class="overlap-logo">
+            <img src="logo_KARMA.png" alt="Logo K" class="logo-image">
+        </div>
+
+        <!-- PANEL DERECHO: Formulario de Login -->
+        <div class="right-panel">
+            <div class="header-section">
+                <h1>BIENVENIDO</h1>
+                <p>TE ATIENDE:</p>
+            </div>
+            
+            <form class="login-form" onsubmit="return false;">
+                <div class="input-group">
+                    <label for="username">USUARIO</label>
+                    <input type="text" id="username" placeholder="Ingresa tu usuario" required>
+                </div>
+                
+                <div class="input-group">
+                    <label for="password">CONTRASEÑA</label>
+                    <input type="password" id="password" placeholder="Ingresa tu contraseña" required>
+                </div>
+                
+                <button type="submit">INGRESAR</button>
+                <a href="#" class="forgot-password">¿NO PUEDES INGRESAR?</a>
+            </form>
+        </div>
+
+    </div>
+</body>
+</html>
