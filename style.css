@@ -1,0 +1,185 @@
+/* --- Variables globales --- */
+:root {
+    --primary-red: #7a1c1c;
+    --hover-red: #5c1414;
+    --border-gray: #ccc;
+    --text-gray: #333;
+    --placeholder-gray: #aaa;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Montserrat', sans-serif;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden; /* Evita barras de desplazamiento innecesarias */
+    background-color: #ffffff;
+}
+
+/* --- Contenedor Principal a Pantalla Completa --- */
+.login-container {
+    position: relative;
+    display: flex;
+    width: 100vw;       /* Toma todo el ancho de la ventana */
+    height: 100vh;      /* Toma todo el alto de la ventana */
+    background-color: #ffffff;
+    border-radius: 0;   /* Eliminamos esquinas redondeadas */
+    box-shadow: none;   /* Eliminamos sombras de tipo tarjeta */
+    overflow: hidden;
+}
+
+/* --- 1. Estilos para la Imagen del Lado Izquierdo --- */
+.left-panel {
+    width: 50%;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+}
+
+.left-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center left;
+    display: block;
+}
+
+/* --- 2. Estilos para la Imagen del Logo Central --- */
+.overlap-logo {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background-color: var(--primary-red);
+    border: 4px solid #ffffff;
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.logo-image {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: contain;
+    background-color: var(--primary-red);
+    display: block;
+}
+
+/* --- Panel Derecho (Formulario) --- */
+.right-panel {
+    width: 50%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 0 50px;
+}
+
+.header-section {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.header-section h1 {
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--primary-red);
+    letter-spacing: 1px;
+}
+
+.header-section p {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--primary-red);
+    margin-top: 5px;
+    letter-spacing: 0.5px;
+}
+
+/* --- Formulario --- */
+.login-form {
+    width: 100%;
+    max-width: 360px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.input-group {
+    width: 100%;
+    margin-bottom: 20px;
+}
+
+.input-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-gray);
+    margin-bottom: 8px;
+    letter-spacing: 0.5px;
+}
+
+.input-group input {
+    width: 100%;
+    padding: 14px 20px;
+    border: 1px solid var(--border-gray);
+    border-radius: 25px;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.3s;
+}
+
+.input-group input:focus {
+    border-color: var(--primary-red);
+}
+
+.input-group input::placeholder {
+    color: var(--placeholder-gray);
+}
+
+/* --- Botón Ingresar --- */
+.login-form button {
+    width: 100%;
+    padding: 15px 0;
+    background-color: var(--primary-red);
+    color: #ffffff;
+    border: none;
+    border-radius: 25px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 10px;
+    margin-bottom: 20px;
+    letter-spacing: 1px;
+    transition: background-color 0.3s;
+}
+
+.login-form button:hover {
+    background-color: var(--hover-red);
+}
+
+/* --- Enlace Inferior --- */
+.forgot-password {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-gray);
+    text-decoration: none;
+    letter-spacing: 0.5px;
+}
+
+.forgot-password:hover {
+    text-decoration: underline;
+}
