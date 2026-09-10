@@ -44,7 +44,7 @@ INSERT INTO metodos_pago(nombre_metodo) VALUES ("Transferencia");
 CREATE TABLE usuarios(
 id_usuario INT NOT NULL AUTO_INCREMENT PRIMARY KEY UNIQUE,
 id_rol INT NOT NULL,
-id_sucursal INT NOT NULL,
+id_sucursal INT NULL,
 nombre VARCHAR(100) NOT NULL,
 correo VARCHAR(100) NOT NULL UNIQUE,
 password_hash VARCHAR(255) NOT NULL,
