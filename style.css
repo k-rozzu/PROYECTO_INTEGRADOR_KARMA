@@ -1,7 +1,7 @@
 /* --- Variables globales --- */
 :root {
-    --primary-red: #7a1c1c;
-    --hover-red: #5c1414;
+    --primary-blue: rgb(16, 33, 63, 0.94);
+    --hover-blue: rgba(0, 6, 18, 0.94);
     --border-gray: #ccc;
     --text-gray: #333;
     --placeholder-gray: #aaa;
@@ -59,7 +59,7 @@ body {
     width: 120px;
     height: 120px;
     border-radius: 50%;
-    background-color: var(--primary-red);
+    background-color: var(--primary-blue);
     border: 4px solid #ffffff;
     box-shadow: 0 6px 15px rgba(0, 0, 0, 0.25);
     display: flex;
@@ -96,14 +96,14 @@ body {
 .header-section h1 {
     font-size: 36px;
     font-weight: 700;
-    color: var(--primary-red);
+    color: var(--primary-blue);
     letter-spacing: 1px;
 }
 
 .header-section p {
     font-size: 16px;
     font-weight: 700;
-    color: var(--primary-red);
+    color: var(--primary-blue);
     margin-top: 5px;
     letter-spacing: 0.5px;
 }
@@ -154,7 +154,7 @@ body {
 .login-form button {
     width: 100%;
     padding: 15px 0;
-    background-color: var(--primary-red);
+    background-color: rgb(16, 33, 63, 0.94);
     color: #ffffff;
     border: none;
     border-radius: 25px;
@@ -168,7 +168,7 @@ body {
 }
 
 .login-form button:hover {
-    background-color: var(--hover-red);
+    background-color: var(--hover-blue);
 }
 
 /* --- Enlace Inferior --- */
