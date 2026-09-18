@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KARMA · Punto de Venta — Panel Administrador</title>
+<!-- Tipografías: Fraunces (display / elegante) + Inter (UI / datos) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="admin-style.css">
+<!-- Chart.js — usado para las gráficas del panel (rendimiento mensual, inventario, ventas por categoría) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ============================================================
+       BARRA SUPERIOR: logo (clic = ir a Dashboard), idioma, tema,
+       filtro global de sucursal, cerrar sesión y sub-navegación
+       ============================================================ -->
+  <header class="topbar">
+
+    <!-- Fila superior: marca + acciones de cuenta -->
+    <div class="topbar-main">
+
+      <!-- Logo: al hacer clic siempre regresa al Dashboard -->
+      <button class="brand" id="logoHome" type="button" title="Ir al Dashboard" data-i18n-title="topHome">
+        <span class="brand-logo brand-logo--fallback" aria-hidden="true">K</span>
+        <div class="brand-text">
+          <span class="brand-name">KARMA</span>
+          <span class="brand-slogan" data-i18n="brandSlogan">Panel de Administración General</span>
+        </div>
+      </button>
+
+      <!-- Idioma / tema / filtro de sucursal / sesión -->
+      <div class="topbar-right">
+
+        <!-- Filtro global de sucursal -->
+        <div class="branch-filter" id="branchFilter" title="Filtrar por sucursal">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21s7-7.4 7-12.6A7 7 0 1 0 5 8.4C5 13.6 12 21 12 21Z"/><circle cx="12" cy="8.4" r="2.4"/></svg>
+          <select id="sucursalSelect" aria-label="Sucursal">
+            <option value="todas" data-i18n="allBranches">Todas las sucursales</option>
+          </select>
+        </div>
+        <a class="lang-toggle" href="reportes.html" style="text-decoration:none;">Registrar venta</a>
+        <button class="lang-toggle" id="langToggle" title="Cambiar idioma" aria-label="Cambiar idioma">
+          <span class="lang-op is-active" data-lang="es">ES</span>
+          <span class="lang-sep">/</span>
+          <span class="lang-op" data-lang="en">EN</span>
+        </button>
+        <button class="theme-toggle" id="themeToggle" title="Cambiar modo" aria-label="Cambiar modo claro/oscuro">
+          <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.4M12 19.1v2.4M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7"/></svg>
+          <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a6.8 6.8 0 0 0 10.5 10.5Z"/></svg>
+        </button>
+        <button class="logout-btn" id="logoutBtn" data-i18n="logout">Cerrar sesión</button>
+        <div class="sede-pill admin-pill">
+          <span class="sede-label" data-i18n="role">Rol</span>
+          <span class="sede-value" data-i18n="roleAdmin">Administrador General</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Fila inferior: pestañas de vista -->
+    <div class="topbar-sub">
+      <nav class="sub-nav" id="subNav">
+        <button class="sub-nav-btn is-active" data-view="dashboard" data-i18n="navDashboard">Dashboard</button>
+        <button class="sub-nav-btn" data-view="sucursales" data-i18n="navSucursales">Sucursales</button>
+        <button class="sub-nav-btn" data-view="personal" data-i18n="navPersonal">Personal</button>
+        <button class="sub-nav-btn" data-view="inventario" data-i18n="navInventario">Inventario</button>
+        <button class="sub-nav-btn" data-view="pedidos" data-i18n="navPedidos">Pedidos</button>
+      </nav>
+      <div class="sync-indicator" id="syncIndicator" title="Estado de conexión a la base de datos">
+        <span class="sync-dot"></span>
+        <span class="sync-text" data-i18n="syncOk">Datos en vivo</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============================================================
+       CONTENIDO PRINCIPAL: se reconstruye por completo en cada
+       cambio de vista dentro de admin-script.js (ver renderMain)
+       ============================================================ -->
+  <main class="main admin-main" id="main"></main>
+
+  <!-- ============================================================
+       BARRA INFERIOR: fecha, hora, administrador
+       ============================================================ -->
+  <footer class="statusbar">
+    <div class="status-item">
+      <span class="status-label" data-i18n="date">Fecha</span>
+      <span class="status-value" id="statusFecha">—</span>
+    </div>
+    <div class="status-divider"></div>
+    <div class="status-item">
+      <span class="status-label" data-i18n="time">Hora</span>
+      <span class="status-value" id="statusHora">—</span>
+    </div>
+    <div class="status-divider"></div>
+    <div class="status-item">
+      <span class="status-label" data-i18n="admin">Administrador</span>
+      <span class="status-value" id="statusAdmin">Sofía Herrera</span>
+    </div>
+    <div class="status-divider"></div>
+    <div class="status-item">
+      <span class="status-label" data-i18n="session">Sesión</span>
+      <span class="status-value status-value--ok" id="statusSesion">Activa</span>
+    </div>
+  </footer>
+
+</div>
+
+<!-- ============================================================
+     MODAL: alta / edición de sucursal
+     ============================================================ -->
+<div class="modal-overlay" id="modalSucursal">
+  <div class="modal-card modal-card--wide">
+    <button class="modal-close" data-close-modal>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 5l14 14M19 5L5 19"/></svg>
+    </button>
+    <div id="modalSucursalContent"></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: alta / edición de personal (gerentes / cajeros)
+     ============================================================ -->
+<div class="modal-overlay" id="modalPersonal">
+  <div class="modal-card modal-card--wide">
+    <button class="modal-close" data-close-modal>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 5l14 14M19 5L5 19"/></svg>
+    </button>
+    <div id="modalPersonalContent"></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: detalle de stock multi-sede de un producto
+     ============================================================ -->
+<div class="modal-overlay" id="modalStock">
+  <div class="modal-card modal-card--wide">
+    <button class="modal-close" data-close-modal>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 5l14 14M19 5L5 19"/></svg>
+    </button>
+    <div id="modalStockContent"></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: alta rápida de vehículo/artículo (Quick Action)
+     ============================================================ -->
+<div class="modal-overlay" id="modalArticulo">
+  <div class="modal-card modal-card--wide">
+    <button class="modal-close" data-close-modal>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 5l14 14M19 5L5 19"/></svg>
+    </button>
+    <div id="modalArticuloContent"></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: alta / edición de pedido a proveedor (orden de compra)
+     ============================================================ -->
+<div class="modal-overlay" id="modalPedido">
+  <div class="modal-card modal-card--wide">
+    <button class="modal-close" data-close-modal>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 5l14 14M19 5L5 19"/></svg>
+    </button>
+    <div id="modalPedidoContent"></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: detalle / pipeline de estados de un pedido
+     ============================================================ -->
+<div class="modal-overlay" id="modalPedidoDetalle">
+  <div class="modal-card modal-card--wide">
+    <button class="modal-close" data-close-modal>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 5l14 14M19 5L5 19"/></svg>
+    </button>
+    <div id="modalPedidoDetalleContent"></div>
+  </div>
+</div>
+
+<!-- Región para notificaciones tipo "toast" -->
+<div class="toast-stack" id="toastStack" aria-live="polite"></div>
+
+<script src="admin-script.js"></script>
+</body>
+</html>
