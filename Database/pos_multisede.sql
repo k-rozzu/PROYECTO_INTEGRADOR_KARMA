@@ -135,4 +135,6 @@ CREATE TABLE detalle_ventas (
     CONSTRAINT fk_detalle_ventas_productos 
         FOREIGN KEY (id_producto) REFERENCES productos(id_producto) 
         ON UPDATE CASCADE ON DELETE RESTRICT
+
 ) ENGINE=InnoDB;
+
