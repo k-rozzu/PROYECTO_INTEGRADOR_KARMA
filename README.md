@@ -35,11 +35,16 @@ El sistema cuenta con una funcionalidad de inicio de sesión que permite al usua
 
 La autenticación se realiza mediante una solicitud al servidor utilizando una API desarrollada con **Node.js**, donde se procesan las credenciales proporcionadas y se determina si el usuario puede acceder al sistema.
 
+<img width="1300" height="400" alt="Karma_login" src="https://github.com/user-attachments/assets/f8d615cd-8146-4c2c-8ee5-19444c7f058f" />
+
 ### 📊 Administración
 
 El sistema cuenta con un **dashboard para el administrador general**, integrado con la estructura general del punto de venta.
 
 El acceso a esta sección se encuentra restringido de acuerdo con el rol del usuario, permitiendo que únicamente los usuarios con los permisos correspondientes puedan acceder a las funcionalidades administrativas.
+
+<img width="1300" height="400" alt="Karma_dashboard" src="https://github.com/user-attachments/assets/c3373974-b042-4ba6-8075-65e601d52178" />
+
 
 ### 🛒 Punto de venta
 
@@ -56,6 +61,9 @@ La interfaz del punto de venta está orientada principalmente a los cajeros y pe
 * Registrar ventas a crédito.
 
 La interfaz también incorpora elementos de apoyo para la operación, como la identificación del cajero y sucursal, estado de caja, hora local, barra de búsqueda y modo oscuro.
+
+<img width="1300" height="400" alt="Karma_modulo_cajero" src="https://github.com/user-attachments/assets/f0fd3323-7cf1-4ecb-9cd8-fc79b39fda04" />
+
 
 ### 💳 Pagos
 
@@ -150,8 +158,8 @@ La documentación del proyecto incluye información relacionada con:
 ---
 ## 👥 Integrantes del equipo
 
-* **XXXXXX**
-* **XXXXXXX**
-* **XXXXXXXXXX**
-* **XXXXXXX**
-* **XXXXXXX**
+* **Ibarra Heredia Alan Alejandro**
+* **Vazquez Atanacio Diego Alejandro**
+* **Martinez Zuñiga Carolina**
+* **Nava Montiel Miranda Lizet**
+* **Nava Montiel Dana Paola**
