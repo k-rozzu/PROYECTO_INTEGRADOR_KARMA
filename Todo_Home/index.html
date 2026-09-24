@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Karma - Los más vendidos</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <!-- Aquí se cargará la navbar dinámicamente -->
+    <div id="navbar-placeholder"></div>
+
+    <!-- =====================================================
+         CONTENIDO PRINCIPAL
+         ===================================================== -->
+    <main>
+        <div class="main-content">
+            <h1 class="main-title">Los más vendidos:</h1>
+
+            <!-- SECCIÓN 1: LOS 3 MÁS POPULARES (GIRATORIOS) -->
+            <div class="product-grid top-sellers">
+                <!-- PORSCHE -->
+                <div class="card">
+                    <div class="content">
+                        <div class="face face-front">
+                            <h2 class="car-title">Porsche 911 GT3 RS</h2>
+                            <div class="image-wrapper"><img src="porsche-911.png" alt="Porsche 911 GT3 RS" class="car-image"></div>
+                            <span class="hover-indicator">Gira para más info ↺</span>
+                        </div>
+                        <div class="face face-back">
+                            <h2 class="car-title-back">Porsche 911 GT3 RS</h2>
+                            <div class="car-info">
+                                <div class="info-row"><span>Motor</span><strong>4.0L Bóxer 6</strong></div>
+                                <div class="info-row"><span>Potencia</span><strong>525 HP</strong></div>
+                                <div class="info-row"><span>0-100 km/h</span><strong>3.2 s</strong></div>
+                                <div class="info-row"><span>Tracción</span><strong>Trasera</strong></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- FERRARI -->
+                <div class="card">
+                    <div class="content">
+                        <div class="face face-front">
+                            <h2 class="car-title">Ferrari 488 Pista</h2>
+                            <div class="image-wrapper"><img src="ferrari-488.png" alt="Ferrari 488 Pista" class="car-image"></div>
+                            <span class="hover-indicator">Gira para más info ↺</span>
+                        </div>
+                        <div class="face face-back">
+                            <h2 class="car-title-back">Ferrari 488 Pista</h2>
+                            <div class="car-info">
+                                <div class="info-row"><span>Motor</span><strong>3.9L V8 Twin-Turbo</strong></div>
+                                <div class="info-row"><span>Potencia</span><strong>710 HP</strong></div>
+                                <div class="info-row"><span>0-100 km/h</span><strong>2.8 s</strong></div>
+                                <div class="info-row"><span>Tracción</span><strong>Trasera</strong></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MCLAREN -->
+                <div class="card">
+                    <div class="content">
+                        <div class="face face-front">
+                            <h2 class="car-title">McLaren 750S</h2>
+                            <div class="image-wrapper"><img src="mclaren-750s.png" alt="McLaren 750S" class="car-image"></div>
+                            <span class="hover-indicator">Gira para más info ↺</span>
+                        </div>
+                        <div class="face face-back">
+                            <h2 class="car-title-back">McLaren 750S</h2>
+                            <div class="car-info">
+                                <div class="info-row"><span>Motor</span><strong>4.0L V8 Twin-Turbo</strong></div>
+                                <div class="info-row"><span>Potencia</span><strong>740 HP</strong></div>
+                                <div class="info-row"><span>0-100 km/h</span><strong>2.8 s</strong></div>
+                                <div class="info-row"><span>Peso</span><strong>1,277 kg</strong></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TÍTULO SEPARADOR -->
+            <h2 class="section-subtitle">Catálogo Completo</h2>
+
+            <!-- SECCIÓN 2: 1 POR LÍNEA (LIQUID GLASS PURO) -->
+            <div class="product-grid single-column">
+                <!-- LAMBORGHINI -->
+                <div class="card-glass">
+                    <div class="glass-bg-shapes">
+                        <div class="shape shape-1"></div>
+                        <div class="shape shape-2"></div>
+                    </div>
+                    <div class="glass-front">
+                        <h2 class="glass-title">Lamborghini Huracán STO</h2>
+                        <div class="glass-specs">
+                            <div class="spec-item"><span>Motor</span><strong>5.2L V10</strong></div>
+                            <div class="spec-item"><span>Potencia</span><strong>631 HP</strong></div>
+                            <div class="spec-item"><span>0-100 km/h</span><strong>3.0 segundos</strong></div>
+                            <div class="spec-item"><span>Tracción</span><strong>Trasera</strong></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ASTON MARTIN -->
+                <div class="card-glass">
+                    <div class="glass-bg-shapes">
+                        <div class="shape shape-1"></div>
+                        <div class="shape shape-2"></div>
+                    </div>
+                    <div class="glass-front">
+                        <h2 class="glass-title">Aston Martin Vantage</h2>
+                        <div class="glass-specs">
+                            <div class="spec-item"><span>Motor</span><strong>4.0L V8 Twin-Turbo</strong></div>
+                            <div class="spec-item"><span>Potencia</span><strong>656 HP</strong></div>
+                            <div class="spec-item"><span>0-100 km/h</span><strong>3.5 segundos</strong></div>
+                            <div class="spec-item"><span>Tracción</span><strong>Trasera</strong></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MERCEDES -->
+                <div class="card-glass">
+                    <div class="glass-bg-shapes">
+                        <div class="shape shape-1"></div>
+                        <div class="shape shape-2"></div>
+                    </div>
+                    <div class="glass-front">
+                        <h2 class="glass-title">Mercedes-AMG GT</h2>
+                        <div class="glass-specs">
+                            <div class="spec-item"><span>Motor</span><strong>4.0L V8 Biturbo</strong></div>
+                            <div class="spec-item"><span>Potencia</span><strong>577 HP</strong></div>
+                            <div class="spec-item"><span>0-100 km/h</span><strong>3.2 segundos</strong></div>
+                            <div class="spec-item"><span>Tracción</span><strong>Integral</strong></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CORVETTE -->
+                <div class="card-glass">
+                    <div class="glass-bg-shapes">
+                        <div class="shape shape-1"></div>
+                        <div class="shape shape-2"></div>
+                    </div>
+                    <div class="glass-front">
+                        <h2 class="glass-title">Chevrolet Corvette Z06</h2>
+                        <div class="glass-specs">
+                            <div class="spec-item"><span>Motor</span><strong>5.5L V8</strong></div>
+                            <div class="spec-item"><span>Potencia</span><strong>670 HP</strong></div>
+                            <div class="spec-item"><span>0-100 km/h</span><strong>2.6 segundos</strong></div>
+                            <div class="spec-item"><span>Tracción</span><strong>Trasera</strong></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AUDI -->
+                <div class="card-glass">
+                    <div class="glass-bg-shapes">
+                        <div class="shape shape-1"></div>
+                        <div class="shape shape-2"></div>
+                    </div>
+                    <div class="glass-front">
+                        <h2 class="glass-title">Audi R8 V10 Performance</h2>
+                        <div class="glass-specs">
+                            <div class="spec-item"><span>Motor</span><strong>5.2L V10</strong></div>
+                            <div class="spec-item"><span>Potencia</span><strong>602 HP</strong></div>
+                            <div class="spec-item"><span>0-100 km/h</span><strong>3.1 segundos</strong></div>
+                            <div class="spec-item"><span>Tracción</span><strong>Integral</strong></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Aquí se cargará el footer dinámicamente -->
+    <div id="footer-placeholder"></div>
+
+    <!-- SCRIPT PRINCIPAL QUE CARGA TODO -->
+    <script src="main.js"></script>
+</body>
+</html>
