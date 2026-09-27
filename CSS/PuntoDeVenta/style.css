@@ -736,13 +736,19 @@ body:not(.dark) .car-card-overlay .overlay-meta{ color:var(--text-muted); }
 .ficha-brand{ font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-faint); }
 .ficha-model{ font-family:var(--font-display); font-size:27px; font-weight:500; margin:2px 0 10px; }
 .ficha-price{ font-size:19px; font-weight:700; color:var(--text-main); margin-bottom:14px; }
-.ficha-unidades{
-  display:inline-flex; align-items:center; gap:7px;
-  font-size:12.5px; font-weight:600;
+.ficha-unidades{ display:inline-flex; align-items:center; }
+
+/* Mensaje de existencia fiel a la base de datos: azul si hay unidades, rojo si no hay */
+.stock-badge{
+  display:inline-flex; align-items:center; gap:6px;
+  font-size:12.5px; font-weight:700;
   padding:5px 12px; border-radius:999px;
-  background:var(--paper-deep); color:var(--text-muted);
-  border:1px solid var(--line);
+  white-space:nowrap;
 }
+.stock-badge--ok{ background:var(--navy-soft); color:var(--navy); }
+.stock-badge--out{ background:var(--red-soft); color:var(--red); }
+body.dark .stock-badge--ok{ background:rgba(16,33,63,.35); color:#8FB4FF; }
+body.dark .stock-badge--out{ background:rgba(158,27,46,.28); color:#E2697A; }
 .ficha-specs-grid{
   display:grid; grid-template-columns:repeat(3,1fr);
   gap:16px 20px; padding-top:20px;
