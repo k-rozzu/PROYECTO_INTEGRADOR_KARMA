@@ -91,7 +91,9 @@ function bootstrap(): never {
         fail('No existe la caja 01 para la sucursal del cajero.', 503);
     }
 
-    /* Inventario disponible de la sucursal del cajero */
+    /* Inventario completo de la sucursal del cajero — fiel a la base de datos:
+       se listan TODOS los productos, aunque no tengan existencia (unidades=0),
+       para poder mostrar el aviso de "0 unidades disponibles". */
 $inventario = $pdo->prepare("
     SELECT
         p.id_producto AS id,
@@ -107,14 +109,14 @@ $inventario = $pdo->prepare("
         p.detalle,
         p.nombre,
         p.compatibilidad,
+        p.traccion,
+        p.lado,
         p.precio_base AS precio,
-        i.stock_actual AS unidades,
+        COALESCE(i.stock_actual, 0) AS unidades,
         c.nombre_categoria AS categoria
     FROM productos p
-    JOIN inventarios i ON i.id_producto = p.id_producto
     JOIN categorias c ON c.id_categoria = p.id_categoria
-    JOIN sucursales s ON s.id_sucursal = i.id_sucursal
-    WHERE s.id_sucursal = ? AND i.stock_actual > 0
+    LEFT JOIN inventarios i ON i.id_producto = p.id_producto AND i.id_sucursal = ?
     ORDER BY p.marca, p.modelo, p.anio, p.nombre
 ");
 
@@ -123,6 +125,7 @@ $inventarioRows = $inventario->fetchAll(PDO::FETCH_ASSOC);
 
     $clientes = $pdo->query("
         SELECT id_cliente AS id, nombre, rfc_ine AS rfcIne, celular, email,
+               direccion, identificacion_tipo AS identificacionTipo,
                articulo, total_adeudo AS totalAdeudo, monto_abono AS montoAbono,
                enganche, abonos_pagados AS abonosPagados, abonos_totales AS abonosTotales
         FROM clientes
@@ -178,13 +181,18 @@ $inventarioRows = $inventario->fetchAll(PDO::FETCH_ASSOC);
             p.id_producto AS id,
             p.nombre,
             p.precio_base AS precio,
+            p.marca,
             p.modelo,
+            p.anio,
+            p.motor,
+            p.traccion,
+            p.lado,
             p.compatibilidad,
-            i.stock_actual AS unidades
+            COALESCE(i.stock_actual, 0) AS unidades
         FROM productos p
         JOIN categorias c ON c.id_categoria=p.id_categoria
-        JOIN inventarios i ON i.id_producto=p.id_producto AND i.id_sucursal=?
-        WHERE c.nombre_categoria='Refacciones' AND p.tipo='refaccion' AND i.stock_actual > 0
+        LEFT JOIN inventarios i ON i.id_producto=p.id_producto AND i.id_sucursal=?
+        WHERE c.nombre_categoria='Refacciones' AND p.tipo='refaccion'
         ORDER BY p.nombre
     ");
     $refStmt->execute([$sucursal['id_sucursal']]);
@@ -241,6 +249,9 @@ function crearVenta(): never {
         foreach ($items as $item) {
             $productoId = (int)($item['producto_id'] ?? 0);
             $cantidad = max(1, (int)($item['cantidad'] ?? 1));
+            $vin = trim((string)($item['vin'] ?? ''));
+            $motorSerie = trim((string)($item['motor_serie'] ?? ''));
+            $colorInterior = trim((string)($item['color_interior'] ?? ''));
 
             if (!$productoId) throw new RuntimeException('Hay un artículo sin producto asociado.');
 
@@ -267,7 +278,10 @@ function crearVenta(): never {
                 'id' => $productoId,
                 'cantidad' => $cantidad,
                 'precio' => $precio,
-                'subtotal' => $linea
+                'subtotal' => $linea,
+                'vin' => $vin,
+                'motor_serie' => $motorSerie,
+                'color_interior' => $colorInterior
             ];
         }
 
@@ -287,6 +301,8 @@ function crearVenta(): never {
         $email = trim((string)($data['email'] ?? ''));
         $celular = trim((string)($data['celular'] ?? ''));
         $rfcIne = trim((string)($data['rfc_ine'] ?? ''));
+        $direccion = trim((string)($data['direccion'] ?? ''));
+        $identificacionTipo = trim((string)($data['identificacion_tipo'] ?? ''));
 
         if ($nombre) {
             if ($email) {
@@ -298,16 +314,18 @@ function crearVenta(): never {
             if ($clienteId) {
                 $up = $pdo->prepare("
                     UPDATE clientes
-                    SET nombre=?, rfc_ine=?, celular=?, email=?
+                    SET nombre=?, rfc_ine=?, celular=?, email=?,
+                        direccion=COALESCE(NULLIF(?,''), direccion),
+                        identificacion_tipo=COALESCE(NULLIF(?,''), identificacion_tipo)
                     WHERE id_cliente=?
                 ");
-                $up->execute([$nombre, $rfcIne ?: null, $celular ?: null, $email ?: null, $clienteId]);
+                $up->execute([$nombre, $rfcIne ?: null, $celular ?: null, $email ?: null, $direccion, $identificacionTipo, $clienteId]);
             } else {
                 $ins = $pdo->prepare("
-                    INSERT INTO clientes(nombre,rfc_ine,celular,email,estado)
-                    VALUES(?,?,?,?, 'activo')
+                    INSERT INTO clientes(nombre,rfc_ine,celular,email,direccion,identificacion_tipo,estado)
+                    VALUES(?,?,?,?,?,?, 'activo')
                 ");
-                $ins->execute([$nombre, $rfcIne ?: null, $celular ?: null, $email ?: null]);
+                $ins->execute([$nombre, $rfcIne ?: null, $celular ?: null, $email ?: null, $direccion ?: null, $identificacionTipo ?: null]);
                 $clienteId = (int)$pdo->lastInsertId();
             }
         }
@@ -328,8 +346,8 @@ function crearVenta(): never {
 
         $detalle = $pdo->prepare("
             INSERT INTO detalle_ventas
-            (id_venta,id_producto,cantidad,precio_unitario,subtotal_linea)
-            VALUES(?,?,?,?,?)
+            (id_venta,id_producto,cantidad,precio_unitario,subtotal_linea,vin,motor_serie,color_interior)
+            VALUES(?,?,?,?,?,?,?,?)
         ");
         $stock = $pdo->prepare("
             UPDATE inventarios
@@ -338,7 +356,10 @@ function crearVenta(): never {
         ");
 
         foreach ($productosVenta as $p) {
-            $detalle->execute([$ventaId, $p['id'], $p['cantidad'], $p['precio'], $p['subtotal']]);
+            $detalle->execute([
+                $ventaId, $p['id'], $p['cantidad'], $p['precio'], $p['subtotal'],
+                $p['vin'] ?: null, $p['motor_serie'] ?: null, $p['color_interior'] ?: null
+            ]);
             $stock->execute([$p['cantidad'], $p['id'], $idSucursal]);
         }
 
@@ -348,7 +369,8 @@ function crearVenta(): never {
             'venta_id' => $ventaId,
             'fecha' => date('d/m/Y H:i:s'),
             'total' => $total,
-            'cambio' => $cambio
+            'cambio' => $cambio,
+            'folio' => sprintf('KRM-%02d-%06d', $idSucursal, $ventaId)
         ]);
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
