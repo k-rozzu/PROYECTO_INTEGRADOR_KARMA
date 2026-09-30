@@ -1,7 +1,4 @@
-/* ==========================================================================
-   KARMA · Punto de Venta — Panel de Cajero
-   Datos y catálogos cargados desde la base de datos mediante API.
-   ========================================================================== */
+/* ===== KARMA · Punto de Venta — Panel de Cajero (datos cargados desde MySQL mediante api.php) ===== */
 
 /* Datos cargados desde la base de datos */
 let CAJERO_ACTUAL = "Cargando…";
@@ -19,6 +16,7 @@ let GARANTIAS = [];
 let WEBORDERS = [];
 let REFACCIONES = [];
 
+// Valores fijos del módulo de crédito: tasa anual, comisión por apertura y plazos
 const TASA_INTERES_ANUAL_DEFAULT = 18;
 const COMISION_APERTURA_PCT = 0.02;
 const PLAZOS_CREDITO = [12, 24, 36, 48, 60];
@@ -26,6 +24,7 @@ const PLAZOS_CREDITO = [12, 24, 36, 48, 60];
 /* Estado de carga y sincronización */
 let datosDBCargados = false;
 
+// Llama a api.php con la acción indicada y regresa su JSON (lanza error si el servidor responde con falla)
 async function apiFetch(action, options = {}) {
   const url = `api.php?action=${encodeURIComponent(action)}`;
   const config = { headers: { "Content-Type": "application/json" }, ...options };
@@ -47,6 +46,8 @@ async function cargarDatosDB() {
     USUARIO_ACTUAL_ID = data.usuario?.id_usuario ?? null;
     SUCURSAL_ACTUAL_ID = data.sucursal?.id_sucursal ?? null;
     CAJA_ACTUAL_ID = data.caja?.id_caja ?? null;
+    // El número de ticket viene de la BD (ventas de hoy en esta caja) para que no se reinicie
+    if (data.siguiente_ticket) ticketNumero = data.siguiente_ticket;
 
     INVENTARIO = data.inventario || [];
     CLIENTES = data.clientes || [];
@@ -90,12 +91,11 @@ async function refrescarDatosDB() {
   GARANTIAS = data.garantias || [];
   WEBORDERS = data.weborders || [];
   REFACCIONES = data.refacciones || [];
+  if (data.siguiente_ticket) ticketNumero = data.siguiente_ticket;
 }
 
 
-/* --------------------------------------------------------------------------
-   2. ESTADO GLOBAL
-   -------------------------------------------------------------------------- */
+/* ===== 2. ESTADO GLOBAL ===== */
 
 let currentView = "venta";          // venta | inventario | clientes | garantias | weborders
 let searchQuery = "";               // texto actual del buscador (su uso cambia según la vista)
@@ -125,9 +125,7 @@ let ventaResultadosQuery = "";
 let inventarioCategoria = null;     // null | 'Porsche' | 'Audi' | 'Ducati' | 'Refacciones'
 let webOrdersFiltro = "Todo";       // Todo | Porsche | Audi | Ducati | Refacciones
 
-/* --------------------------------------------------------------------------
-   3. HELPERS GENERALES
-   -------------------------------------------------------------------------- */
+/* ===== 3. HELPERS GENERALES ===== */
 const $ = (sel, ctx = document) => ctx.querySelector(sel);
 const $$ = (sel, ctx = document) => Array.from(ctx.querySelectorAll(sel));
 
@@ -154,9 +152,13 @@ function badgeStockHTML(unidades){
   return `<span class="stock-badge stock-badge--out">0 unidades disponibles</span>`;
 }
 
-// Guarda en `borrador` lo escrito en un campo de texto SIN volver a dibujar el panel,
-// para que el valor sobreviva a los re-render que disparan otros campos (marca, modelo,
-// año, color, etc.) y no se pierda el foco mientras el cajero sigue escribiendo.
+// API DE TRADUCCIÓN: muestra un mensaje emergente traducido al idioma activo (usa KarmaTraductor.traducir)
+async function avisar(mensaje){
+  const texto = window.KarmaTraductor ? await window.KarmaTraductor.traducir(mensaje) : mensaje;
+  alert(texto);
+}
+
+// Guarda en `borrador` lo que se escribe en un campo sin redibujar el panel (así no se pierde el foco)
 function bindTexto(id, key, panel){
   $(`#${id}`, panel)?.addEventListener("input", (e) => { borrador[key] = e.target.value; });
 }
@@ -169,71 +171,192 @@ const ICONOS_TIPO = {
   Refacciones: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14.7 6.3a4 4 0 0 1-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 1 5.4-5.4l-2.6 2.6-2-2 2.6-2.6Z"/></svg>`
 };
 
-/* --------------------------------------------------------------------------
-   2b. INVENTARIO — helpers de cascada Marca → Modelo → Año
-   Solo devuelven marcas/modelos/años que todavía tienen unidades en stock;
-   si una combinación no aparece, es porque no hay inventario suficiente.
-   -------------------------------------------------------------------------- */
+/* ===== 2b. INVENTARIO — cascada de vehículos: Marca → Modelo → Año → Color → Color interior → Motor → VIN ===== */
 
-// Marcas con al menos un artículo disponible
-// Nota: la cascada YA NO filtra por unidades > 0 — el catálogo debe mostrarse tal cual
-// está en la base de datos, y es el cuadrito de existencia (badgeStockHTML) el que avisa
-// en rojo/azul si hay o no piezas disponibles, no la lista de opciones en sí.
+// Quita repetidos y valores vacíos de una lista
+const unicos = (arr) => [...new Set(arr.filter(v => v !== null && v !== undefined && v !== ""))];
+
+// Marcas de vehículos que existen en el inventario
 function marcasDisponibles(){
-  return [...new Set(INVENTARIO.filter(c => c.tipo !== "refaccion").map(c => c.marca))];
+  return unicos(INVENTARIO.filter(c => c.tipo !== "refaccion").map(c => c.marca));
 }
-// Modelos disponibles para una marca ya elegida
+// Modelos de una marca
 function modelosDisponibles(marca){
-  return [...new Set(INVENTARIO.filter(c => c.marca === marca && c.tipo !== "refaccion").map(c => c.modelo))];
+  return unicos(INVENTARIO.filter(c => c.marca === marca && c.tipo !== "refaccion").map(c => c.modelo));
 }
-// Años disponibles para una combinación marca + modelo ya elegida
+// Años de una marca + modelo, ordenados
 function aniosDisponibles(marca, modelo){
-  return [...new Set(INVENTARIO.filter(c => c.marca === marca && c.modelo === modelo && c.tipo !== "refaccion").map(c => c.anio))]
+  return unicos(INVENTARIO.filter(c => c.marca === marca && c.modelo === modelo && c.tipo !== "refaccion").map(c => c.anio))
     .sort((a, b) => a - b);
 }
-// Variantes de color disponibles para una combinación marca + modelo + año ya elegida
-// (cada color es una fila distinta de inventario, con su propio stock)
-function coloresDisponibles(marca, modelo, anio){
-  return INVENTARIO.filter(c => c.marca === marca && c.modelo === modelo && String(c.anio) === String(anio) && c.tipo !== "refaccion");
-}
-// Artículo exacto de inventario para marca + modelo + año (+ color opcional).
-// Ya NO exige unidades > 0: si no hay stock, igual se devuelve el artículo para
-// poder mostrar el precio y el mensaje "0 unidades disponibles".
-function buscarArticuloInventario(marca, modelo, anio, color){
-  return INVENTARIO.find(c =>
-    c.marca === marca && c.modelo === modelo && String(c.anio) === String(anio) &&
-    c.tipo !== "refaccion" && (color ? c.color === color : true)
+// Vehículos que coinciden con lo ya elegido (lo que falte por elegir no filtra)
+function vehiculosCoincidentes(b){
+  return INVENTARIO.filter(c =>
+    c.tipo !== "refaccion" &&
+    (!b.marca || c.marca === b.marca) &&
+    (!b.modelo || c.modelo === b.modelo) &&
+    (!b.anio || String(c.anio) === String(b.anio)) &&
+    (!b.color || c.color === b.color) &&
+    (!b.colorInterior || c.colorInterior === b.colorInterior) &&
+    (!b.motor || c.motor === b.motor)
   );
 }
+// Colores de una marca + modelo + año
+function coloresDisponibles(marca, modelo, anio){
+  return unicos(vehiculosCoincidentes({ marca, modelo, anio }).map(c => c.color));
+}
+// Colores interiores según lo ya elegido
+function interioresDisponibles(b){
+  return unicos(vehiculosCoincidentes({ marca: b.marca, modelo: b.modelo, anio: b.anio, color: b.color }).map(c => c.colorInterior));
+}
+// Motores según lo ya elegido
+function motoresVehiculoDisponibles(b){
+  return unicos(vehiculosCoincidentes({ marca: b.marca, modelo: b.modelo, anio: b.anio, color: b.color, colorInterior: b.colorInterior }).map(c => c.motor));
+}
+// VIN registrados de los vehículos que coinciden con lo elegido (sin nada elegido, salen todos)
+function vinsDisponibles(b){
+  return unicos(vehiculosCoincidentes({ marca: b.marca, modelo: b.modelo, anio: b.anio, color: b.color, colorInterior: b.colorInterior, motor: b.motor }).map(c => c.vin));
+}
+// Vehículo exacto elegido (null hasta completar la cascada); también regresa los que tienen 0 unidades
+function articuloDeBorrador(b){
+  if (!b.marca || !b.modelo || !b.anio || !b.color) return null;
+  if (interioresDisponibles(b).length && !b.colorInterior) return null;
+  if (motoresVehiculoDisponibles(b).length && !b.motor) return null;
+  return vehiculosCoincidentes(b)[0] || null;
+}
+// Copia al borrador todos los datos de un vehículo (se usa con el código de barras y con el VIN)
+function aplicarVehiculoAlBorrador(m){
+  borrador.marca = m.marca; borrador.modelo = m.modelo; borrador.anio = m.anio; borrador.color = m.color;
+  borrador.colorInterior = m.colorInterior || undefined; borrador.motor = m.motor || undefined;
+  borrador.vin = m.vin || undefined;
+}
+// Tras cada cambio: autoselecciona lo que solo tenga una opción (incluido el VIN) y limpia lo que ya no aplica
+function recalcularCascadaVehiculo(){
+  const b = borrador;
+  const modelos = b.marca ? modelosDisponibles(b.marca) : [];
+  if (!modelos.includes(b.modelo)) b.modelo = modelos.length === 1 ? modelos[0] : undefined;
 
-// Coincidencia de refacción según lo capturado a mano (pieza, marca, modelo, año,
-// tracción, lado, motor). Ya no se elige de una lista predefinida: se busca en el
-// catálogo real y, si nada coincide, se trata como fuera de stock (fiel a la BD).
-function buscarRefaccionCoincidencia(b){
-  const pieza = String(b.pieza || "").trim().toLowerCase();
-  const modelo = String(b.modelo || "").trim().toLowerCase();
-  const motor = String(b.motor || "").trim().toLowerCase();
-  if (!pieza && !b.marcaVehiculo && !modelo) return null;
+  const anios = (b.marca && b.modelo) ? aniosDisponibles(b.marca, b.modelo) : [];
+  if (!anios.map(String).includes(String(b.anio))) b.anio = anios.length === 1 ? anios[0] : undefined;
 
-  return REFACCIONES.find(p => {
-    if (pieza && !String(p.nombre || "").toLowerCase().includes(pieza)) return false;
-    if (b.marcaVehiculo && p.marca !== b.marcaVehiculo) return false;
-    if (modelo && !String(p.modelo || "").toLowerCase().includes(modelo)) return false;
-    if (b.anio && p.anio && String(p.anio) !== String(b.anio)) return false;
-    if (b.traccion && p.traccion && p.traccion !== b.traccion) return false;
-    if (b.lado && p.lado && p.lado !== b.lado) return false;
-    if (motor && p.motor && !String(p.motor).toLowerCase().includes(motor)) return false;
-    return true;
-  }) || null;
+  const colores = (b.marca && b.modelo && b.anio) ? coloresDisponibles(b.marca, b.modelo, b.anio) : [];
+  if (!colores.includes(b.color)) b.color = colores.length === 1 ? colores[0] : undefined;
+
+  const interiores = b.color ? interioresDisponibles(b) : [];
+  if (!interiores.includes(b.colorInterior)) b.colorInterior = interiores.length === 1 ? interiores[0] : undefined;
+
+  const motores = b.color ? motoresVehiculoDisponibles(b) : [];
+  if (!motores.includes(b.motor)) b.motor = motores.length === 1 ? motores[0] : undefined;
+
+  const vins = vinsDisponibles(b);
+  if (!vins.includes(b.vin)) b.vin = vins.length === 1 ? vins[0] : undefined;
 }
 
-/* --------------------------------------------------------------------------
-   3. NAVEGACIÓN ENTRE VISTAS
-   -------------------------------------------------------------------------- */
+// Busca un producto por su código de barras exacto dentro del catálogo que ya existe en la BD
+function buscarPorCodigoBarras(codigo, catalogo){
+  const q = String(codigo || "").trim().toUpperCase();
+  if (!q) return null;
+  return catalogo.find(c => String(c.codigo || "").trim().toUpperCase() === q) || null;
+}
+
+// Campo de código de barras: al coincidir exacto con un producto autocompleta los cajones sin perder el cursor
+function bindCodigoBarras(idInput, panel, catalogo, aplicar, onChange){
+  const inp = $(`#${idInput}`, panel);
+  if (!inp) return;
+  inp.addEventListener("input", () => {
+    borrador.codigoBarras = inp.value.trim() || undefined;
+    const match = borrador.codigoBarras ? buscarPorCodigoBarras(borrador.codigoBarras, catalogo()) : null;
+    if (!match) return;
+    const pos = inp.selectionStart;
+    aplicar(match);
+    onChange();
+    const nuevo = document.getElementById(idInput);
+    if (nuevo){ nuevo.focus(); nuevo.setSelectionRange(pos, pos); }
+  });
+  inp.addEventListener("change", () => {
+    borrador.codigoBarras = inp.value.trim() || undefined;
+    const match = borrador.codigoBarras ? buscarPorCodigoBarras(borrador.codigoBarras, catalogo()) : null;
+    if (match) aplicar(match);
+    onChange();
+  });
+}
+
+/* ===== 2c. REFACCIONES — cascada Marca → Modelo → Año → Tracción → Lado → Motor → Pieza (sin texto libre) ===== */
+
+// Marcas con refacciones registradas
+function refMarcasDisponibles(){
+  return [...new Set(REFACCIONES.map(r => r.marca).filter(Boolean))];
+}
+// Modelos compatibles de una marca
+function refModelosDisponibles(marca){
+  return [...new Set(REFACCIONES.filter(r => r.marca === marca).map(r => r.modelo).filter(Boolean))];
+}
+// Años registrados para una marca + modelo
+function refAniosDisponibles(marca, modelo){
+  return [...new Set(REFACCIONES.filter(r => r.marca === marca && r.modelo === modelo).map(r => r.anio).filter(Boolean))]
+    .sort((a, b) => a - b);
+}
+// Tracciones registradas según lo elegido
+function refTraccionesDisponibles(marca, modelo, anio){
+  return [...new Set(REFACCIONES.filter(r => r.marca === marca && r.modelo === modelo && (!anio || String(r.anio) === String(anio))).map(r => r.traccion).filter(Boolean))];
+}
+// Lados registrados según lo elegido
+function refLadosDisponibles(marca, modelo, anio, traccion){
+  return [...new Set(REFACCIONES.filter(r =>
+    r.marca === marca && r.modelo === modelo && (!anio || String(r.anio) === String(anio)) && (!traccion || r.traccion === traccion)
+  ).map(r => r.lado).filter(Boolean))];
+}
+// Motores registrados según lo elegido
+function refMotoresDisponibles(marca, modelo, anio, traccion, lado){
+  return [...new Set(REFACCIONES.filter(r =>
+    r.marca === marca && r.modelo === modelo && (!anio || String(r.anio) === String(anio)) &&
+    (!traccion || r.traccion === traccion) && (!lado || r.lado === lado)
+  ).map(r => r.motor).filter(Boolean))];
+}
+// Indica si ya se puede elegir el detalle (el año solo es obligatorio si la marca + modelo tiene años)
+function refListoParaDetalle(b){
+  if (!b.marcaVehiculo || !b.modelo) return false;
+  return !!b.anio || refAniosDisponibles(b.marcaVehiculo, b.modelo).length === 0;
+}
+// Piezas que coinciden con todo lo ya elegido (lo que falte por elegir no filtra)
+function refPiezasDisponibles(b){
+  if (!refListoParaDetalle(b)) return [];
+  return REFACCIONES.filter(r =>
+    r.marca === b.marcaVehiculo && r.modelo === b.modelo && (!b.anio || String(r.anio) === String(b.anio)) &&
+    (!b.traccion || r.traccion === b.traccion) &&
+    (!b.lado || r.lado === b.lado) &&
+    (!b.motor || r.motor === b.motor)
+  );
+}
+// Tras cada cambio: autoselecciona lo que solo tenga una opción y limpia lo que ya no aplica
+function recalcularCascadaRefaccion(){
+  const b = borrador;
+
+  const modelos = b.marcaVehiculo ? refModelosDisponibles(b.marcaVehiculo) : [];
+  if (!modelos.includes(b.modelo)) b.modelo = modelos.length === 1 ? modelos[0] : undefined;
+
+  const anios = (b.marcaVehiculo && b.modelo) ? refAniosDisponibles(b.marcaVehiculo, b.modelo) : [];
+  if (!anios.map(String).includes(String(b.anio))) b.anio = anios.length === 1 ? anios[0] : undefined;
+
+  const tracciones = refListoParaDetalle(b) ? refTraccionesDisponibles(b.marcaVehiculo, b.modelo, b.anio) : [];
+  if (!tracciones.includes(b.traccion)) b.traccion = tracciones.length === 1 ? tracciones[0] : undefined;
+
+  const lados = refListoParaDetalle(b) ? refLadosDisponibles(b.marcaVehiculo, b.modelo, b.anio, b.traccion) : [];
+  if (!lados.includes(b.lado)) b.lado = lados.length === 1 ? lados[0] : undefined;
+
+  const motores = refListoParaDetalle(b) ? refMotoresDisponibles(b.marcaVehiculo, b.modelo, b.anio, b.traccion, b.lado) : [];
+  if (!motores.includes(b.motor)) b.motor = motores.length === 1 ? motores[0] : undefined;
+
+  const piezas = refPiezasDisponibles(b);
+  if (!piezas.some(p => String(p.id) === String(b.piezaId))) b.piezaId = piezas.length === 1 ? piezas[0].id : undefined;
+}
+
+/* ===== 3. NAVEGACIÓN ENTRE VISTAS ===== */
 
 // Cambia de pestaña: resetea estados temporales de UI y vuelve a dibujar todo
 function setActiveView(view){
   currentView = view;
+  inventarioCategoria = null;   // al salir de Inventario y volver, se empieza desde el inicio (sin filtro)
   ventaResultadosActivos = false;
   modoCotizacion = false;
   modoEliminarTicket = false;
@@ -289,9 +412,7 @@ function renderMain(){
   renderShortcutsBar();
 }
 
-/* --------------------------------------------------------------------------
-   4. VENTA — formulario de registro (izquierda, 3/5)
-   -------------------------------------------------------------------------- */
+/* ===== 4. VENTA — formulario de registro (izquierda, 3/5) ===== */
 
 // Dibuja el formulario completo (toggle de tipo + campos + acciones)
 function renderPanelVenta(){
@@ -299,6 +420,35 @@ function renderPanelVenta(){
   if (!panel) return;
   panel.innerHTML = formularioVentaHTML();
   bindFormularioVenta();
+  montarVistaPrevia3D();
+}
+
+// Producto que debe verse en la vista previa 3D según la pestaña activa (null si aún no está completo)
+function productoVistaPrevia(){
+  if (formTipoArticulo === "Refaccion"){
+    const pieza = REFACCIONES.find(r => String(r.id) === String(borrador.piezaId));
+    return pieza ? { ...pieza, tipo: "refaccion" } : null;
+  }
+  return articuloDeBorrador(borrador);
+}
+
+// Cuadro HTML de la vista previa 3D (el visor de Three.js se coloca dentro al terminar de dibujar)
+function vistaPrevia3DHTML(){
+  return `
+    <div class="form-field span-2">
+      <label>Vista previa 3D</label>
+      <div class="vista3d" id="vistaPrevia3D">
+        <div class="vista3d-cargando"><span class="vista3d-spinner"></span><span>Cargando vista previa…</span></div>
+      </div>
+    </div>`;
+}
+
+// Coloca el visor 3D en su cuadro (o un aviso si la librería 3D no pudo cargarse)
+function montarVistaPrevia3D(){
+  const caja = $("#vistaPrevia3D");
+  if (!caja) return;
+  if (window.KarmaVista3D) window.KarmaVista3D.mostrar(caja, productoVistaPrevia());
+  else if (window.KARMA_VISTA3D_FALLO) caja.innerHTML = `<div class="vista3d-cargando">No se pudo cargar la librería 3D. Revisa tu conexión a internet.</div>`;
 }
 
 // Arma el HTML del formulario según el tipo elegido y si es cotización
@@ -334,44 +484,73 @@ function formularioVentaHTML(){
   `;
 }
 
-// Cascada Marca → Modelo → Año + cuadrito de unidades/precio disponibles.
-// Se reutiliza igual en el formulario de Vehículo (contado) y en el de Crédito.
+// Código de barras + cascada de vehículo + unidades/precio + vista 3D (se usa en Vehículo y en Crédito)
 function selectoresArticuloHTML(idPrefix, b){
   const marcas = marcasDisponibles();
   const modelos = b.marca ? modelosDisponibles(b.marca) : [];
   const anios = (b.marca && b.modelo) ? aniosDisponibles(b.marca, b.modelo) : [];
   const colores = (b.marca && b.modelo && b.anio) ? coloresDisponibles(b.marca, b.modelo, b.anio) : [];
-  const item = (b.marca && b.modelo && b.anio)
-    ? buscarArticuloInventario(b.marca, b.modelo, b.anio, b.color)
+  const interiores = b.color ? interioresDisponibles(b) : [];
+  const motores = b.color ? motoresVehiculoDisponibles(b) : [];
+  const item = articuloDeBorrador(b);
+  const matchCodigo = b.codigoBarras
+    ? buscarPorCodigoBarras(b.codigoBarras, INVENTARIO.filter(c => c.tipo !== "refaccion"))
     : null;
 
+  // Arma las <option> de un cajón marcando la que ya está elegida
+  const opciones = (lista, actual) => lista.map(v => `<option value="${escapeHTML(String(v))}" ${String(actual) === String(v) ? "selected" : ""}>${escapeHTML(String(v))}</option>`).join("");
+
   return `
+    <div class="form-field span-2">
+      <label>Código de barras</label>
+      <input type="text" id="sel${idPrefix}Codigo" value="${escapeHTML(b.codigoBarras || "")}" placeholder="Escanea o escribe el código de barras" autocomplete="off">
+      ${!b.codigoBarras
+        ? `<div class="form-field-info">Al confirmarlo, autocompleta todos los cajones. También puedes elegir manualmente abajo.</div>`
+        : matchCodigo
+          ? `<div class="form-field-info form-field-info--ok">Código confirmado — ${escapeHTML(matchCodigo.nombre)}</div>`
+          : `<div class="form-field-info form-field-info--error">Ese código no coincide con ningún producto registrado.</div>`
+      }
+    </div>
     <div class="form-field">
       <label>Marca</label>
       <select id="sel${idPrefix}Marca">
         <option value="">Selecciona…</option>
-        ${marcas.map(m => `<option value="${m}" ${b.marca === m ? "selected" : ""}>${m}</option>`).join("")}
+        ${opciones(marcas, b.marca)}
       </select>
     </div>
     <div class="form-field">
       <label>Modelo</label>
       <select id="sel${idPrefix}Modelo" ${!b.marca ? "disabled" : ""}>
         <option value="">${b.marca ? "Selecciona…" : "Elige una marca primero"}</option>
-        ${modelos.map(m => `<option value="${escapeHTML(m)}" ${b.modelo === m ? "selected" : ""}>${m}</option>`).join("")}
+        ${opciones(modelos, b.modelo)}
       </select>
     </div>
     <div class="form-field">
       <label>Año</label>
       <select id="sel${idPrefix}Anio" ${!b.modelo ? "disabled" : ""}>
         <option value="">${b.modelo ? "Selecciona…" : "Elige un modelo primero"}</option>
-        ${anios.map(a => `<option value="${a}" ${String(b.anio) === String(a) ? "selected" : ""}>${a}</option>`).join("")}
+        ${opciones(anios, b.anio)}
       </select>
     </div>
     <div class="form-field">
       <label>Color</label>
       <select id="sel${idPrefix}Color" ${!b.anio ? "disabled" : ""}>
         <option value="">${b.anio ? "Selecciona…" : "Elige un año primero"}</option>
-        ${colores.map(c => `<option value="${escapeHTML(c.color)}" ${b.color === c.color ? "selected" : ""}>${escapeHTML(c.color)}</option>`).join("")}
+        ${opciones(colores, b.color)}
+      </select>
+    </div>
+    <div class="form-field">
+      <label>Color interior</label>
+      <select id="sel${idPrefix}Interior" ${!interiores.length ? "disabled" : ""}>
+        <option value="">${!b.color ? "Elige un color primero" : (interiores.length ? "Selecciona…" : "Sin dato registrado")}</option>
+        ${opciones(interiores, b.colorInterior)}
+      </select>
+    </div>
+    <div class="form-field">
+      <label>Motor</label>
+      <select id="sel${idPrefix}Motor" ${!motores.length ? "disabled" : ""}>
+        <option value="">${!b.color ? "Elige un color primero" : (motores.length ? "Selecciona…" : "Sin dato registrado")}</option>
+        ${opciones(motores, b.motor)}
       </select>
     </div>
     <div class="form-field span-2">
@@ -380,48 +559,37 @@ function selectoresArticuloHTML(idPrefix, b){
              <div><span>Unidades disponibles</span><strong>${badgeStockHTML(item.unidades)}</strong></div>
              <div><span>Precio</span><strong>${formatoMoneda(item.precio)}</strong></div>
            </div>`
-        : `<div class="form-field-info">${b.anio ? "Elige un color para ver unidades y precio." : "Elige marca, modelo, año y color para ver unidades y precio."}</div>`
+        : `<div class="form-field-info">Elige marca, modelo, año, color, color interior y motor para ver unidades y precio.</div>`
       }
     </div>
+    ${item ? vistaPrevia3DHTML() : ""}
   `;
 }
 
-// Conecta los 4 selects de la cascada Marca → Modelo → Año → Color.
-// onChange() se llama después de cada cambio para recalcular lo que dependa del artículo elegido.
-// Si una combinación solo tiene un color en inventario, se preselecciona solo para no
-// obligar a un clic extra, pero sigue mostrándose el select por si hay más variantes.
+// Conecta el código de barras y los cajones de la cascada; cada cambio limpia lo dependiente y redibuja
 function bindSelectoresArticulo(idPrefix, panel, onChange){
-  const selMarca = $(`#sel${idPrefix}Marca`, panel);
-  const selModelo = $(`#sel${idPrefix}Modelo`, panel);
-  const selAnio = $(`#sel${idPrefix}Anio`, panel);
-  const selColor = $(`#sel${idPrefix}Color`, panel);
-  selMarca?.addEventListener("change", () => {
-    borrador.marca = selMarca.value || undefined;
-    borrador.modelo = undefined;
-    borrador.anio = undefined;
-    borrador.color = undefined;
-    onChange();
-  });
-  selModelo?.addEventListener("change", () => {
-    borrador.modelo = selModelo.value || undefined;
-    borrador.anio = undefined;
-    borrador.color = undefined;
-    onChange();
-  });
-  selAnio?.addEventListener("change", () => {
-    borrador.anio = selAnio.value || undefined;
-    const colores = borrador.anio ? coloresDisponibles(borrador.marca, borrador.modelo, borrador.anio) : [];
-    borrador.color = colores.length === 1 ? colores[0].color : undefined;
-    onChange();
-  });
-  selColor?.addEventListener("change", () => {
-    borrador.color = selColor.value || undefined;
-    onChange();
-  });
+  bindCodigoBarras(`sel${idPrefix}Codigo`, panel,
+    () => INVENTARIO.filter(c => c.tipo !== "refaccion"),
+    aplicarVehiculoAlBorrador,
+    onChange);
+
+  // Enlaza un cajón: guarda el valor, recalcula la cascada y redibuja
+  const enlazar = (sufijo, asignar) => {
+    $(`#sel${idPrefix}${sufijo}`, panel)?.addEventListener("change", (e) => {
+      asignar(e.target.value || undefined);
+      recalcularCascadaVehiculo();
+      onChange();
+    });
+  };
+  enlazar("Marca",    v => { borrador.marca = v; borrador.modelo = borrador.anio = borrador.color = borrador.colorInterior = borrador.motor = undefined; });
+  enlazar("Modelo",   v => { borrador.modelo = v; borrador.anio = borrador.color = borrador.colorInterior = borrador.motor = undefined; });
+  enlazar("Anio",     v => { borrador.anio = v; borrador.color = borrador.colorInterior = borrador.motor = undefined; });
+  enlazar("Color",    v => { borrador.color = v; borrador.colorInterior = borrador.motor = undefined; });
+  enlazar("Interior", v => { borrador.colorInterior = v; borrador.motor = undefined; });
+  enlazar("Motor",    v => { borrador.motor = v; });
 }
 
-// Campos para la venta de contado de un vehículo (Marca/Modelo/Año en cascada según stock;
-// el precio ya viene fijo desde el inventario, por eso este registro no lleva enganche ni abonos)
+// Campos para la venta de contado de un vehículo (el precio viene del inventario, sin enganche ni abonos)
 function camposVehiculoHTML(){
   const b = borrador;
   return `
@@ -438,10 +606,14 @@ function camposVehiculoHTML(){
   `;
 }
 
-// Campos extra requeridos para el ticket completo del vehículo (VIN, motor, color
-// interior, dirección e identificación del cliente). Se comparten entre el registro
-// de contado y el de crédito, ya que ambos generan el mismo tipo de ticket.
+// Campos extra del ticket completo: dirección, identificación y el VIN (cajita con los VIN registrados)
 function camposExtraVehiculoHTML(sufijo, b){
+  const vins = vinsDisponibles(b);
+  // Texto de cada VIN en la lista: VIN · marca modelo año
+  const textoVin = (vin) => {
+    const car = INVENTARIO.find(c => c.tipo !== "refaccion" && c.vin === vin);
+    return car ? `${vin} · ${car.marca} ${car.modelo} ${car.anio ?? ""}` : vin;
+  };
   return `
     <div class="form-field span-2"><label>Dirección del cliente</label><input type="text" id="inpDireccion${sufijo}" value="${escapeHTML(b.direccion || "")}" placeholder="Calle, número, colonia, ciudad"></div>
     <div class="form-field">
@@ -452,21 +624,168 @@ function camposExtraVehiculoHTML(sufijo, b){
         <option value="Otra" ${b.identificacionTipo === "Otra" ? "selected" : ""}>Otra</option>
       </select>
     </div>
-    <div class="form-field"><label>VIN / Número de serie</label><input type="text" id="inpVin${sufijo}" value="${escapeHTML(b.vin || "")}" placeholder="Número de identificación vehicular"></div>
-    <div class="form-field"><label>Número de motor</label><input type="text" id="inpMotorSerie${sufijo}" value="${escapeHTML(b.motorSerie || "")}" placeholder="Número de serie del motor"></div>
-    <div class="form-field"><label>Color interior</label><input type="text" id="inpColorInterior${sufijo}" value="${escapeHTML(b.colorInterior || "")}" placeholder="Ej. Negro piel"></div>
+    <div class="form-field span-2">
+      <label>VIN / Número de serie de la unidad</label>
+      <select id="selVin${sufijo}" ${!vins.length ? "disabled" : ""}>
+        <option value="">${vins.length ? "Selecciona…" : "Sin VIN registrado para esta combinación"}</option>
+        ${vins.map(v => `<option value="${escapeHTML(v)}" translate="no" ${b.vin === v ? "selected" : ""}>${escapeHTML(textoVin(v))}</option>`).join("")}
+      </select>
+      <div class="form-field-info">Al elegir un VIN se autocompletan marca, modelo, año, color, interior y motor.</div>
+    </div>
   `;
 }
 
-// Campos para la venta de una refacción: ya no se elige de una lista predefinida —
-// se captura marca, modelo, año, tracción, lado y motor, y se consulta contra el
-// catálogo real. Si nada coincide en la base de datos, se trata como fuera de stock.
+// Cajita de VIN: al elegir uno se llenan todos los cajones con el vehículo al que pertenece
+function bindSelectVin(idSelect, panel, onChange){
+  $(`#${idSelect}`, panel)?.addEventListener("change", (e) => {
+    const vin = e.target.value || undefined;
+    const car = vin ? INVENTARIO.find(c => c.tipo !== "refaccion" && c.vin === vin) : null;
+    if (car) aplicarVehiculoAlBorrador(car);
+    else borrador.vin = undefined;
+    onChange();
+  });
+}
+
+// Código de barras + cascada de refacción + existencia/precio + vista 3D de la pieza elegida
+function selectoresRefaccionHTML(b){
+  const marcas = refMarcasDisponibles();
+  const modelos = b.marcaVehiculo ? refModelosDisponibles(b.marcaVehiculo) : [];
+  const anios = (b.marcaVehiculo && b.modelo) ? refAniosDisponibles(b.marcaVehiculo, b.modelo) : [];
+  const tracciones = refListoParaDetalle(b) ? refTraccionesDisponibles(b.marcaVehiculo, b.modelo, b.anio) : [];
+  const lados = refListoParaDetalle(b) ? refLadosDisponibles(b.marcaVehiculo, b.modelo, b.anio, b.traccion) : [];
+  const motores = refListoParaDetalle(b) ? refMotoresDisponibles(b.marcaVehiculo, b.modelo, b.anio, b.traccion, b.lado) : [];
+  const piezas = refPiezasDisponibles(b);
+  const listo = refListoParaDetalle(b);
+  const match = piezas.find(p => String(p.id) === String(b.piezaId)) || null;
+  const matchCodigo = b.codigoBarras
+    ? buscarPorCodigoBarras(b.codigoBarras, REFACCIONES)
+    : null;
+
+  return `
+    <div class="form-field span-2">
+      <label>Código de barras</label>
+      <input type="text" id="selRefCodigo" value="${escapeHTML(b.codigoBarras || "")}" placeholder="Escanea o escribe el código de barras" autocomplete="off">
+      ${!b.codigoBarras
+        ? `<div class="form-field-info">Al confirmarlo, autocompleta marca, modelo, año, tracción, lado, motor y pieza.</div>`
+        : matchCodigo
+          ? `<div class="form-field-info form-field-info--ok">Código confirmado — ${escapeHTML(matchCodigo.nombre)}</div>`
+          : `<div class="form-field-info form-field-info--error">Ese código no coincide con ninguna refacción registrada.</div>`
+      }
+    </div>
+    <div class="form-field">
+      <label>Marca del vehículo</label>
+      <select id="selRefMarca">
+        <option value="">Selecciona…</option>
+        ${marcas.map(m => `<option value="${escapeHTML(m)}" ${b.marcaVehiculo === m ? "selected" : ""}>${escapeHTML(m)}</option>`).join("")}
+      </select>
+    </div>
+    <div class="form-field">
+      <label>Modelo compatible</label>
+      <select id="selRefModelo" ${!b.marcaVehiculo ? "disabled" : ""}>
+        <option value="">${b.marcaVehiculo ? "Selecciona…" : "Elige una marca primero"}</option>
+        ${modelos.map(m => `<option value="${escapeHTML(m)}" ${b.modelo === m ? "selected" : ""}>${escapeHTML(m)}</option>`).join("")}
+      </select>
+    </div>
+    <div class="form-field">
+      <label>Año</label>
+      <select id="selRefAnio" ${(!b.modelo || !anios.length) ? "disabled" : ""}>
+        <option value="">${!b.modelo ? "Elige un modelo primero" : (anios.length ? "Selecciona…" : "Sin dato registrado")}</option>
+        ${anios.map(a => `<option value="${a}" ${String(b.anio) === String(a) ? "selected" : ""}>${a}</option>`).join("")}
+      </select>
+    </div>
+    <div class="form-field">
+      <label>Tracción</label>
+      <select id="selRefTraccion" ${!tracciones.length ? "disabled" : ""}>
+        <option value="">${tracciones.length ? "Selecciona…" : (listo ? "Sin dato registrado" : "Elige un modelo primero")}</option>
+        ${tracciones.map(t => `<option value="${escapeHTML(t)}" ${b.traccion === t ? "selected" : ""}>${escapeHTML(t)}</option>`).join("")}
+      </select>
+    </div>
+    <div class="form-field">
+      <label>Lado</label>
+      <select id="selRefLado" ${!lados.length ? "disabled" : ""}>
+        <option value="">${lados.length ? "Selecciona…" : (listo ? "Sin dato registrado" : "Elige un modelo primero")}</option>
+        ${lados.map(l => `<option value="${escapeHTML(l)}" ${b.lado === l ? "selected" : ""}>${escapeHTML(l)}</option>`).join("")}
+      </select>
+    </div>
+    <div class="form-field">
+      <label>Motor</label>
+      <select id="selRefMotor" ${!motores.length ? "disabled" : ""}>
+        <option value="">${motores.length ? "Selecciona…" : (listo ? "Sin dato registrado" : "Elige un modelo primero")}</option>
+        ${motores.map(m => `<option value="${escapeHTML(m)}" ${b.motor === m ? "selected" : ""}>${escapeHTML(m)}</option>`).join("")}
+      </select>
+    </div>
+    <div class="form-field span-2">
+      <label>Pieza / refacción</label>
+      <select id="selRefPieza" ${!piezas.length ? "disabled" : ""}>
+        <option value="">${piezas.length ? "Selecciona…" : "No hay piezas registradas para esta combinación"}</option>
+        ${piezas.map(p => `<option value="${p.id}" ${String(b.piezaId) === String(p.id) ? "selected" : ""}>${escapeHTML(p.nombre)}</option>`).join("")}
+      </select>
+    </div>
+    <div class="form-field span-2">
+      ${match
+        ? `<div class="stock-price-box">
+             <div><span>Unidades disponibles</span><strong>${badgeStockHTML(match.unidades)}</strong></div>
+             <div><span>Precio</span><strong>${formatoMoneda(match.precio)}</strong></div>
+           </div>`
+        : `<div class="form-field-info">Elige marca, modelo, año y pieza para ver existencia y precio.</div>`
+      }
+    </div>
+    ${match ? vistaPrevia3DHTML() : ""}
+  `;
+}
+
+// Conecta el código de barras y los 7 cajones de Refacción; cada cambio limpia lo dependiente y redibuja
+function bindSelectoresRefaccion(panel, onChange){
+  // Limpiadores: borran los niveles que dependen del cajón que cambió
+  const limpiarDesdeMarca = () => { borrador.modelo = borrador.anio = borrador.traccion = borrador.lado = borrador.motor = borrador.piezaId = undefined; };
+  const limpiarDesdeModelo = () => { borrador.anio = borrador.traccion = borrador.lado = borrador.motor = borrador.piezaId = undefined; };
+  const limpiarDesdeAnio = () => { borrador.traccion = borrador.lado = borrador.motor = borrador.piezaId = undefined; };
+  const limpiarDesdeTraccion = () => { borrador.lado = borrador.motor = borrador.piezaId = undefined; };
+  const limpiarDesdeLado = () => { borrador.motor = borrador.piezaId = undefined; };
+  const limpiarDesdeMotor = () => { borrador.piezaId = undefined; };
+
+  // Código de barras: autocompleta toda la cascada de la refacción
+  bindCodigoBarras("selRefCodigo", panel,
+    () => REFACCIONES,
+    (m) => {
+      borrador.marcaVehiculo = m.marca; borrador.modelo = m.modelo; borrador.anio = m.anio;
+      borrador.traccion = m.traccion; borrador.lado = m.lado; borrador.motor = m.motor; borrador.piezaId = m.id;
+    },
+    onChange);
+  // Cada cajón guarda su valor, limpia lo que depende de él, recalcula y redibuja
+  $("#selRefMarca", panel)?.addEventListener("change", (e) => {
+    borrador.marcaVehiculo = e.target.value || undefined; limpiarDesdeMarca();
+    recalcularCascadaRefaccion(); onChange();
+  });
+  $("#selRefModelo", panel)?.addEventListener("change", (e) => {
+    borrador.modelo = e.target.value || undefined; limpiarDesdeModelo();
+    recalcularCascadaRefaccion(); onChange();
+  });
+  $("#selRefAnio", panel)?.addEventListener("change", (e) => {
+    borrador.anio = e.target.value || undefined; limpiarDesdeAnio();
+    recalcularCascadaRefaccion(); onChange();
+  });
+  $("#selRefTraccion", panel)?.addEventListener("change", (e) => {
+    borrador.traccion = e.target.value || undefined; limpiarDesdeTraccion();
+    recalcularCascadaRefaccion(); onChange();
+  });
+  $("#selRefLado", panel)?.addEventListener("change", (e) => {
+    borrador.lado = e.target.value || undefined; limpiarDesdeLado();
+    recalcularCascadaRefaccion(); onChange();
+  });
+  $("#selRefMotor", panel)?.addEventListener("change", (e) => {
+    borrador.motor = e.target.value || undefined; limpiarDesdeMotor();
+    recalcularCascadaRefaccion(); onChange();
+  });
+  $("#selRefPieza", panel)?.addEventListener("change", (e) => {
+    borrador.piezaId = e.target.value || undefined;
+    onChange();
+  });
+}
+
+// Campos para la venta de una refacción: cliente + la cascada completa de arriba
 function camposRefaccionHTML(){
   const b = borrador;
-  const marcas = [...new Set(INVENTARIO.map(c => c.marca).filter(Boolean))];
-  const algoCapturado = !!(b.pieza || b.marcaVehiculo || b.modelo);
-  const match = algoCapturado ? buscarRefaccionCoincidencia(b) : null;
-
   return `
     <div class="form-grid">
       <div class="form-field span-2"><label>Cliente</label><input type="text" id="inpClienteP" value="${escapeHTML(b.cliente || "")}" placeholder="Nombre completo"></div>
@@ -474,67 +793,19 @@ function camposRefaccionHTML(){
       <div class="form-field"><label>Email</label><input type="email" id="inpEmailP" value="${escapeHTML(b.email || "")}" placeholder="correo@ejemplo.com"></div>
       <div class="form-field"><label>Celular</label><input type="tel" id="inpCelularP" value="${escapeHTML(b.celular || "")}" placeholder="10 dígitos"></div>
 
-      <div class="form-field span-2"><label>Refacción / pieza</label><input type="text" id="inpPiezaP" value="${escapeHTML(b.pieza || "")}" placeholder="Ej. Balata delantera"></div>
-
-      <div class="form-field">
-        <label>Marca del vehículo</label>
-        <select id="selRefMarca">
-          <option value="">Selecciona…</option>
-          ${marcas.map(m => `<option value="${m}" ${b.marcaVehiculo === m ? "selected" : ""}>${m}</option>`).join("")}
-        </select>
-      </div>
-      <div class="form-field"><label>Modelo compatible</label><input type="text" id="inpRefModelo" value="${escapeHTML(b.modelo || "")}" placeholder='Ej. 911 (2019)'></div>
-      <div class="form-field"><label>Año</label><input type="number" id="inpRefAnio" value="${escapeHTML(b.anio || "")}" placeholder="Ej. 2019"></div>
-      <div class="form-field">
-        <label>Tracción</label>
-        <select id="selRefTraccion">
-          <option value="">Selecciona…</option>
-          ${["Delantera", "Trasera", "4x4", "AWD"].map(t => `<option value="${t}" ${b.traccion === t ? "selected" : ""}>${t}</option>`).join("")}
-        </select>
-      </div>
-      <div class="form-field">
-        <label>Lado</label>
-        <select id="selRefLado">
-          <option value="">Selecciona…</option>
-          ${["Izquierdo", "Derecho"].map(l => `<option value="${l}" ${b.lado === l ? "selected" : ""}>${l}</option>`).join("")}
-        </select>
-      </div>
-      <div class="form-field"><label>Motor</label><input type="text" id="inpRefMotor" value="${escapeHTML(b.motor || "")}" placeholder="Ej. 3.0L Boxer Biturbo"></div>
-
-      <div class="form-field span-2">
-        <button type="button" class="btn btn-outline" id="btnConsultarRefaccion">Consultar existencia</button>
-      </div>
-
-      <div class="form-field span-2">
-        ${!algoCapturado
-          ? `<div class="form-field-info">Ingresa al menos la pieza, la marca o el modelo compatible para consultar existencia y precio.</div>`
-          : match
-            ? `<div class="stock-price-box">
-                 <div><span>Unidades disponibles</span><strong>${badgeStockHTML(match.unidades)}</strong></div>
-                 <div><span>Precio</span><strong>${formatoMoneda(match.precio)}</strong></div>
-                 <div><span>Compatibilidad</span><strong>${escapeHTML(match.compatibilidad || match.modelo || "—")}</strong></div>
-               </div>`
-            : `<div class="stock-price-box">
-                 <div><span>Unidades disponibles</span><strong>${badgeStockHTML(0)}</strong></div>
-                 <div><span>Precio</span><strong>—</strong></div>
-                 <div><span>Nota</span><strong>No se encontró en el catálogo</strong></div>
-               </div>`
-        }
-      </div>
+      ${selectoresRefaccionHTML(b)}
     </div>
   `;
 }
 
-// Campos del módulo de Crédito: plazos, enganche, tasa e info de intereses.
-// Es el único lugar donde se financia — y SOLO para vehículos: las refacciones
-// siempre se venden de contado, por eso ya no hay un tipo de producto que elegir aquí.
+// Campos del módulo de Crédito (solo vehículos): enganche, plazo, tasa y simulación de intereses
 function camposCreditoHTML(){
   const b = borrador;
   const tasa = b.tasaAnual ?? TASA_INTERES_ANUAL_DEFAULT;
   const plazo = Number(b.plazoMeses) || null;
   const engancheTipo = b.engancheTipo || "monto";
 
-  const itemInventario = (b.marca && b.modelo && b.anio) ? buscarArticuloInventario(b.marca, b.modelo, b.anio, b.color) : null;
+  const itemInventario = articuloDeBorrador(b);
   const precio = Number(itemInventario?.precio || 0);
   const engancheMonto = engancheTipo === "pct"
     ? precio * (Number(b.engancheValor || 0) / 100)
@@ -659,54 +930,39 @@ function bindFormularioVenta(){
     $("#btnCancelarArticulo", panel)?.addEventListener("click", limpiarFormulario);
   }
 
-  // Campos de Vehículo (contado): datos de cliente + extras del ticket se guardan en
-  // `borrador` en cada pulsación SIN re-dibujar el panel, para que no se borren al
-  // elegir marca/modelo/año/color (antes se perdían porque no existía este binding).
+  // Vehículo (contado): textos del cliente sin redibujar + cascada + cajita de VIN
   if (formTipoArticulo === "Vehiculo"){
     bindTexto("inpCliente", "cliente", panel);
     bindTexto("inpRfcIne", "rfcIne", panel);
     bindTexto("inpEmail", "email", panel);
     bindTexto("inpCelular", "celular", panel);
     bindTexto("inpDireccion", "direccion", panel);
-    bindTexto("inpVin", "vin", panel);
-    bindTexto("inpMotorSerie", "motorSerie", panel);
-    bindTexto("inpColorInterior", "colorInterior", panel);
     $("#selIdentificacion", panel)?.addEventListener("change", (e) => { borrador.identificacionTipo = e.target.value; });
     bindSelectoresArticulo("Vehiculo", panel, renderPanelVenta);
+    bindSelectVin("selVin", panel, renderPanelVenta);
   }
 
-  // Campos de Refacción: se guardan en `borrador` igual que arriba; los selects
-  // (marca/tracción/lado) sí vuelven a dibujar para refrescar el mensaje de existencia.
+  // Refacción: textos del cliente + cascada completa de la pieza
   if (formTipoArticulo === "Refaccion"){
     bindTexto("inpClienteP", "cliente", panel);
     bindTexto("inpRfcIneP", "rfcIne", panel);
     bindTexto("inpEmailP", "email", panel);
     bindTexto("inpCelularP", "celular", panel);
-    bindTexto("inpPiezaP", "pieza", panel);
-    bindTexto("inpRefModelo", "modelo", panel);
-    bindTexto("inpRefAnio", "anio", panel);
-    bindTexto("inpRefMotor", "motor", panel);
-    $("#selRefMarca", panel)?.addEventListener("change", (e) => { borrador.marcaVehiculo = e.target.value || undefined; renderPanelVenta(); });
-    $("#selRefTraccion", panel)?.addEventListener("change", (e) => { borrador.traccion = e.target.value || undefined; renderPanelVenta(); });
-    $("#selRefLado", panel)?.addEventListener("change", (e) => { borrador.lado = e.target.value || undefined; renderPanelVenta(); });
-    $("#btnConsultarRefaccion", panel)?.addEventListener("click", renderPanelVenta);
+    bindSelectoresRefaccion(panel, renderPanelVenta);
   }
 
-  // Todos los controles propios del módulo de Crédito — SOLO vehículos, ya no hay
-  // opción de refacción aquí (cualquier cambio vuelve a dibujar para recalcular
-  // comisión / interés / mensualidad en vivo).
+  // Crédito (solo vehículos): mismos cajones + VIN, y cada cambio recalcula comisión, interés y mensualidad
   if (formTipoArticulo === "Credito"){
     bindTexto("inpClienteC", "cliente", panel);
     bindTexto("inpRfcIneC", "rfcIne", panel);
     bindTexto("inpEmailC", "email", panel);
     bindTexto("inpCelularC", "celular", panel);
     bindTexto("inpDireccionC", "direccion", panel);
-    bindTexto("inpVinC", "vin", panel);
-    bindTexto("inpMotorSerieC", "motorSerie", panel);
-    bindTexto("inpColorInteriorC", "colorInterior", panel);
     $("#selIdentificacionC", panel)?.addEventListener("change", (e) => { borrador.identificacionTipo = e.target.value; });
     bindSelectoresArticulo("Credito", panel, renderPanelVenta);
+    bindSelectVin("selVinC", panel, renderPanelVenta);
 
+    // Enganche por porcentaje o monto, plazo, tasa y tabla de amortización
     $$("[data-eng-tipo]", panel).forEach(btn => btn.addEventListener("click", () => {
       borrador.engancheTipo = btn.dataset.engTipo;
       renderPanelVenta();
@@ -733,6 +989,17 @@ function limpiarFormulario(){
   renderPanelVenta();
 }
 
+// Confirma en el servidor que el VIN elegido es el registrado en productos para ese vehículo
+async function validarVinEnServidor(productoId, vin){
+  if (!vin) throw new Error("Elige el VIN de la unidad que vas a vender.");
+  const r = await apiFetch("validar_vin", { method: "POST", body: JSON.stringify({ producto_id: productoId, vin }) });
+  return r.vin || vin;
+}
+
+// Mensajes de validación del vehículo
+const MSG_COMPLETAR_VEHICULO = "Completa marca, modelo, año, color, color interior y motor antes de guardar el vehículo.";
+const MSG_SIN_STOCK_VEHICULO = "0 unidades disponibles: este vehículo no tiene existencia en el inventario de la sucursal.";
+
 // Lee el formulario, arma el artículo y lo agrega al ticket
 async function guardarArticulo(){
   try {
@@ -745,8 +1012,11 @@ async function guardarArticulo(){
       celular = $("#inpCelularP").value.trim();
       rfcIne = $("#inpRfcIneP").value.trim();
 
-      item = buscarRefaccionCoincidencia(borrador);
-      if (!item || item.unidades < 1){
+      item = REFACCIONES.find(r => String(r.id) === String(borrador.piezaId));
+      if (!item){
+        throw new Error("Elige la pieza en el último cajón antes de guardarla.");
+      }
+      if (item.unidades < 1){
         throw new Error("0 unidades disponibles: esta refacción no tiene existencia en el inventario de la sucursal.");
       }
 
@@ -759,12 +1029,12 @@ async function guardarArticulo(){
         precioTotal: Number(item.precio || 0),
         cantidad: 1,
         cliente, email, celular, rfcIne,
-        pieza: borrador.pieza || item.nombre,
-        marcaVehiculo: borrador.marcaVehiculo || item.marca,
-        modeloCompatible: borrador.modelo || item.modelo,
-        traccion: borrador.traccion || item.traccion,
-        lado: borrador.lado || item.lado,
-        motor: borrador.motor || item.motor
+        pieza: item.nombre,
+        marcaVehiculo: item.marca,
+        modeloCompatible: item.modelo,
+        traccion: item.traccion,
+        lado: item.lado,
+        motor: item.motor
       });
     } else if (formTipoArticulo === "Credito"){
       cliente = $("#inpClienteC").value.trim();
@@ -773,13 +1043,16 @@ async function guardarArticulo(){
       celular = $("#inpCelularC").value.trim();
       rfcIne = $("#inpRfcIneC").value.trim();
 
-      item = buscarArticuloInventario(borrador.marca, borrador.modelo, borrador.anio, borrador.color);
-      if (!item || item.unidades < 1){
-        throw new Error("0 unidades disponibles: este vehículo no tiene existencia en el inventario de la sucursal.");
-      }
+      item = articuloDeBorrador(borrador);
+      if (!item) throw new Error(MSG_COMPLETAR_VEHICULO);
+      if (item.unidades < 1) throw new Error(MSG_SIN_STOCK_VEHICULO);
+
       const precio = Number(item.precio || 0);
       const plazo = Number(borrador.plazoMeses || 0);
       if (!precio || !plazo) return;
+
+      // El VIN elegido en la cajita debe coincidir con el registrado para este vehículo
+      const vin = await validarVinEnServidor(item.id, $("#selVinC").value.trim());
 
       productoId = item.id;
 
@@ -794,8 +1067,8 @@ async function guardarArticulo(){
         id: ticketIdCounter, productoId, esVehiculo: true, esCredito: true,
         articulo: `${item.marca} ${item.modelo} (${item.anio})`,
         marca: item.marca, modelo: item.modelo, anio: item.anio,
-        colorExterior: item.color, colorInterior: borrador.colorInterior || "",
-        vin: borrador.vin || "", motorSerie: borrador.motorSerie || "", motorTipo: item.motor,
+        colorExterior: item.color, colorInterior: item.colorInterior || "",
+        vin, motorTipo: item.motor,
         direccion: borrador.direccion || "", identificacionTipo: borrador.identificacionTipo || "INE",
         abonos: `${plazo} meses`, enganche: engancheMonto, montoAbono: calculo.mensualidad,
         tasaAnual: tasa, comisionApertura: calculo.comisionApertura, montoInteres: calculo.montoInteres,
@@ -808,18 +1081,18 @@ async function guardarArticulo(){
       email = $("#inpEmail").value.trim();
       celular = $("#inpCelular").value.trim();
       rfcIne = $("#inpRfcIne").value.trim();
-      item = buscarArticuloInventario(borrador.marca, borrador.modelo, borrador.anio, borrador.color);
-      if (!item || item.unidades < 1){
-        throw new Error("0 unidades disponibles: este vehículo no tiene existencia en el inventario de la sucursal.");
-      }
+      item = articuloDeBorrador(borrador);
+      if (!item) throw new Error(MSG_COMPLETAR_VEHICULO);
+      if (item.unidades < 1) throw new Error(MSG_SIN_STOCK_VEHICULO);
+      const vin = await validarVinEnServidor(item.id, $("#selVin").value.trim());
 
       ticketIdCounter += 1;
       ticketItems.push({
         id: ticketIdCounter, productoId: item.id, esVehiculo: true,
         articulo: `${item.marca} ${item.modelo} (${item.anio})`,
         marca: item.marca, modelo: item.modelo, anio: item.anio,
-        colorExterior: item.color, colorInterior: borrador.colorInterior || "",
-        vin: borrador.vin || "", motorSerie: borrador.motorSerie || "", motorTipo: item.motor,
+        colorExterior: item.color, colorInterior: item.colorInterior || "",
+        vin, motorTipo: item.motor,
         direccion: borrador.direccion || "", identificacionTipo: borrador.identificacionTipo || "INE",
         precioTotal: item.precio, cantidad: 1, cliente, email, celular, rfcIne
       });
@@ -831,7 +1104,7 @@ async function guardarArticulo(){
     renderPanelLateral();
     renderShortcutsBar();
   } catch (error) {
-    alert(error.message);
+    avisar(error.message);
   }
 }
 
@@ -839,11 +1112,11 @@ async function guardarArticulo(){
 function calcularCotizacion(){
   let total = 0, detalle = "";
   if (formTipoArticulo === "Refaccion"){
-    const item = buscarRefaccionCoincidencia(borrador);
+    const item = REFACCIONES.find(r => String(r.id) === String(borrador.piezaId));
     total = item?.precio || 0;
-    detalle = borrador.pieza || (item ? item.nombre : "");
+    detalle = item ? item.nombre : "";
   } else if (formTipoArticulo === "Credito"){
-    const item = buscarArticuloInventario(borrador.marca, borrador.modelo, borrador.anio, borrador.color);
+    const item = articuloDeBorrador(borrador);
     const precio = Number(item?.precio || 0);
     const plazo = Number(borrador.plazoMeses || 0);
     if (precio && plazo){
@@ -854,7 +1127,7 @@ function calcularCotizacion(){
     }
     detalle = item ? `${item.marca} ${item.modelo}` : "";
   } else {
-    const item = buscarArticuloInventario(borrador.marca, borrador.modelo, borrador.anio, borrador.color);
+    const item = articuloDeBorrador(borrador);
     total = item?.precio || 0;
     detalle = item ? `${item.marca} ${item.modelo}` : "";
   }
@@ -865,9 +1138,7 @@ function calcularCotizacion(){
     </div>`;
 }
 
-/* --------------------------------------------------------------------------
-   5. VENTA — ticket de la venta actual (derecha, 2/5)
-   -------------------------------------------------------------------------- */
+/* ===== 5. VENTA — ticket de la venta actual (derecha, 2/5) ===== */
 
 // Suma el precio total de todos los artículos del ticket
 function calcularTotalTicket(){
@@ -933,9 +1204,7 @@ function quitarItemTicket(id){
   renderShortcutsBar();
 }
 
-/* --------------------------------------------------------------------------
-   6. VENTA — accesos rápidos F3–F6
-   -------------------------------------------------------------------------- */
+/* ===== 6. VENTA — accesos rápidos F3–F6 ===== */
 
 // Dibuja (o esconde) la barra de accesos rápidos según la vista actual
 function renderShortcutsBar(){
@@ -957,16 +1226,13 @@ function renderShortcutsBar(){
   $("#btnF6").addEventListener("click", cancelarTicket);
 }
 
-// F3 — concreta la venta: aquí es el único lugar donde el número de ticket avanza,
-// ya que solo debe subir cuando de verdad se cierra una venta (no al cancelar)
+// F3 — abre el cobro; el número de ticket solo avanza cuando la venta se concreta de verdad
 function concretarVenta(){
   if (!ticketItems.length || pagoEstado) return;
   abrirModalPago();
 }
 
-/* --------------------------------------------------------------------------
-   7b. COBRO — selección de método, efectivo y confirmación
-   -------------------------------------------------------------------------- */
+/* ===== 7b. COBRO — selección de método, efectivo y confirmación ===== */
 
 /* Abre la ventana de selección de método de pago */
 function abrirModalPago(){
@@ -986,7 +1252,7 @@ function abrirModalPago(){
   `;
   abrirModal("#modalPago");
   $("#btnPagoEfectivo").addEventListener("click", abrirCobroEfectivo);
-  $("#btnPagoTarjeta").addEventListener("click", () => alert("La terminal de tarjeta todavía no está conectada."));
+  $("#btnPagoTarjeta").addEventListener("click", () => avisar("La terminal de tarjeta todavía no está conectada."));
   $("#btnCancelarPago").addEventListener("click", cerrarPago);
 }
 
@@ -1041,6 +1307,7 @@ async function confirmarVentaDB(){
   if (boton) boton.disabled = true;
 
   const primerVehiculo = ticketItems.find(it => it.esVehiculo) || {};
+  const itemCredito = ticketItems.find(it => it.esCredito) || null;
 
   try {
     const data = await apiFetch("crear_venta", {
@@ -1060,7 +1327,7 @@ async function confirmarVentaDB(){
           es_credito: !!it.esCredito,
           articulo: it.articulo,
           vin: it.vin || "",
-          motor_serie: it.motorSerie || "",
+          motor_serie: it.motorTipo || "",
           color_interior: it.colorInterior || ""
         })),
         cliente: ticketItems[0]?.cliente || "",
@@ -1068,7 +1335,15 @@ async function confirmarVentaDB(){
         celular: ticketItems[0]?.celular || "",
         rfc_ine: ticketItems[0]?.rfcIne || "",
         direccion: primerVehiculo.direccion || "",
-        identificacion_tipo: primerVehiculo.identificacionTipo || ""
+        identificacion_tipo: primerVehiculo.identificacionTipo || "",
+        // Solo las ventas a crédito mandan estos datos: únicamente esos clientes se guardan en `clientes`
+        credito: itemCredito ? {
+          articulo: itemCredito.articulo,
+          enganche: Number(itemCredito.enganche || 0),
+          monto_abono: Number(itemCredito.montoAbono || 0),
+          total_adeudo: Number(itemCredito.montoFinal || 0),
+          abonos_totales: parseInt(itemCredito.abonos, 10) || 0
+        } : null
       })
     });
 
@@ -1100,7 +1375,7 @@ async function confirmarVentaDB(){
     mostrarTicketCliente();
   } catch (error) {
     if (boton) boton.disabled = false;
-    alert(error.message);
+    avisar(error.message);
   }
 }
 
@@ -1149,39 +1424,50 @@ function cerrarTicketCliente(){
 function abrirFormularioEnvioTicket(){
   $("#ticketClienteContent").innerHTML = `
     <div class="payment-title">Enviar ticket</div>
-    <p class="payment-subtitle">Ingresa los datos del cliente para preparar el envío del PDF.</p>
+    <p class="payment-subtitle">Ingresa los datos del cliente: se le enviará el ticket completo en PDF a su correo.</p>
     <div class="form-grid">
       <div class="form-field span-2"><label>Nombre completo</label><input id="envioNombre" type="text" value="${escapeHTML(ticketCerrado?.items?.[0]?.cliente || "")}"></div>
       <div class="form-field"><label>Celular</label><input id="envioCelular" type="tel" value="${escapeHTML(ticketCerrado?.items?.[0]?.celular || "")}"></div>
       <div class="form-field"><label>Email</label><input id="envioEmail" type="email" value="${escapeHTML(ticketCerrado?.items?.[0]?.email || "")}"></div>
     </div>
+    <div id="envioMensaje" class="cash-message"></div>
     <div class="payment-actions">
       <button class="btn btn-ghost" id="btnVolverTicket" type="button">Volver</button>
       <button class="btn btn-primary" id="btnEnviarEmail" type="button">Enviar PDF</button>
     </div>
   `;
   $("#btnVolverTicket").addEventListener("click", mostrarTicketCliente);
-  $("#btnEnviarEmail").addEventListener("click", enviarTicketPorGmail);
+  $("#btnEnviarEmail").addEventListener("click", enviarTicketPorCorreo);
 }
 
-/* Prepara el envío del PDF mediante el endpoint de Gmail */
-async function enviarTicketPorGmail(){
+/* API BREVO: pide a api.php (acción enviar_ticket) que genere el PDF y lo mande al correo escrito */
+async function enviarTicketPorCorreo(){
   const nombre = $("#envioNombre").value.trim();
   const celular = $("#envioCelular").value.trim();
   const email = $("#envioEmail").value.trim();
-  if (!nombre || !celular || !email) return;
+  const mensaje = $("#envioMensaje");
+  // Nombre y correo válido son obligatorios; el celular es opcional
+  if (!nombre || !/^\S+@\S+\.\S+$/.test(email)){
+    mensaje.textContent = "Escribe el nombre y un correo electrónico válido.";
+    mensaje.classList.add("is-error");
+    return;
+  }
   const btn = $("#btnEnviarEmail");
   btn.disabled = true;
+  btn.textContent = "Enviando…";
+  mensaje.textContent = "";
   try {
     const data = await apiFetch("enviar_ticket", {
       method: "POST",
       body: JSON.stringify({ nombre, celular, email, ticket: ticketCerrado })
     });
-    alert(data.message || "Ticket enviado.");
+    avisar(data.message || "Ticket enviado.");
     cerrarTicketCliente();
   } catch (error) {
     btn.disabled = false;
-    alert(error.message);
+    btn.textContent = "Enviar PDF";
+    mensaje.textContent = error.message;
+    mensaje.classList.add("is-error");
   }
 }
 
@@ -1210,9 +1496,7 @@ function cancelarTicket(){
   renderShortcutsBar();
 }
 
-/* --------------------------------------------------------------------------
-   7. VENTA — búsqueda de artículos (autocompletado → resultados)
-   -------------------------------------------------------------------------- */
+/* ===== 7. VENTA — búsqueda de artículos (autocompletado → resultados) ===== */
 
 // Muestra sugerencias mientras el cajero escribe en el buscador
 function renderVentaSugerencias(q){
@@ -1319,9 +1603,8 @@ function setupTilt(card){
   card.addEventListener("mouseleave", () => { inner.style.transform = "rotateX(0deg) rotateY(0deg) scale(1)"; });
 }
 
-/* --------------------------------------------------------------------------
-   8. MODAL — ficha completa de inventario (consulta desde resultados)
-   -------------------------------------------------------------------------- */
+/* ===== 8. MODAL — ficha completa de inventario (consulta desde resultados) ===== */
+// Abre la ficha completa de un artículo con botón para iniciar su venta
 function abrirFichaInventario(id){
   const car = INVENTARIO.find(c => c.id === id);
   if (!car) return;
@@ -1359,9 +1642,8 @@ function abrirFichaInventario(id){
   abrirModal("#modalInventario");
 }
 
-/* --------------------------------------------------------------------------
-   9. INVENTARIO — filtro por categoría (o búsqueda global)
-   -------------------------------------------------------------------------- */
+/* ===== 9. INVENTARIO — filtro por categoría (o búsqueda global) ===== */
+// Dibuja Inventario: búsqueda global, selector de categoría o tabla de la categoría elegida
 function renderInventario(){
   const panel = $("#panelFull");
   const q = searchQuery.trim().toLowerCase();
@@ -1414,11 +1696,11 @@ function tablaInventarioHTML(items){
   return `
     <div class="table-wrap">
       <table class="data-table">
-        <thead><tr><th>Código</th><th>Marca</th><th>Modelo</th><th>Color</th><th>Motor</th><th>Unidades</th><th>Precio</th></tr></thead>
+        <thead><tr><th>Código</th><th>Marca</th><th>Modelo</th><th>Año</th><th>Color</th><th>Motor</th><th>Unidades</th><th>Precio</th></tr></thead>
         <tbody>
           ${items.map(c => `
             <tr>
-              <td>${c.codigo}</td><td>${c.marca}</td><td>${c.modelo}</td><td>${c.color}</td>
+              <td>${c.codigo}</td><td>${c.marca}</td><td>${c.modelo}</td><td>${c.anio ?? "—"}</td><td>${c.color}</td>
               <td>${c.motor}</td><td>${badgeStockHTML(c.unidades)}</td><td>${formatoMoneda(c.precio)}</td>
             </tr>`).join("")}
         </tbody>
@@ -1435,9 +1717,8 @@ function tileTipoHTML(tipo){
     </button>`;
 }
 
-/* --------------------------------------------------------------------------
-   10. CLIENTES — tabla + detalle (con abonos pagados / totales)
-   -------------------------------------------------------------------------- */
+/* ===== 10. CLIENTES — tabla + detalle (con abonos pagados / totales) ===== */
+// Dibuja la tabla de clientes con crédito (filtrada por el buscador)
 function renderClientes(){
   const panel = $("#panelFull");
   const q = searchQuery.trim().toLowerCase();
@@ -1467,6 +1748,7 @@ function renderClientes(){
 function abrirDetalleCliente(id){
   const c = CLIENTES.find(x => x.id === id);
   if (!c) return;
+  // Arma un dato de solo lectura (etiqueta + valor)
   const campo = (label, valor) => `
     <div class="form-field"><label>${label}</label>
       <div class="venta-field-sub" style="font-size:14px; color:var(--text-main); font-weight:600;">${valor}</div>
@@ -1489,9 +1771,8 @@ function abrirDetalleCliente(id){
   abrirModal("#modalCliente");
 }
 
-/* --------------------------------------------------------------------------
-   11. GARANTÍAS — tabla + formulario de pantalla completa
-   -------------------------------------------------------------------------- */
+/* ===== 11. GARANTÍAS — tabla + formulario de pantalla completa ===== */
+// Dibuja la tabla de garantías vigentes (filtrada por el buscador)
 function renderGarantias(){
   const panel = $("#panelFull");
   const q = searchQuery.trim().toLowerCase();
@@ -1581,11 +1862,11 @@ function abrirGarantiaForm(id){
 
   $("#garantiaOverlay").classList.add("is-open");
 }
+// Cierra el formulario de garantía
 function cerrarGarantiaForm(){ $("#garantiaOverlay").classList.remove("is-open"); }
 
-/* --------------------------------------------------------------------------
-   12. WEB ORDERS — filtro por marca + búsqueda por nombre + "continuar"
-   -------------------------------------------------------------------------- */
+/* ===== 12. WEB ORDERS — filtro por marca + búsqueda por nombre + "continuar" ===== */
+// Dibuja las órdenes web separadas en vehículos y refacciones
 function renderWebOrders(){
   const panel = $("#panelFull");
   const categorias = ["Todo", "Porsche", "Audi", "Ducati", "Refacciones"];
@@ -1682,34 +1963,60 @@ function continuarDesdeWebOrder(orden){
   } else {
     formTipoArticulo = "Refaccion";
     borrador = {
-      cliente: orden.nombre, pieza: orden.pieza, modelo: orden.modelo,
-      marcaVehiculo: orden.marcaVehiculo, motor: orden.motor,
-      traccion: orden.traccion, lado: orden.lado
+      cliente: orden.nombre,
+      marcaVehiculo: orden.marcaVehiculo, modelo: orden.modelo,
+      traccion: orden.traccion, lado: orden.lado, motor: orden.motor
     };
+    recalcularCascadaRefaccion();
+    if (!borrador.piezaId && orden.pieza){
+      const candidato = refPiezasDisponibles(borrador).find(p => p.nombre.toLowerCase() === String(orden.pieza).toLowerCase());
+      if (candidato) borrador.piezaId = candidato.id;
+    }
   }
   setActiveView("venta");
 }
 
-/* --------------------------------------------------------------------------
-   13. MODALES GENÉRICOS
-   -------------------------------------------------------------------------- */
+/* ===== 13. MODALES GENÉRICOS ===== */
+// Abre un modal por su selector
 function abrirModal(sel){ $(sel).classList.add("is-open"); }
+// Cierra todos los modales abiertos
 function cerrarModales(){ $$(".modal-overlay").forEach(m => m.classList.remove("is-open")); }
 
-/* --------------------------------------------------------------------------
-   14. RELOJ / FECHA EN VIVO
-   -------------------------------------------------------------------------- */
+/* ===== 14. RELOJ / FECHA EN VIVO ===== */
+// Actualiza fecha y hora de la barra inferior con el formato del idioma activo
 function actualizarReloj(){
   const ahora = new Date();
-  $("#statusFecha").textContent = ahora.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
-  $("#statusHora").textContent = ahora.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const locale = window.KarmaTraductor?.getIdioma() === "en" ? "en-US" : "es-MX";
+  $("#statusFecha").textContent = ahora.toLocaleDateString(locale, { day: "2-digit", month: "short", year: "numeric" });
+  $("#statusHora").textContent = ahora.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
-/* --------------------------------------------------------------------------
-   15. MODO OSCURO / IDIOMA / SESIÓN
-   -------------------------------------------------------------------------- */
+/* ===== 15. MODO OSCURO / IDIOMA / SESIÓN ===== */
+// Cambia entre modo claro y modo oscuro
 function toggleTema(){ document.body.classList.toggle("dark"); }
-function toggleIdioma(){ $$(".lang-op").forEach(el => el.classList.toggle("is-active")); }
+
+// API DE TRADUCCIÓN: el botón ES / EN pide al traductor universal que cambie el idioma de toda la página
+function toggleIdioma(){
+  if (!window.KarmaTraductor) return avisar("El traductor no está disponible.");
+  window.KarmaTraductor.alternar();
+}
+
+// Marca en el botón ES / EN el idioma que está activo
+function marcarIdiomaActivo(){
+  const idioma = window.KarmaTraductor?.getIdioma() || "es";
+  $$(".lang-op").forEach(el => el.classList.toggle("is-active", el.dataset.lang === idioma));
+  actualizarReloj();
+}
+
+// Evita repetir el aviso de error de traducción
+let avisoTraduccionMostrado = false;
+// Si la traducción falla (sin clave o sin internet) avisa una sola vez y regresa a español
+function alFallarTraduccion(e){
+  if (avisoTraduccionMostrado) return;
+  avisoTraduccionMostrado = true;
+  alert(`No se pudo traducir la página: ${e.detail?.mensaje || "error desconocido"}`);
+  window.KarmaTraductor?.setIdioma("es");
+}
 
 /* Cierra la sesión visualmente; la autenticación completa se integrará después */
 async function cerrarSesion(){
@@ -1725,9 +2032,8 @@ async function cerrarSesion(){
   delete btn.dataset.busy;
 }
 
-/* --------------------------------------------------------------------------
-   16. BUSCADOR — enrutado según la vista activa
-   -------------------------------------------------------------------------- */
+/* ===== 16. BUSCADOR — enrutado según la vista activa ===== */
+// Manda el texto del buscador a la vista que esté activa
 function onSearchInput(){
   searchQuery = $("#searchInput").value.trim();
 
@@ -1745,9 +2051,8 @@ function onSearchInput(){
   }
 }
 
-/* --------------------------------------------------------------------------
-   17. EVENTOS GLOBALES + ARRANQUE
-   -------------------------------------------------------------------------- */
+/* ===== 17. EVENTOS GLOBALES + ARRANQUE ===== */
+// Conecta los eventos que no dependen de ninguna vista (logo, tema, idioma, atajos, modales)
 function initEventosGlobales(){
   $("#statusCajero").textContent = CAJERO_ACTUAL;
 
@@ -1758,6 +2063,15 @@ function initEventosGlobales(){
   $("#themeToggle").addEventListener("click", toggleTema);
   $("#langToggle").addEventListener("click", toggleIdioma);
   $("#logoutBtn").addEventListener("click", cerrarSesion);
+
+  // Traductor: refleja el idioma activo y avisa si la API de traducción falla
+  document.addEventListener("karma:idioma", marcarIdiomaActivo);
+  document.addEventListener("karma:traduccion-error", alFallarTraduccion);
+  marcarIdiomaActivo();
+
+  // Vista previa 3D: se monta cuando el módulo de Three.js termina de cargar (o avisa si falló)
+  window.addEventListener("karma:vista3d-lista", montarVistaPrevia3D);
+  window.addEventListener("karma:vista3d-fallo", montarVistaPrevia3D);
 
   // Cambio de pestaña
   $("#subNav").addEventListener("click", (e) => {

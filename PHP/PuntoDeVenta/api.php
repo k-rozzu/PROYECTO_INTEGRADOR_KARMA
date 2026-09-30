@@ -5,6 +5,7 @@ declare(strict_types=1);
 header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/conexion.php';
 
+// Lee el cuerpo JSON de la petición y lo regresa como arreglo
 function jsonInput(): array {
     $raw = file_get_contents('php://input');
     if (!$raw) return [];
@@ -12,26 +13,33 @@ function jsonInput(): array {
     return is_array($data) ? $data : [];
 }
 
+// Responde con éxito (ok = true) y termina la ejecución
 function ok(array $data = []): never {
     echo json_encode(['ok' => true] + $data, JSON_UNESCAPED_UNICODE);
     exit;
 }
 
+// Responde con un error y su código HTTP, y termina la ejecución
 function fail(string $message, int $status = 400): never {
     http_response_code($status);
     echo json_encode(['ok' => false, 'error' => $message], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
+// Redondea un monto a 2 decimales
 function money(float $value): float {
     return round($value, 2);
 }
 
+// Enrutador: ejecuta la acción pedida en ?action=
 try {
     $action = $_GET['action'] ?? '';
     switch ($action) {
         case 'bootstrap':
             bootstrap();
+            break;
+        case 'validar_vin':
+            validarVin();
             break;
         case 'crear_venta':
             crearVenta();
@@ -49,9 +57,18 @@ try {
     fail($e->getMessage(), 500);
 }
 
+// Ruta del modelo 3D de un producto: la guardada en la BD o, si existe el archivo, assets/models/{id}.glb
+function rutaModelo3D(int $id, ?string $rutaBD): ?string {
+    if ($rutaBD !== null && trim($rutaBD) !== '') return trim($rutaBD);
+    $relativa = "assets/models/{$id}.glb";
+    return is_file(dirname(__DIR__, 2) . '/' . $relativa) ? $relativa : null;
+}
+
 /* Carga todos los catálogos que utiliza la interfaz */
 function bootstrap(): never {
     $pdo = db();
+
+    // Primer cajero activo (la sesión real se integrará después)
     $usuario = $pdo->query("
         SELECT u.id_usuario, u.nombre, u.correo, u.id_sucursal
         FROM usuarios u
@@ -65,6 +82,7 @@ function bootstrap(): never {
         fail('No existe un usuario activo con rol Cajero. Ejecuta Database/datos_prueba_cajero.txt.', 503);
     }
 
+    // Sucursal activa del cajero
     $sucursalStmt = $pdo->prepare("
         SELECT id_sucursal, nombre, direccion, telefono
         FROM sucursales
@@ -78,6 +96,7 @@ function bootstrap(): never {
         fail('El cajero no tiene una sucursal activa asignada.', 503);
     }
 
+    // Caja 01 de esa sucursal
     $cajaStmt = $pdo->prepare("
         SELECT id_caja, numero_caja, estado
         FROM cajas
@@ -91,48 +110,57 @@ function bootstrap(): never {
         fail('No existe la caja 01 para la sucursal del cajero.', 503);
     }
 
-    /* Inventario completo de la sucursal del cajero — fiel a la base de datos:
-       se listan TODOS los productos, aunque no tengan existencia (unidades=0),
-       para poder mostrar el aviso de "0 unidades disponibles". */
-$inventario = $pdo->prepare("
-    SELECT
-        p.id_producto AS id,
-        p.codigo_barras AS codigo,
-        p.marca,
-        p.modelo,
-        p.anio,
-        p.tipo,
-        p.color,
-        p.color_hex AS colorHex,
-        p.motor,
-        p.cilindraje,
-        p.detalle,
-        p.nombre,
-        p.compatibilidad,
-        p.traccion,
-        p.lado,
-        p.precio_base AS precio,
-        COALESCE(i.stock_actual, 0) AS unidades,
-        c.nombre_categoria AS categoria
-    FROM productos p
-    JOIN categorias c ON c.id_categoria = p.id_categoria
-    LEFT JOIN inventarios i ON i.id_producto = p.id_producto AND i.id_sucursal = ?
-    ORDER BY p.marca, p.modelo, p.anio, p.nombre
-");
+    // Número del siguiente ticket = ventas de HOY en esta caja + 1 (así no se reinicia al recargar)
+    $siguienteTicketStmt = $pdo->prepare("
+        SELECT COUNT(*) FROM ventas WHERE id_caja = ? AND DATE(fecha_hora) = CURDATE()
+    ");
+    $siguienteTicketStmt->execute([$caja['id_caja']]);
+    $siguienteTicket = (int)$siguienteTicketStmt->fetchColumn() + 1;
 
-$inventario->execute([$sucursal['id_sucursal']]);
-$inventarioRows = $inventario->fetchAll(PDO::FETCH_ASSOC);
+    // Inventario completo de la sucursal (incluye productos con 0 unidades, su VIN, color y modelo 3D)
+    $inventario = $pdo->prepare("
+        SELECT
+            p.id_producto AS id,
+            p.codigo_barras AS codigo,
+            p.vin,
+            p.marca,
+            p.modelo,
+            p.anio,
+            p.tipo,
+            p.color,
+            p.color_hex AS colorHex,
+            p.color_interior AS colorInterior,
+            p.motor,
+            p.cilindraje,
+            p.detalle,
+            p.nombre,
+            p.compatibilidad,
+            p.traccion,
+            p.lado,
+            p.modelo_3d AS modelo3d,
+            p.precio_base AS precio,
+            COALESCE(i.stock_actual, 0) AS unidades,
+            c.nombre_categoria AS categoria
+        FROM productos p
+        JOIN categorias c ON c.id_categoria = p.id_categoria
+        LEFT JOIN inventarios i ON i.id_producto = p.id_producto AND i.id_sucursal = ?
+        ORDER BY p.marca, p.modelo, p.anio, p.nombre
+    ");
+    $inventario->execute([$sucursal['id_sucursal']]);
+    $inventarioRows = $inventario->fetchAll(PDO::FETCH_ASSOC);
 
+    // Clientes con crédito activo
     $clientes = $pdo->query("
         SELECT id_cliente AS id, nombre, rfc_ine AS rfcIne, celular, email,
                direccion, identificacion_tipo AS identificacionTipo,
                articulo, total_adeudo AS totalAdeudo, monto_abono AS montoAbono,
                enganche, abonos_pagados AS abonosPagados, abonos_totales AS abonosTotales
         FROM clientes
-        WHERE estado='activo'
+        WHERE estado='activo' AND abonos_totales > 0
         ORDER BY nombre
     ")->fetchAll();
 
+    // Garantías registradas, de la más lejana a la más próxima a vencer
     $garantias = $pdo->query("
         SELECT
             g.id_garantia AS id,
@@ -147,6 +175,10 @@ $inventarioRows = $inventario->fetchAll(PDO::FETCH_ASSOC);
         ORDER BY g.fecha_expiracion DESC
     ")->fetchAll();
 
+    // Órdenes web: vacías a propósito hasta que el sitio web mande datos reales
+    $webOrders = [];
+    // Consulta lista para reactivarse cuando existan órdenes reales
+    /*
     $webOrders = $pdo->query("
         SELECT
             w.id_orden AS id,
@@ -175,11 +207,15 @@ $inventarioRows = $inventario->fetchAll(PDO::FETCH_ASSOC);
         WHERE w.estado='pendiente'
         ORDER BY w.fecha_visita, w.id_orden
     ")->fetchAll();
+    */
 
+    // Refacciones de la sucursal (con su acabado/color y modelo 3D para la vista previa)
     $refStmt = $pdo->prepare("
         SELECT
             p.id_producto AS id,
+            p.codigo_barras AS codigo,
             p.nombre,
+            p.tipo,
             p.precio_base AS precio,
             p.marca,
             p.modelo,
@@ -188,6 +224,9 @@ $inventarioRows = $inventario->fetchAll(PDO::FETCH_ASSOC);
             p.traccion,
             p.lado,
             p.compatibilidad,
+            p.color,
+            p.color_hex AS colorHex,
+            p.modelo_3d AS modelo3d,
             COALESCE(i.stock_actual, 0) AS unidades
         FROM productos p
         JOIN categorias c ON c.id_categoria=p.id_categoria
@@ -198,15 +237,18 @@ $inventarioRows = $inventario->fetchAll(PDO::FETCH_ASSOC);
     $refStmt->execute([$sucursal['id_sucursal']]);
     $refacciones = $refStmt->fetchAll();
 
+    // Respuesta final con los tipos numéricos corregidos
     ok([
         'usuario' => $usuario,
         'sucursal' => $sucursal,
         'caja' => $caja,
+        'siguiente_ticket' => $siguienteTicket,
         'inventario' => array_map(function(array $r) {
             $r['id'] = (int)$r['id'];
             $r['anio'] = $r['anio'] !== null ? (int)$r['anio'] : null;
             $r['precio'] = (float)$r['precio'];
             $r['unidades'] = (int)$r['unidades'];
+            $r['modelo3d'] = rutaModelo3D($r['id'], $r['modelo3d']);
             return $r;
         }, $inventarioRows),
         'clientes' => $clientes,
@@ -216,10 +258,57 @@ $inventarioRows = $inventario->fetchAll(PDO::FETCH_ASSOC);
             $r['id'] = (int)$r['id'];
             $r['precio'] = (float)$r['precio'];
             $r['unidades'] = (int)$r['unidades'];
+            $r['modelo3d'] = rutaModelo3D($r['id'], $r['modelo3d']);
             return $r;
         }, $refacciones)
     ]);
 }
+
+
+/* Normaliza un VIN para compararlo (mayúsculas, sin espacios alrededor) */
+function normalizarVin(string $vin): string {
+    return strtoupper(trim($vin));
+}
+
+/* Revisa que el VIN elegido coincida con productos.vin del vehículo (las refacciones no llevan VIN) */
+function verificarVinProducto(array $producto, string $vinCapturado): string {
+    if (($producto['tipo'] ?? '') === 'refaccion') {
+        return '';
+    }
+    $vinCapturado = normalizarVin($vinCapturado);
+    if ($vinCapturado === '') {
+        throw new RuntimeException('Elige el VIN de la unidad que vas a vender.');
+    }
+    $vinRegistrado = normalizarVin((string)($producto['vin'] ?? ''));
+    if ($vinRegistrado === '') {
+        throw new RuntimeException("{$producto['nombre']} todavía no tiene un VIN registrado en la base de datos, por lo que no se puede vender.");
+    }
+    if ($vinCapturado !== $vinRegistrado) {
+        throw new RuntimeException('El VIN elegido no coincide con el VIN registrado de este vehículo. Verifícalo antes de continuar.');
+    }
+    return $vinRegistrado;
+}
+
+/* Validación en vivo del VIN desde la interfaz (antes de agregar el vehículo al ticket) */
+function validarVin(): never {
+    $data = jsonInput();
+    $productoId = (int)($data['producto_id'] ?? 0);
+    $vin = (string)($data['vin'] ?? '');
+    if (!$productoId) fail('Producto no válido.');
+
+    $stmt = db()->prepare("SELECT nombre, tipo, vin FROM productos WHERE id_producto=?");
+    $stmt->execute([$productoId]);
+    $producto = $stmt->fetch();
+    if (!$producto) fail('El producto ya no existe en el catálogo.');
+
+    try {
+        $vinOficial = verificarVinProducto($producto, $vin);
+    } catch (RuntimeException $e) {
+        fail($e->getMessage());
+    }
+    ok(['valido' => true, 'vin' => $vinOficial !== '' ? $vinOficial : normalizarVin($vin)]);
+}
+
 
 /* Registra una venta y descuenta existencias dentro de una transacción */
 function crearVenta(): never {
@@ -246,6 +335,7 @@ function crearVenta(): never {
         $total = 0.0;
         $productosVenta = [];
 
+        // Revisa cada artículo: existe, VIN correcto y stock suficiente
         foreach ($items as $item) {
             $productoId = (int)($item['producto_id'] ?? 0);
             $cantidad = max(1, (int)($item['cantidad'] ?? 1));
@@ -255,18 +345,19 @@ function crearVenta(): never {
 
             if (!$productoId) throw new RuntimeException('Hay un artículo sin producto asociado.');
 
-            $stmt = $pdo->prepare("
-                SELECT p.id_producto, p.precio_base, p.nombre, i.stock_actual
-                FROM productos p
-                JOIN inventarios i ON i.id_producto=p.id_producto
-                WHERE p.id_producto=? AND i.id_sucursal=?
-                FOR UPDATE
-            ");
-            $stmt->execute([$productoId, $idSucursal]);
-            $producto = $stmt->fetch();
-
+            $prodStmt = $pdo->prepare("SELECT id_producto, precio_base, nombre, tipo, vin FROM productos WHERE id_producto=? FOR UPDATE");
+            $prodStmt->execute([$productoId]);
+            $producto = $prodStmt->fetch();
             if (!$producto) throw new RuntimeException('Uno de los productos ya no está disponible.');
-            if ((int)$producto['stock_actual'] < $cantidad) {
+
+            // Vehículos: el VIN se vuelve a revisar aquí por seguridad (las refacciones no llevan VIN)
+            $vinOficial = verificarVinProducto($producto, $vin);
+            if ($vinOficial !== '') $vin = $vinOficial;
+
+            $stockStmt = $pdo->prepare("SELECT stock_actual FROM inventarios WHERE id_producto=? AND id_sucursal=? FOR UPDATE");
+            $stockStmt->execute([$productoId, $idSucursal]);
+            $stockActual = $stockStmt->fetchColumn();
+            if ($stockActual === false || (int)$stockActual < $cantidad) {
                 throw new RuntimeException("Stock insuficiente para {$producto['nombre']}.");
             }
 
@@ -291,6 +382,7 @@ function crearVenta(): never {
             throw new RuntimeException('El dinero recibido es menor al total de la venta.');
         }
 
+        // El cambio se recalcula en el servidor para no confiar en el navegador
         $cambioCalculado = money($recibido - $total);
         if (abs($cambio - $cambioCalculado) > 0.01) {
             $cambio = $cambioCalculado;
@@ -304,28 +396,57 @@ function crearVenta(): never {
         $direccion = trim((string)($data['direccion'] ?? ''));
         $identificacionTipo = trim((string)($data['identificacion_tipo'] ?? ''));
 
-        if ($nombre) {
+        // Solo los clientes con CRÉDITO se guardan en la tabla clientes (las de contado quedan solo en ventas)
+        $credito = (isset($data['credito']) && is_array($data['credito'])) ? $data['credito'] : null;
+
+        if ($credito && $nombre) {
+            $articuloCredito = trim((string)($credito['articulo'] ?? ''));
+            $totalAdeudo = money((float)($credito['total_adeudo'] ?? 0));
+            $montoAbono = money((float)($credito['monto_abono'] ?? 0));
+            $engancheCredito = money((float)($credito['enganche'] ?? 0));
+            $abonosTotales = max(0, (int)($credito['abonos_totales'] ?? 0));
+
+            // Busca al cliente por email y, si no, por nombre + celular
             if ($email) {
                 $find = $pdo->prepare("SELECT id_cliente FROM clientes WHERE email=? LIMIT 1");
                 $find->execute([$email]);
                 $clienteId = $find->fetchColumn() ?: null;
             }
+            if (!$clienteId) {
+                $find = $pdo->prepare("SELECT id_cliente FROM clientes WHERE nombre=? AND COALESCE(celular,'')=? LIMIT 1");
+                $find->execute([$nombre, $celular]);
+                $clienteId = $find->fetchColumn() ?: null;
+            }
 
             if ($clienteId) {
+                // Cliente existente: un crédito nuevo reemplaza al anterior (un crédito por cliente)
                 $up = $pdo->prepare("
                     UPDATE clientes
                     SET nombre=?, rfc_ine=?, celular=?, email=?,
                         direccion=COALESCE(NULLIF(?,''), direccion),
-                        identificacion_tipo=COALESCE(NULLIF(?,''), identificacion_tipo)
+                        identificacion_tipo=COALESCE(NULLIF(?,''), identificacion_tipo),
+                        articulo=?, total_adeudo=?, monto_abono=?, enganche=?,
+                        abonos_pagados=0, abonos_totales=?, estado='activo'
                     WHERE id_cliente=?
                 ");
-                $up->execute([$nombre, $rfcIne ?: null, $celular ?: null, $email ?: null, $direccion, $identificacionTipo, $clienteId]);
+                $up->execute([
+                    $nombre, $rfcIne ?: null, $celular ?: null, $email ?: null,
+                    $direccion, $identificacionTipo,
+                    $articuloCredito ?: null, $totalAdeudo, $montoAbono, $engancheCredito, $abonosTotales,
+                    $clienteId
+                ]);
             } else {
+                // Cliente nuevo con crédito
                 $ins = $pdo->prepare("
-                    INSERT INTO clientes(nombre,rfc_ine,celular,email,direccion,identificacion_tipo,estado)
-                    VALUES(?,?,?,?,?,?, 'activo')
+                    INSERT INTO clientes
+                    (nombre,rfc_ine,celular,email,direccion,identificacion_tipo,articulo,total_adeudo,monto_abono,enganche,abonos_pagados,abonos_totales,estado)
+                    VALUES(?,?,?,?,?,?,?,?,?,?,0,?, 'activo')
                 ");
-                $ins->execute([$nombre, $rfcIne ?: null, $celular ?: null, $email ?: null, $direccion ?: null, $identificacionTipo ?: null]);
+                $ins->execute([
+                    $nombre, $rfcIne ?: null, $celular ?: null, $email ?: null,
+                    $direccion ?: null, $identificacionTipo ?: null,
+                    $articuloCredito ?: null, $totalAdeudo, $montoAbono, $engancheCredito, $abonosTotales
+                ]);
                 $clienteId = (int)$pdo->lastInsertId();
             }
         }
@@ -333,6 +454,7 @@ function crearVenta(): never {
         $metodo = $pdo->query("SELECT id_metodo_pago FROM metodos_pago WHERE nombre_metodo='Efectivo' LIMIT 1")->fetchColumn();
         if (!$metodo) throw new RuntimeException('No existe el método de pago Efectivo.');
 
+        // Encabezado de la venta
         $venta = $pdo->prepare("
             INSERT INTO ventas
             (id_sucursal,id_usuario,id_caja,id_metodo_pago,id_cliente,subtotal,total,efectivo_recibido,cambio,ticket_numero)
@@ -344,6 +466,7 @@ function crearVenta(): never {
         ]);
         $ventaId = (int)$pdo->lastInsertId();
 
+        // Detalle de cada artículo + descuento de existencias
         $detalle = $pdo->prepare("
             INSERT INTO detalle_ventas
             (id_venta,id_producto,cantidad,precio_unitario,subtotal_linea,vin,motor_serie,color_interior)
@@ -378,7 +501,7 @@ function crearVenta(): never {
     }
 }
 
-/* Envía el ticket mediante Gmail cuando se instalen las dependencias */
+/* API BREVO: valida los datos y envía el ticket en PDF al correo del cliente (lógica en correo.php) */
 function enviarTicket(): never {
     $data = jsonInput();
     $email = trim((string)($data['email'] ?? ''));
@@ -393,7 +516,7 @@ function enviarTicket(): never {
     }
 
     require_once __DIR__ . '/correo.php';
-    $resultado = enviarTicketGmail($email, $nombre, $ticket);
+    $resultado = enviarTicketPorCorreo($email, $nombre, $ticket);
 
     if (!$resultado['ok']) {
         fail($resultado['message'], 503);

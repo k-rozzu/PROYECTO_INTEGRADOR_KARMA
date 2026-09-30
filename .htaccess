@@ -1,0 +1,9 @@
+# Bloquea el acceso desde el navegador a los archivos con claves (.env, .env.example) en cualquier carpeta del proyecto
+<FilesMatch "^\.env">
+    Require all denied
+</FilesMatch>
+
+# Bloquea la descarga directa de los archivos de Composer
+<FilesMatch "^composer\.(json|lock)$">
+    Require all denied
+</FilesMatch>

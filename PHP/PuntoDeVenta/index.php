@@ -9,15 +9,21 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../../CSS/PuntoDeVenta/style.css">
+<!-- Three.js (vista previa 3D) desde el CDN jsDelivr, versión fija para que no cambie sola -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+  }
+}
+</script>
 </head>
 <body>
 
 <div class="app">
 
-  <!-- ============================================================
-       BARRA SUPERIOR: logo (clic = ir a Venta), idioma, tema,
-       cerrar sesión, sucursal, buscador y sub-navegación de vistas
-       ============================================================ -->
+  <!-- ===== BARRA SUPERIOR: logo (clic = ir a Venta), idioma, tema, sesión, sucursal, buscador y pestañas ===== -->
   <header class="topbar">
 
     <!-- Fila superior: marca + acciones de cuenta -->
@@ -75,31 +81,22 @@
     </div>
   </header>
 
-  <!-- ============================================================
-       CONTENIDO PRINCIPAL: se reconstruye por completo en cada
-       cambio de vista dentro de script.js (ver renderMain)
-       ============================================================ -->
+  <!-- ===== CONTENIDO PRINCIPAL: script.js lo reconstruye en cada cambio de vista (renderMain) ===== -->
   <main class="main" id="main"></main>
 
-  <!-- ============================================================
-       BARRA DE ACCESOS RÁPIDOS (F3–F6): solo visible en la vista
-       de Venta, mientras no se esté mostrando el resultado de una
-       búsqueda de artículos
-       ============================================================ -->
+  <!-- ===== ACCESOS RÁPIDOS F3–F6: solo en la vista Venta (se ocultan al mostrar resultados de búsqueda) ===== -->
   <div class="shortcuts-bar" id="shortcutsBar" hidden></div>
 
-  <!-- ============================================================
-       BARRA INFERIOR: fecha, hora, asesor y número de caja
-       ============================================================ -->
+  <!-- ===== BARRA INFERIOR: fecha, hora, asesor y número de caja (fecha y hora no se mandan a traducir) ===== -->
   <footer class="statusbar">
     <div class="status-item">
       <span class="status-label">Fecha</span>
-      <span class="status-value" id="statusFecha">—</span>
+      <span class="status-value" id="statusFecha" translate="no">—</span>
     </div>
     <div class="status-divider"></div>
     <div class="status-item">
       <span class="status-label">Hora</span>
-      <span class="status-value" id="statusHora">—</span>
+      <span class="status-value" id="statusHora" translate="no">—</span>
     </div>
     <div class="status-divider"></div>
     <div class="status-item">
@@ -115,10 +112,7 @@
 
 </div>
 
-<!-- ============================================================
-     MODAL: ficha completa de un artículo de inventario
-     (se abre desde los resultados de búsqueda en Venta)
-     ============================================================ -->
+<!-- ===== MODAL: ficha completa de un artículo de inventario (se abre desde los resultados de búsqueda) ===== -->
 <div class="modal-overlay" id="modalInventario">
   <div class="modal-card modal-card--wide">
     <button class="modal-close" data-close-modal>
@@ -128,9 +122,7 @@
   </div>
 </div>
 
-<!-- ============================================================
-     MODAL: detalle completo de un cliente con crédito activo
-     ============================================================ -->
+<!-- ===== MODAL: detalle completo de un cliente con crédito activo ===== -->
 <div class="modal-overlay" id="modalCliente">
   <div class="modal-card modal-card--wide">
     <button class="modal-close" data-close-modal>
@@ -140,9 +132,7 @@
   </div>
 </div>
 
-<!-- ============================================================
-     PANTALLA COMPLETA: formulario para aplicar una garantía
-     ============================================================ -->
+<!-- ===== PANTALLA COMPLETA: formulario para aplicar una garantía ===== -->
 <div class="fullscreen-overlay" id="garantiaOverlay">
   <div class="fullscreen-overlay-inner" id="garantiaOverlayContent"></div>
 </div>
@@ -165,6 +155,11 @@
   </div>
 </div>
 
+<!-- API DE TRADUCCIÓN: traductor universal (debe ir antes de script.js) -->
+<script src="../../JavaScript/Traduccion/traductor.js"></script>
+<!-- Lógica principal del punto de venta -->
 <script src="../../JavaScript/PuntoDeVenta/script.js"></script>
+<!-- Vista previa 3D (módulo de Three.js); si no carga, script.js muestra un aviso -->
+<script type="module" src="../../JavaScript/PuntoDeVenta/vista_previa_3d.js" onerror="window.KARMA_VISTA3D_FALLO = true; window.dispatchEvent(new Event('karma:vista3d-fallo'));"></script>
 </body>
 </html>
