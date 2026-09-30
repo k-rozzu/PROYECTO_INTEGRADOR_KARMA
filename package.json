@@ -1,0 +1,31 @@
+{
+  "name": "karma_3e",
+  "version": "1.0.0",
+  "description": "Desarrollar una aplicación web de punto de venta e inventario multi-sede que permita a\r una empresa administrar de manera centralizada sus diferentes sucursales, controlar el\r inventario de productos y registrar las ventas realizadas en cada una de ellas.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/k-rozzu/KARMA_3E.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/k-rozzu/KARMA_3E/issues"
+  },
+  "homepage": "https://github.com/k-rozzu/KARMA_3E#readme",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "mysql2": "^3.24.4"
+  }
+}
