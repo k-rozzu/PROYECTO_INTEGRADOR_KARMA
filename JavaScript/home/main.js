@@ -17,10 +17,43 @@ async function loadComponent(file, elementId) {
 
 // Inicializar la aplicación cuando el DOM esté listo
 document.addEventListener('DOMContentLoaded', async () => {
+
+    // === 0. VERIFICAR SESIÓN Y OBTENER DATOS ===
+    const userDataString = localStorage.getItem("karma_user");
+    if (!userDataString) {
+        // Si alguien intenta entrar sin iniciar sesión, lo regresa al login
+        window.location.href = "/index.html"; 
+        return;
+    }
+    const usuario = JSON.parse(userDataString);
+
     // 1. Cargar Navbar y Footer y esperar a que terminen
     await loadComponent('navbar.html', 'navbar-placeholder');
     await loadComponent('footer.html', 'footer-placeholder');
 
+    // === MOSTRAR NOMBRE Y ROL DINÁMICO ===
+    // En el footer
+    const footerUserInfo = document.getElementById('footer-user-info');
+    if (footerUserInfo) {
+        footerUserInfo.textContent = `${usuario.rol}: ${usuario.nombre}`;
+    }
+    
+    // En el menú desplegable del perfil (Navbar)
+    const navUserName = document.getElementById('nav-user-name');
+    if (navUserName) {
+        navUserName.textContent = usuario.nombre;
+    }
+
+    // === LÓGICA DE CERRAR SESIÓN ===
+    // Buscamos el botón al que le acabamos de poner el ID en navbar.html
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            localStorage.removeItem("karma_user"); // Borra la sesión
+            window.location.href = "/index.html";  // Redirige al login
+        });
+    }
     // 2. Inicializar lógica del Menú de Perfil
     const profileContainer = document.getElementById('profileDropdown');
     const profileTrigger = document.getElementById('profileTrigger');
@@ -50,7 +83,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (event.key === 'Escape') closeProfileMenu();
     });
 
-    // 3. Inicializar lógica del Reloj del Footer (solo si existe el elemento)
+    // 3. Inicializar lógica del Reloj del Footer
     const timeElement = document.getElementById('current-time');
     if (timeElement) {
         function updateClock() {
