@@ -1,8 +1,4 @@
-/* ==========================================================================
-   KARMA · Punto de Venta — Panel de Cajero
-   Paleta: blanco / negro (base) — rojo / azul marino (acentos, solo botones)
-   Tipografía: Fraunces (display) + Inter (UI / datos)
-   ========================================================================== */
+/* ===== KARMA · Punto de Venta — Paleta: azul marino + blanco (claro) / rojo oscuro + negro (oscuro) · Fraunces + Inter ===== */
 
 /* Variables de color, tipografía y layout — modo claro (por defecto) */
 :root{
@@ -91,9 +87,7 @@ input, select, textarea{ font-family:inherit; }
   overflow:hidden;
 }
 
-/* ==========================================================================
-   TOPBAR — franja negra superior (logo, cuenta, buscador, pestañas)
-   ========================================================================== */
+/* ===== TOPBAR — franja negra superior (logo, cuenta, buscador, pestañas) ===== */
 .topbar{
   flex:0 0 auto;
   background:var(--black);
@@ -264,10 +258,7 @@ body.dark .logout-btn{ color:#E1495F; }
   color:var(--text-on-dark);
 }
 
-/* ==========================================================================
-   LAYOUT PRINCIPAL — Venta usa split 3/5 (form) · 2/5 (ticket);
-   las demás vistas usan un solo panel a todo lo ancho
-   ========================================================================== */
+/* ===== LAYOUT PRINCIPAL — Venta: formulario 3/5 + ticket 2/5; demás vistas: un solo panel ===== */
 .main{
   flex:1 1 auto;
   display:flex;
@@ -315,9 +306,7 @@ body.dark .logout-btn{ color:#E1495F; }
 }
 .panel-heading h2{ font-family:var(--font-display); font-size:23px; font-weight:500; margin:0; }
 
-/* ==========================================================================
-   TOGGLE DE TIPO DE ARTÍCULO Y CAMPOS DEL FORMULARIO DE VENTA
-   ========================================================================== */
+/* ===== TOGGLE DE TIPO DE ARTÍCULO Y CAMPOS DEL FORMULARIO DE VENTA ===== */
 
 /* Banner que indica que se está cotizando (no se guardará en el ticket) */
 .cotizacion-banner{
@@ -368,8 +357,7 @@ body.dark .cotizacion-banner{
 }
 .tipo-chip button:hover{ color:var(--text-main); }
 
-/* Los 4 cuadros de categoría de Inventario — liquid glass compacto y coloreado
-   (azul en modo claro, rojo en modo oscuro), en vez de las cajas grandes de antes */
+/* Los 4 cuadros de categoría de Inventario: liquid glass compacto (azul en claro, rojo en oscuro) */
 .tipo-tiles{
   display:grid; grid-template-columns:repeat(4, 1fr);
   gap:10px; margin-bottom:28px;
@@ -427,6 +415,10 @@ body.dark .tipo-tile:hover{ background:rgba(158,27,46,.18); }
 .form-field textarea{ resize:vertical; min-height:76px; font-family:inherit; }
 .form-field input:focus, .form-field select:focus, .form-field textarea:focus{ border-color:var(--text-muted); }
 .form-field-info{ font-size:11.5px; color:var(--text-faint); margin-top:2px; }
+.form-field-info--ok{ color:var(--navy); font-weight:600; }
+.form-field-info--error{ color:var(--red); font-weight:600; }
+body.dark .form-field-info--ok{ color:#8FB4FF; }
+body.dark .form-field-info--error{ color:#E2697A; }
 
 /* Segmentado de dos opciones (Vehículo/Refacción, Monto/— del enganche) */
 .segmented{ display:flex; gap:8px; }
@@ -488,9 +480,7 @@ body.dark .credito-info-box{ background:rgba(158,27,46,.1); border-color:rgba(15
 .credito-info-box span{ display:block; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-faint); margin-bottom:4px; }
 .credito-info-box strong{ font-family:var(--font-display); font-size:17px; font-weight:600; color:var(--text-main); }
 
-/* ==========================================================================
-   BOTONES GENERALES — liquid glass azul marino (claro) / rojo (oscuro)
-   ========================================================================== */
+/* ===== BOTONES GENERALES — liquid glass azul marino (claro) / rojo (oscuro) ===== */
 .btn{
   font-size:13px; font-weight:600;
   padding:11px 20px;
@@ -502,26 +492,28 @@ body.dark .credito-info-box{ background:rgba(158,27,46,.1); border-color:rgba(15
 }
 .btn:active{ transform:scale(.97); }
 
+/* Botón principal relleno (azul marino / rojo oscuro) */
 .btn-primary{ background:rgba(16,33,63,.9); border-color:rgba(16,33,63,1); color:#fff; }
 .btn-primary:hover{ background:rgba(16,33,63,1); }
 body.dark .btn-primary{ background:rgba(158,27,46,.85); border-color:rgba(158,27,46,1); }
 body.dark .btn-primary:hover{ background:rgba(158,27,46,1); }
 
+/* Botón con contorno */
 .btn-outline{ background:rgba(16,33,63,.10); border-color:rgba(16,33,63,.38); color:var(--navy); }
 .btn-outline:hover{ background:rgba(16,33,63,.18); border-color:rgba(16,33,63,.6); }
 body.dark .btn-outline{ background:rgba(158,27,46,.14); border-color:rgba(158,27,46,.45); color:#E2697A; }
 body.dark .btn-outline:hover{ background:rgba(158,27,46,.22); border-color:rgba(158,27,46,.65); }
 
+/* Botón discreto sin borde */
 .btn-ghost{ background:rgba(16,33,63,.05); color:var(--navy); }
 .btn-ghost:hover{ background:rgba(16,33,63,.12); }
 body.dark .btn-ghost{ background:rgba(158,27,46,.08); color:#E2697A; }
 body.dark .btn-ghost:hover{ background:rgba(158,27,46,.16); }
 
+/* Botón deshabilitado */
 .btn:disabled{ opacity:.4; cursor:not-allowed; }
 
-/* ==========================================================================
-   TICKET DE VENTA (columna derecha de la vista Venta)
-   ========================================================================== */
+/* ===== TICKET DE VENTA (columna derecha de la vista Venta) ===== */
 
 /* Encabezado "Ticket #01" ya usa .panel-heading; aquí el contenido del ticket */
 .ticket-list{
@@ -610,9 +602,7 @@ body.dark .ticket-total{ background:rgba(158,27,46,.9); }
 .ticket-total .label{ font-size:12px; text-transform:uppercase; letter-spacing:.06em; opacity:.85; }
 .ticket-total .value{ font-family:var(--font-display); font-size:22px; font-weight:600; }
 
-/* ==========================================================================
-   BARRA DE ACCESOS RÁPIDOS F3–F6 (solo en la vista Venta)
-   ========================================================================== */
+/* ===== BARRA DE ACCESOS RÁPIDOS F3–F6 (solo en la vista Venta) ===== */
 .shortcuts-bar{
   flex:0 0 auto;
   display:flex;
@@ -626,13 +616,12 @@ body.dark .ticket-total{ background:rgba(158,27,46,.9); }
 /* Estado "activado" de un acceso rápido tipo interruptor (F4 / F5) */
 .shortcut-btn.is-active{ box-shadow:inset 0 0 0 2px rgba(255,255,255,.5); }
 
-/* ==========================================================================
-   RESULTADOS DE BÚSQUEDA (Venta) — cuadrícula de artículos con liquid glass
-   ========================================================================== */
+/* ===== RESULTADOS DE BÚSQUEDA (Venta) — cuadrícula de artículos con liquid glass ===== */
 .popular-heading{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:16px; }
 .popular-heading h3{ font-family:var(--font-display); font-size:18px; font-weight:500; margin:0; }
 .popular-heading span{ font-size:11.5px; color:var(--text-faint); }
 
+/* Cuadrícula de 3 columnas con las tarjetas de resultados */
 .popular-grid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:16px; }
 
 /* Tarjeta de artículo con efecto tilt 3D al pasar el mouse */
@@ -686,9 +675,7 @@ body:not(.dark) .car-card-overlay .overlay-model{ color:var(--text-main); }
 body:not(.dark) .car-card-overlay .overlay-meta{ color:var(--text-muted); }
 .overlay-dot{ width:9px; height:9px; border-radius:50%; border:1px solid rgba(255,255,255,.5); flex:0 0 auto; }
 
-/* ==========================================================================
-   MODALES GENÉRICOS
-   ========================================================================== */
+/* ===== MODALES GENÉRICOS ===== */
 .modal-overlay{
   position:fixed; inset:0;
   background:rgba(11,11,12,.55);
@@ -765,9 +752,7 @@ body.dark .stock-badge--out{ background:rgba(158,27,46,.28); color:#E2697A; }
 }
 .ficha-unique-box b{ color:var(--text-main); }
 
-/* ==========================================================================
-   TABLAS DE DATOS GENÉRICAS (clientes, garantías, web orders, inventario)
-   ========================================================================== */
+/* ===== TABLAS DE DATOS GENÉRICAS (clientes, garantías, web orders, inventario) ===== */
 .table-wrap{ overflow-x:auto; border:1px solid var(--line); border-radius:var(--radius-md); }
 .data-table{ width:100%; border-collapse:collapse; font-size:13px; min-width:560px; }
 .data-table thead th{
@@ -825,9 +810,7 @@ body.dark .btn-table:hover{ background:rgba(158,27,46,.22); }
   padding:9px 13px; margin-bottom:18px;
 }
 
-/* ==========================================================================
-   PANTALLA COMPLETA (formulario de garantía)
-   ========================================================================== */
+/* ===== PANTALLA COMPLETA (formulario de garantía) ===== */
 .fullscreen-overlay{
   position:fixed; inset:0;
   background:var(--bg-app);
@@ -859,9 +842,7 @@ body.dark .btn-table:hover{ background:rgba(158,27,46,.22); }
 .image-drop input{ display:none; }
 .image-drop-label{ font-weight:600; color:var(--text-muted); }
 
-/* ==========================================================================
-   BARRA INFERIOR (fecha / hora / asesor / caja)
-   ========================================================================== */
+/* ===== BARRA INFERIOR (fecha / hora / asesor / caja) ===== */
 .statusbar{
   flex:0 0 auto;
   background:var(--black);
@@ -874,9 +855,7 @@ body.dark .btn-table:hover{ background:rgba(158,27,46,.22); }
 .status-value{ color:var(--text-on-dark); font-weight:600; }
 .status-divider{ width:1px; height:12px; background:rgba(255,255,255,.14); }
 
-/* ==========================================================================
-   ACCESIBILIDAD Y RESPONSIVE
-   ========================================================================== */
+/* ===== ACCESIBILIDAD Y RESPONSIVE ===== */
 
 /* Contorno de foco visible y neutro (no usa rojo/azul, esos son solo de botones) */
 a:focus-visible, button:focus-visible, input:focus-visible, .car-card:focus-visible{
@@ -911,9 +890,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, .car-card:focus-visi
 }
 
 
-/* ==========================================================================
-   COBRO — selección de método y pago en efectivo
-   ========================================================================== */
+/* ===== COBRO — selección de método y pago en efectivo ===== */
 .modal-card--payment{
   width:min(460px, 100%);
   padding:30px;
@@ -967,6 +944,7 @@ body.dark .payment-method-card{
 }
 body.dark .payment-method-card:hover:not(.is-disabled){background:rgba(158,27,46,.18);}
 
+/* Caja con el total a pagar */
 .payment-total-box{
   display:flex;
   justify-content:space-between;
@@ -980,6 +958,7 @@ body.dark .payment-method-card:hover:not(.is-disabled){background:rgba(158,27,46
 .payment-total-box span{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-faint);}
 .payment-total-box strong{font-family:var(--font-display);font-size:25px;}
 
+/* Formulario de efectivo recibido y cambio */
 .cash-form{display:flex;flex-direction:column;gap:8px;}
 .cash-form label{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-faint);}
 .cash-form input{
@@ -1009,9 +988,7 @@ body.dark .cash-form input:focus{border-color:var(--red);}
 .cash-change strong{font-size:22px;}
 .payment-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:22px;flex-wrap:wrap;}
 
-/* ==========================================================================
-   TICKET DIGITAL — comprobante después de concretar
-   ========================================================================== */
+/* ===== TICKET DIGITAL — comprobante después de concretar ===== */
 #modalTicketCliente .modal-card{
   width:min(520px,100%);
   background:#fff;
@@ -1043,4 +1020,88 @@ body.dark .cash-form input:focus{border-color:var(--red);}
 @media (max-width:640px){
   .payment-method-grid{grid-template-columns:1fr;}
   .modal-card--payment{padding:22px;}
+}
+
+/* ===== VISTA PREVIA 3D — cuadro dentro del formulario (blanco + azul marino en claro, negro + rojo oscuro en oscuro) ===== */
+
+/* Cuadro contenedor con fondo de estudio del tema claro */
+.vista3d{
+  position:relative;
+  height:280px;
+  border-radius:var(--radius-md);
+  overflow:hidden;
+  border:1px solid rgba(16,33,63,.18);
+  background:radial-gradient(120% 90% at 50% 28%, #FFFFFF 0%, #F1F3F8 55%, #DCE3EF 100%);
+}
+/* Fondo de estudio del tema oscuro */
+body.dark .vista3d{
+  border-color:rgba(158,27,46,.35);
+  background:radial-gradient(120% 90% at 50% 28%, #241215 0%, #121113 55%, #070708 100%);
+}
+/* Capa que contiene el canvas y los controles flotantes */
+.vista3d-escena{ position:absolute; inset:0; }
+/* Canvas de Three.js ocupando todo el cuadro */
+.vista3d-escena canvas{ display:block; width:100%; height:100%; cursor:grab; touch-action:none; }
+.vista3d-escena canvas:active{ cursor:grabbing; }
+
+/* Etiqueta superior izquierda: "Modelo 3D" o "Modelo genérico" */
+.vista3d-etiqueta{
+  position:absolute; top:10px; left:12px;
+  font-size:10px; font-weight:600; letter-spacing:.06em; text-transform:uppercase;
+  padding:4px 10px; border-radius:999px;
+  background:rgba(16,33,63,.08); color:var(--navy);
+  border:1px solid rgba(16,33,63,.16);
+  pointer-events:none;
+}
+body.dark .vista3d-etiqueta{ background:rgba(158,27,46,.16); color:#E2697A; border-color:rgba(158,27,46,.35); }
+
+/* Nombre y muestra del color que viene de la base de datos */
+.vista3d-color{
+  position:absolute; left:12px; bottom:12px;
+  display:flex; align-items:center; gap:7px;
+  font-size:11.5px; font-weight:600; color:var(--text-muted);
+  pointer-events:none;
+}
+.vista3d-color i{ width:11px; height:11px; border-radius:50%; border:1px solid rgba(11,11,12,.25); }
+body.dark .vista3d-color i{ border-color:rgba(255,255,255,.35); }
+
+/* Controles flotantes: girar, pausar/reanudar y reajustar */
+.vista3d-controles{ position:absolute; right:10px; bottom:10px; display:flex; gap:6px; }
+.vista3d-btn{
+  width:30px; height:30px; padding:0;
+  border-radius:50%;
+  border:1px solid rgba(16,33,63,.2);
+  background:rgba(255,255,255,.6);
+  backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  color:var(--navy);
+  display:flex; align-items:center; justify-content:center;
+  opacity:.75;
+  transition:opacity .2s ease, background .2s ease, transform .12s ease;
+}
+.vista3d-btn:hover{ opacity:1; background:rgba(255,255,255,.9); }
+.vista3d-btn:active{ transform:scale(.94); }
+.vista3d-btn svg{ width:15px; height:15px; }
+body.dark .vista3d-btn{ border-color:rgba(158,27,46,.4); background:rgba(20,10,12,.55); color:#E2697A; }
+body.dark .vista3d-btn:hover{ background:rgba(40,14,18,.85); }
+
+/* Indicador de carga (spinner) mientras se prepara el modelo */
+.vista3d-cargando{
+  position:absolute; inset:0;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
+  font-size:12px; color:var(--text-muted); text-align:center; padding:16px;
+}
+.vista3d-cargando[hidden]{ display:none; }
+.vista3d-spinner{
+  width:28px; height:28px; border-radius:50%;
+  border:2.5px solid rgba(16,33,63,.15);
+  border-top-color:var(--navy);
+  animation:vista3d-giro .8s linear infinite;
+}
+body.dark .vista3d-spinner{ border-color:rgba(158,27,46,.22); border-top-color:var(--red); }
+/* Giro continuo del spinner */
+@keyframes vista3d-giro{ to{ transform:rotate(360deg); } }
+
+/* En pantallas chicas el cuadro es un poco más bajo */
+@media (max-width:640px){
+  .vista3d{ height:230px; }
 }

@@ -1,22 +1,28 @@
 <?php
 declare(strict_types=1);
 
-/* Envío del ticket por Gmail; requiere Google API + Dompdf.
-   El "cuadrito" que ve el cajero en pantalla (ticketCerrado) sigue siendo el mismo
-   resumen breve de siempre — ESTE archivo arma el ticket COMPLETO (fiscal/legal)
-   que se manda en PDF por correo, con los 7 bloques de datos requeridos. */
+/* Ticket completo en PDF (Dompdf) enviado por correo con la API de Brevo; el cuadrito en pantalla sigue siendo el resumen breve */
 
+// Lector de claves del archivo .env (BREVO_API_KEY, remitente, etc.)
+require_once dirname(__DIR__) . '/entorno.php';
+
+// Marcas que llevan la garantía de 4 años de la agencia
 const KARMA_MARCAS_GARANTIA_4A = ['audi', 'porsche', 'ducati'];
 
+// Dirección oficial de la API de Brevo para correos transaccionales
+const KARMA_BREVO_URL = 'https://api.brevo.com/v3/smtp/email';
+
+// Escapa texto para meterlo sin riesgo dentro del HTML del PDF
 function h($valor): string {
     return htmlspecialchars((string)($valor ?? ''), ENT_QUOTES, 'UTF-8');
 }
 
+// Formatea un monto como "$ 1,234.00"
 function karmaMoneyFmt($n): string {
     return '$ ' . number_format((float)($n ?? 0), 2);
 }
 
-/* Convierte un monto a letras, formato usado en facturas mexicanas: "___ PESOS XX/100 M.N." */
+// Convierte un monto a letras con formato de factura mexicana: "___ PESOS XX/100 M.N."
 function numeroALetras(float $monto): string {
     $monto = round($monto, 2);
     $entero = (int) floor($monto);
@@ -26,6 +32,7 @@ function numeroALetras(float $monto): string {
     return sprintf('%s PESOS %02d/100 M.N.', $letras, $centavos);
 }
 
+// Convierte un número entero (incluye millones) a palabras en mayúsculas
 function karmaConvertirEntero(int $n): string {
     if ($n === 0) return 'CERO';
     if ($n < 0) return 'MENOS ' . karmaConvertirEntero(-$n);
@@ -37,6 +44,7 @@ function karmaConvertirEntero(int $n): string {
     return trim($prefijo . ($resto > 0 ? ' ' . karmaConvertirMenorMillon($resto) : ''));
 }
 
+// Convierte a palabras un número menor a un millón (miles + centenas)
 function karmaConvertirMenorMillon(int $n): string {
     if ($n === 0) return '';
     if ($n < 1000) return karmaConvertirCentenas($n);
@@ -47,6 +55,7 @@ function karmaConvertirMenorMillon(int $n): string {
     return trim($prefijo . ($resto > 0 ? ' ' . karmaConvertirCentenas($resto) : ''));
 }
 
+// Convierte a palabras un número de 1 a 999
 function karmaConvertirCentenas(int $n): string {
     $centenas = ['', 'CIENTO', 'DOSCIENTOS', 'TRESCIENTOS', 'CUATROCIENTOS', 'QUINIENTOS', 'SEISCIENTOS', 'SETECIENTOS', 'OCHOCIENTOS', 'NOVECIENTOS'];
     if ($n === 100) return 'CIEN';
@@ -56,6 +65,7 @@ function karmaConvertirCentenas(int $n): string {
     return trim($texto . ($resto > 0 ? ' ' . karmaConvertirDecenas($resto) : ''));
 }
 
+// Convierte a palabras un número de 1 a 99 (con los casos especiales del español)
 function karmaConvertirDecenas(int $n): string {
     $unidades = ['', 'UNO', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS', 'SIETE', 'OCHO', 'NUEVE'];
     $especiales = [
@@ -74,8 +84,7 @@ function karmaConvertirDecenas(int $n): string {
     return $u === 0 ? $decenas[$d] : $decenas[$d] . ' Y ' . $unidades[$u];
 }
 
-/* Arma el HTML del ticket completo (las 7 secciones) a partir del ticketCerrado
-   que envía script.js. */
+// Arma el HTML del ticket completo (todas sus secciones) a partir del ticketCerrado que manda script.js
 function construirTicketHTML(string $nombreCliente, string $emailCliente, array $ticket): string {
     $items = is_array($ticket['items'] ?? null) ? $ticket['items'] : [];
     $vehiculos = array_values(array_filter($items, fn($it) => !empty($it['esVehiculo'])));
@@ -103,7 +112,7 @@ function construirTicketHTML(string $nombreCliente, string $emailCliente, array 
     $cambio = (float)($ticket['cambio'] ?? 0);
     $totalLetras = h(numeroALetras($total));
 
-    // Sección 3 y 6: un bloque de identificación + garantía por cada vehículo del ticket
+    // Un bloque de identificación + garantía por cada vehículo del ticket
     $bloquesVehiculo = '';
     foreach ($vehiculos as $v) {
         $marcaLower = mb_strtolower(trim((string)($v['marca'] ?? '')));
@@ -111,10 +120,10 @@ function construirTicketHTML(string $nombreCliente, string $emailCliente, array 
         $bloquesVehiculo .= '
         <table class="tabla-datos">
           <tr><td class="etq">Marca / Modelo / Año</td><td>' . h(trim(($v['marca'] ?? '') . ' ' . ($v['modelo'] ?? '') . ' (' . ($v['anio'] ?? '') . ')')) . '</td></tr>
-          <tr><td class="etq">VIN / Número de serie</td><td>' . h($v['vin'] ?: '—') . '</td></tr>
-          <tr><td class="etq">Número de motor</td><td>' . h($v['motorSerie'] ?: ($v['motorTipo'] ?? '—')) . '</td></tr>
-          <tr><td class="etq">Color exterior</td><td>' . h($v['colorExterior'] ?: '—') . '</td></tr>
-          <tr><td class="etq">Color interior</td><td>' . h($v['colorInterior'] ?: '—') . '</td></tr>
+          <tr><td class="etq">VIN / Número de serie</td><td>' . h(($v['vin'] ?? '') ?: '—') . '</td></tr>
+          <tr><td class="etq">Número de motor</td><td>' . h(($v['motorSerie'] ?? '') ?: ($v['motorTipo'] ?? '—')) . '</td></tr>
+          <tr><td class="etq">Color exterior</td><td>' . h(($v['colorExterior'] ?? '') ?: '—') . '</td></tr>
+          <tr><td class="etq">Color interior</td><td>' . h(($v['colorInterior'] ?? '') ?: '—') . '</td></tr>
           <tr><td class="etq">Kilometraje de entrega</td><td>0 km</td></tr>
           <tr><td class="etq">Estado de la unidad</td><td>Unidad Nueva</td></tr>
           <tr><td class="etq">Garantía</td><td>' . ($conGarantia ? '4 años de garantía KARMA' : 'Consultar condiciones de garantía con el vendedor') . '</td></tr>
@@ -128,6 +137,7 @@ function construirTicketHTML(string $nombreCliente, string $emailCliente, array 
         $filasRefacciones .= '<tr><td>' . h($r['articulo'] ?? '') . '</td><td class="der">' . karmaMoneyFmt($r['precioTotal'] ?? 0) . '</td></tr>';
     }
 
+    // Condiciones del crédito, solo cuando el vehículo se vendió a crédito
     $bloqueCredito = '';
     if ($esCredito && $primerVehiculo) {
         $bloqueCredito = '
@@ -143,6 +153,7 @@ function construirTicketHTML(string $nombreCliente, string $emailCliente, array 
         </table>';
     }
 
+    // Leyenda de forma de pago según sea contado o crédito
     $leyendaPago = $esCredito
         ? ('Forma de pago: ENGANCHE + FINANCIAMIENTO A ' . h($primerVehiculo['abonos'] ?? '') . '.')
         : 'Forma de pago: PAGO EN UNA SOLA EXHIBICIÓN — CONTADO.';
@@ -208,96 +219,88 @@ function construirTicketHTML(string $nombreCliente, string $emailCliente, array 
     </body></html>';
 }
 
-function enviarTicketGmail(string $email, string $nombre, array $ticket): array {
-    $autoload = __DIR__ . '/vendor/autoload.php';
-
-    if (!file_exists($autoload)) {
-        return [
-            'ok' => false,
-            'message' => 'El envío por Gmail está preparado, pero faltan las dependencias de Composer. Revisa README_instalacion.txt.'
-        ];
-    }
-
-    require_once $autoload;
-
-    if (!class_exists('Dompdf\\Dompdf') || !class_exists('Google\\Client')) {
-        return [
-            'ok' => false,
-            'message' => 'Faltan Dompdf o Google API Client. Ejecuta los comandos indicados en README_instalacion.txt.'
-        ];
-    }
-
-    $clientId = getenv('KARMA_GMAIL_CLIENT_ID') ?: '';
-    $clientSecret = getenv('KARMA_GMAIL_CLIENT_SECRET') ?: '';
-    $refreshToken = getenv('KARMA_GMAIL_REFRESH_TOKEN') ?: '';
-    $from = getenv('KARMA_GMAIL_FROM') ?: '';
-
-    if (!$clientId || !$clientSecret || !$refreshToken || !$from) {
-        return [
-            'ok' => false,
-            'message' => 'Gmail todavía no está configurado. Solo faltan las credenciales OAuth indicadas en README_instalacion.txt.'
-        ];
-    }
-
-    $html = construirTicketHTML($nombre, $email, $ticket);
-
+// Convierte el HTML del ticket en un PDF (bytes) usando Dompdf
+function generarPdfTicket(string $html): string {
     $dompdf = new Dompdf\Dompdf();
     $dompdf->loadHtml($html, 'UTF-8');
     $dompdf->setPaper('letter', 'portrait');
     $dompdf->render();
-    $pdf = $dompdf->output();
+    return $dompdf->output();
+}
 
-    $client = new Google\Client();
-    $client->setClientId($clientId);
-    $client->setClientSecret($clientSecret);
-    $client->setAccessType('offline');
-    $client->refreshToken($refreshToken);
+// Cuerpo (HTML) del correo que acompaña al PDF adjunto
+function construirCuerpoCorreo(string $nombre, string $folio): string {
+    return '<div style="font-family:Arial,sans-serif;font-size:14px;color:#17181A;line-height:1.5">'
+        . '<p>Hola ' . h($nombre) . ',</p>'
+        . '<p>Adjuntamos tu ticket de compra KARMA (folio <strong>' . h($folio) . '</strong>), con los datos completos de tu vehículo, garantía y comprobante de pago.</p>'
+        . '<p>Gracias por tu compra.<br><strong style="color:#10213F">KARMA</strong> — Te damos el auto que te mereces</p>'
+        . '</div>';
+}
 
-    $accessToken = $client->getAccessToken()['access_token'] ?? '';
-    if (!$accessToken) {
-        return ['ok' => false, 'message' => 'No se pudo obtener el token de acceso de Gmail.'];
+// API BREVO: genera el PDF del ticket y lo manda como adjunto al correo del cliente (POST https://api.brevo.com/v3/smtp/email)
+function enviarTicketPorCorreo(string $email, string $nombre, array $ticket): array {
+    // Dompdf se instala con Composer (carpeta vendor dentro de PHP/PuntoDeVenta)
+    $autoload = __DIR__ . '/vendor/autoload.php';
+    if (!file_exists($autoload)) {
+        return ['ok' => false, 'message' => 'Falta instalar Dompdf: abre una terminal en PHP/PuntoDeVenta y ejecuta "composer install" (ver explicacion_api.txt).'];
+    }
+    require_once $autoload;
+    if (!class_exists('Dompdf\\Dompdf')) {
+        return ['ok' => false, 'message' => 'Dompdf no está disponible. Ejecuta "composer install" en PHP/PuntoDeVenta.'];
     }
 
+    // API BREVO: credenciales leídas del archivo .env (nunca se mandan al navegador)
+    $apiKey = karmaEnv('BREVO_API_KEY');
+    $remitenteEmail = karmaEnv('BREVO_REMITENTE_EMAIL');
+    $remitenteNombre = karmaEnv('BREVO_REMITENTE_NOMBRE', 'KARMA Agencia de Autos');
+    if ($apiKey === '' || $remitenteEmail === '') {
+        return ['ok' => false, 'message' => 'El correo aún no está configurado: agrega BREVO_API_KEY y BREVO_REMITENTE_EMAIL al archivo .env (ver explicacion_api.txt).'];
+    }
+
+    // Ticket completo en HTML → PDF
+    $pdf = generarPdfTicket(construirTicketHTML($nombre, $email, $ticket));
     $folio = (string)($ticket['folio'] ?? ('#' . ($ticket['numero'] ?? '')));
-    $subject = 'Ticket de compra KARMA — ' . $folio;
-    $boundary = '=_KARMA_' . bin2hex(random_bytes(8));
-    $encodedPdf = chunk_split(base64_encode($pdf));
+    $nombreArchivo = 'ticket-karma-' . preg_replace('/[^A-Za-z0-9\-]/', '', $folio) . '.pdf';
 
-    $raw =
-        "From: {$from}\r\n" .
-        "To: {$email}\r\n" .
-        "Subject: =?UTF-8?B?" . base64_encode($subject) . "?=\r\n" .
-        "MIME-Version: 1.0\r\n" .
-        "Content-Type: multipart/mixed; boundary=\"{$boundary}\"\r\n\r\n" .
-        "--{$boundary}\r\n" .
-        "Content-Type: text/html; charset=UTF-8\r\n\r\n" .
-        "Hola " . htmlspecialchars($nombre, ENT_QUOTES, 'UTF-8') . ",<br><br>Adjuntamos tu ticket de compra KARMA (folio {$folio}), con los datos completos de tu vehículo, garantía y comprobante de pago.<br><br>" .
-        "--{$boundary}\r\n" .
-        "Content-Type: application/pdf; name=\"ticket-karma.pdf\"\r\n" .
-        "Content-Disposition: attachment; filename=\"ticket-karma.pdf\"\r\n" .
-        "Content-Transfer-Encoding: base64\r\n\r\n" .
-        $encodedPdf .
-        "--{$boundary}--";
+    // API BREVO: cuerpo JSON de la petición (remitente, destinatario, asunto, HTML y PDF en base64)
+    $payload = [
+        'sender' => ['name' => $remitenteNombre, 'email' => $remitenteEmail],
+        'to' => [['email' => $email, 'name' => $nombre]],
+        'replyTo' => ['email' => $remitenteEmail, 'name' => $remitenteNombre],
+        'subject' => 'Ticket de compra KARMA — ' . $folio,
+        'htmlContent' => construirCuerpoCorreo($nombre, $folio),
+        'attachment' => [['name' => $nombreArchivo, 'content' => base64_encode($pdf)]]
+    ];
 
-    $gmailPayload = rtrim(strtr(base64_encode($raw), '+/', '-_'), '=');
-
-    $ch = curl_init('https://gmail.googleapis.com/gmail/v1/users/me/messages/send');
+    // API BREVO: llamada HTTPS con la clave en el encabezado "api-key"
+    $ch = curl_init(KARMA_BREVO_URL);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_POST => true,
+        CURLOPT_TIMEOUT => 30,
         CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $accessToken,
-            'Content-Type: application/json'
+            'accept: application/json',
+            'content-type: application/json',
+            'api-key: ' . $apiKey
         ],
-        CURLOPT_POSTFIELDS => json_encode(['raw' => $gmailPayload])
+        CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE)
     ]);
-    $response = curl_exec($ch);
+    $respuesta = curl_exec($ch);
     $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $errorRed = curl_error($ch);
     curl_close($ch);
 
-    if ($http < 200 || $http >= 300) {
-        return ['ok' => false, 'message' => 'Gmail rechazó el envío. Revisa las credenciales OAuth y los permisos.'];
+    // API BREVO: sin conexión a internet o bloqueo de red
+    if ($respuesta === false) {
+        return ['ok' => false, 'message' => 'No se pudo conectar con Brevo: ' . $errorRed];
     }
 
-    return ['ok' => true, 'message' => 'El PDF con el ticket completo fue enviado al correo del cliente.'];
+    // API BREVO: 201 = correo aceptado; cualquier otro código trae un mensaje de error en JSON
+    $datos = json_decode((string)$respuesta, true) ?: [];
+    if ($http < 200 || $http >= 300) {
+        $detalle = $datos['message'] ?? ('código HTTP ' . $http);
+        return ['ok' => false, 'message' => 'Brevo rechazó el envío: ' . $detalle];
+    }
+
+    return ['ok' => true, 'message' => 'El PDF con el ticket completo fue enviado a ' . $email . '.', 'id' => $datos['messageId'] ?? null];
 }
