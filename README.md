@@ -159,7 +159,7 @@ La documentación del proyecto incluye información relacionada con:
 ## 👥 Integrantes del equipo
 
 * **Ibarra Heredia Alan Alejandro**
-* **Vazquez Atanacio Diego Alejandro**
+* **Vázquez Atanacio Diego Alejandro   **
 * **Martinez Zuñiga Carolina**
 * **Nava Montiel Miranda Lizet**
 * **Nava Montiel Dana Paola**
