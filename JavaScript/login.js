@@ -22,8 +22,22 @@ formulario.addEventListener("submit", async (event) => {
 
         if (respuesta.ok) {
             alert(`Bienvenido, ${datos.usuario.nombre}`);
-
             console.log("Usuario autenticado:", datos.usuario);
+
+            // 1. Guardamos el usuario en localStorage
+            localStorage.setItem("karma_user", JSON.stringify(datos.usuario));
+
+            // 2. Evaluamos el rol para la redirección
+            const rol = datos.usuario.rol;
+
+            if (rol === "Cajero") {
+                window.location.href = "/PHP/PuntoDeVenta/index.php"; 
+            } else if (rol === "Administrador General" || rol === "Gerente") {
+                // Redirige al Home 
+                window.location.href = "/Home/home.html"; 
+            } else {
+                alert("Tu rol no tiene una pantalla asignada aún.");
+            }
         } else {
             alert(datos.mensaje);
         }

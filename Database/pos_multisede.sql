@@ -42,22 +42,18 @@ INSERT INTO metodos_pago(nombre_metodo) VALUES ("Transferencia");
 
 -- Tablas con dependencias de primer nivel
 
-CREATE TABLE usuarios(
-id_usuario INT NOT NULL AUTO_INCREMENT PRIMARY KEY UNIQUE,
-id_rol INT NOT NULL,
-id_sucursal INT NOT NULL,
-nombre VARCHAR(100) NOT NULL,
-correo VARCHAR(100) NOT NULL UNIQUE,
-password_hash VARCHAR(255) NOT NULL,
-idioma_pref ENUM('es', 'en') DEFAULT 'es' NOT NULL,
-estado ENUM('activo', 'inactivo') DEFAULT 'activo' NOT NULL,
-CONSTRAINT fk_usuarios_roles 
-        FOREIGN KEY (id_rol) REFERENCES roles(id_rol) 
-        ON UPDATE CASCADE ON DELETE RESTRICT,
-    CONSTRAINT fk_usuarios_sucursales 
-        FOREIGN KEY (id_sucursal) REFERENCES sucursales(id_sucursal) 
-        ON UPDATE CASCADE ON DELETE SET NULL
-)ENGINE=InnoDB;
+CREATE TABLE usuarios (
+    id_usuario INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    id_rol INT NOT NULL,
+    id_sucursal INT NULL, -- Se cambia a NULL para ser compatible con ON DELETE SET NULL
+    nombre VARCHAR(100) NOT NULL,
+    correo VARCHAR(100) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    idioma_pref ENUM('es', 'en') DEFAULT 'es' NOT NULL,
+    estado ENUM('activo', 'inactivo') DEFAULT 'activo' NOT NULL,
+    CONSTRAINT fk_usuarios_roles FOREIGN KEY (id_rol) REFERENCES roles(id_rol) ON UPDATE CASCADE,
+    CONSTRAINT fk_usuarios_sucursales FOREIGN KEY (id_sucursal) REFERENCES sucursales(id_sucursal) ON UPDATE CASCADE ON DELETE SET NULL
+) ENGINE=InnoDB;
 
 CREATE TABLE cajas (
     id_caja INT AUTO_INCREMENT PRIMARY KEY,
