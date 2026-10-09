@@ -1,8 +1,20 @@
+<?php
+declare(strict_types=1);
+/* Acceso protegido: solo entra quien inició sesión en el login del sistema con rol Cajero (PHP/Login/sesion_pos.php).
+   Sin sesión válida se regresa a la pantalla de login (index.html de la raíz). */
+require_once __DIR__ . '/conexion.php';
+require_once dirname(__DIR__) . '/Login/sesion_pos.php';
+posRequerirPagina(db());
+// Token CSRF de la sesión: script.js lo envía en cada petición a api.php (lo exigen la autorización de empleado y las acciones protegidas)
+require_once __DIR__ . '/autorizacion_empleado.php';
+$csrfPos = posTokenCsrf();
+?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="karma-csrf" content="<?= htmlspecialchars($csrfPos, ENT_QUOTES) ?>">
 <title>KARMA · Punto de Venta — Cajero</title>
 <!-- Tipografías: Fraunces (display / elegante) + Inter (UI / datos) -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -40,6 +52,11 @@
 
       <!-- Idioma / tema / sesión / sucursal -->
       <div class="topbar-right">
+        <!-- Acceso directo al Catálogo web (sitio de clientes), junto al botón de idioma -->
+        <a class="catalog-link" id="catalogLink" href="../Catalogo/index.php" title="Ir al Catálogo web" aria-label="Ir al Catálogo web">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>
+          <span>Catálogo</span>
+        </a>
         <button class="lang-toggle" id="langToggle" title="Cambiar idioma" aria-label="Cambiar idioma">
           <span class="lang-op is-active" data-lang="es">ES</span>
           <span class="lang-sep">/</span>
@@ -155,10 +172,17 @@
   </div>
 </div>
 
+<!-- Modal de autorización de empleado (gafete QR o código manual) antes de las acciones sensibles: lo llena autorizacion_empleado.js -->
+<div class="auth-overlay" id="modalAutorizacion" role="dialog" aria-modal="true" aria-labelledby="authTitulo" hidden>
+  <div class="modal-card auth-card" id="modalAutorizacionContent"></div>
+</div>
+
 <!-- API DE TRADUCCIÓN: traductor universal (debe ir antes de script.js) -->
 <script src="../../JavaScript/Traduccion/traductor.js"></script>
 <!-- Lógica principal del punto de venta -->
 <script src="../../JavaScript/PuntoDeVenta/script.js"></script>
+<!-- Autorización de empleado: cámara + lector QR (jsQR se carga solo al abrir el modal) y código manual; el servidor decide -->
+<script src="../../JavaScript/PuntoDeVenta/autorizacion_empleado.js"></script>
 <!-- Vista previa 3D (módulo de Three.js); si no carga, script.js muestra un aviso -->
 <script type="module" src="../../JavaScript/PuntoDeVenta/vista_previa_3d.js" onerror="window.KARMA_VISTA3D_FALLO = true; window.dispatchEvent(new Event('karma:vista3d-fallo'));"></script>
 </body>

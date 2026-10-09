@@ -1,3 +1,5 @@
 .env
 node_modules/
+# Respaldos completos de la base de datos (contienen datos y hashes de usuarios): no se suben al repositorio
+Database/respaldos/
 

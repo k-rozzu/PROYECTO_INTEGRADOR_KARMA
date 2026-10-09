@@ -158,6 +158,20 @@ body.dark .icon-moon{ display:block; }
   transition:background .2s ease;
 }
 .lang-toggle:hover{ background:rgba(255,255,255,.1); }
+/* Botón de acceso al Catálogo web (mismo estilo de pastilla que el botón de idioma, a su lado) */
+.catalog-link{
+  display:flex; align-items:center; gap:7px;
+  height:34px; padding:0 13px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.16);
+  background:rgba(255,255,255,.04);
+  color:var(--text-on-dark);
+  font-size:12px; font-weight:600; letter-spacing:.02em;
+  text-decoration:none;
+  transition:background .2s ease;
+}
+.catalog-link:hover{ background:rgba(255,255,255,.1); }
+.catalog-link svg{ opacity:.8; }
 .lang-op{ color:inherit; opacity:.55; transition:opacity .2s ease, color .2s ease; }
 .lang-op.is-active{ opacity:1; color:var(--text-on-dark); }
 .lang-sep{ opacity:.35; }
@@ -1104,4 +1118,133 @@ body.dark .vista3d-spinner{ border-color:rgba(158,27,46,.22); border-top-color:v
 /* En pantallas chicas el cuadro es un poco más bajo */
 @media (max-width:640px){
   .vista3d{ height:230px; }
+}
+
+/* ===== AUTORIZACIÓN DE EMPLEADO — gafete QR o código manual (autorizacion_empleado.js) ===== */
+
+/* Capa propia (no .modal-overlay) para que los cierres genéricos de modales no la toquen; queda sobre el cobro y la garantía */
+.auth-overlay{
+  position:fixed; inset:0;
+  background:rgba(11,11,12,.55);
+  backdrop-filter:blur(3px);
+  display:flex; align-items:center; justify-content:center;
+  z-index:90; padding:24px;
+}
+.auth-overlay[hidden], .auth-card [hidden]{ display:none !important; }
+.auth-card{ width:min(440px, 100%); padding:30px; }
+.auth-eyebrow{ margin:0 0 6px; font-size:10.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--navy); }
+body.dark .auth-eyebrow{ color:#E2697A; }
+.auth-card .payment-subtitle{ margin-bottom:18px; }
+
+/* Visor de la cámara: fondo oscuro, recuadro de lectura y mensajes encima */
+.auth-camara{
+  position:relative;
+  aspect-ratio:4 / 3;
+  border-radius:var(--radius-md);
+  overflow:hidden;
+  background:#0B0B0C;
+  border:1px solid rgba(16,33,63,.18);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
+  padding:20px;
+}
+body.dark .auth-camara{ border-color:rgba(158,27,46,.35); }
+.auth-camara video{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.auth-camara video.is-espejo{ transform:scaleX(-1); }
+
+/* Recuadro con esquinas; oscurece lo que queda fuera y solo se ve con la cámara encendida */
+.auth-marco{
+  --esquina:rgba(255,255,255,.92);
+  position:absolute; top:50%; left:50%;
+  width:56%; aspect-ratio:1;
+  transform:translate(-50%, -50%);
+  border-radius:12px;
+  box-shadow:0 0 0 9999px rgba(11,11,12,.38);
+  background:
+    linear-gradient(var(--esquina), var(--esquina)) top left / 26px 3px,
+    linear-gradient(var(--esquina), var(--esquina)) top left / 3px 26px,
+    linear-gradient(var(--esquina), var(--esquina)) top right / 26px 3px,
+    linear-gradient(var(--esquina), var(--esquina)) top right / 3px 26px,
+    linear-gradient(var(--esquina), var(--esquina)) bottom left / 26px 3px,
+    linear-gradient(var(--esquina), var(--esquina)) bottom left / 3px 26px,
+    linear-gradient(var(--esquina), var(--esquina)) bottom right / 26px 3px,
+    linear-gradient(var(--esquina), var(--esquina)) bottom right / 3px 26px;
+  background-repeat:no-repeat;
+  display:none; pointer-events:none;
+}
+.auth-camara[data-estado="listo"] .auth-marco{ display:block; }
+/* Línea de lectura que recorre el recuadro */
+.auth-marco span{
+  position:absolute; left:10%; right:10%; top:12%;
+  height:2px; border-radius:2px;
+  background:linear-gradient(90deg, transparent, rgba(255,255,255,.9), transparent);
+  box-shadow:0 0 10px rgba(158,27,46,.8);
+  animation:auth-escaneo 2.4s ease-in-out infinite alternate;
+}
+@keyframes auth-escaneo{ to{ top:88%; } }
+@media (prefers-reduced-motion: reduce){
+  .auth-marco span{ animation:none; top:50%; }
+}
+
+/* Texto sobre el visor: centrado mientras carga o con error; etiqueta abajo con la cámara encendida */
+.auth-camara-estado{
+  position:relative; z-index:1;
+  max-width:88%;
+  text-align:center; font-size:12.5px; line-height:1.5;
+  color:var(--text-on-dark);
+}
+.auth-camara[data-estado="cargando"] .auth-camara-estado{ color:var(--text-on-dark-muted); }
+.auth-camara[data-estado="listo"] .auth-camara-estado{
+  position:absolute; bottom:12px; left:50%;
+  transform:translateX(-50%);
+  max-width:92%;
+  padding:6px 12px; border-radius:999px;
+  background:rgba(11,11,12,.6);
+  font-size:11.5px; white-space:nowrap;
+}
+.auth-camara .auth-reintentar{
+  position:relative; z-index:1;
+  background:rgba(255,255,255,.12); border-color:rgba(255,255,255,.35); color:#fff;
+}
+.auth-camara .auth-reintentar:hover{ background:rgba(255,255,255,.2); }
+
+/* Código escrito a mano */
+.auth-manual{ display:flex; flex-direction:column; gap:14px; }
+.auth-manual input.auth-codigo{
+  font-size:20px;
+  letter-spacing:.12em;
+  text-align:center;
+  text-transform:uppercase;
+  font-variant-numeric:tabular-nums;
+  padding:13px 14px;
+}
+.auth-manual input.auth-codigo:focus{ border-color:var(--navy); }
+body.dark .auth-manual input.auth-codigo:focus{ border-color:var(--red); }
+.auth-autorizar{ width:100%; }
+
+/* Resultado de la validación del servidor */
+.auth-mensaje{ margin-top:12px; text-align:center; }
+body.dark .auth-mensaje.is-error{ color:#E2697A; }
+body.dark .auth-mensaje.is-ok{ color:#6FC08F; }
+
+/* "¿No tienes tu gafete?" + cambio entre cámara y código manual */
+.auth-alterna{
+  display:flex; flex-direction:column; align-items:center; gap:2px;
+  margin-top:6px; padding-top:14px;
+  border-top:1px solid var(--line);
+  text-align:center;
+}
+.auth-alterna span{ font-size:12px; color:var(--text-muted); }
+.auth-enlace{
+  background:none; border:0; padding:4px 6px;
+  font-size:13px; font-weight:600;
+  color:var(--navy);
+  text-decoration:underline; text-underline-offset:3px;
+}
+body.dark .auth-enlace{ color:#E2697A; }
+.auth-enlace:disabled{ opacity:.4; cursor:not-allowed; }
+.auth-card .payment-actions{ justify-content:center; margin-top:14px; }
+
+@media (max-width:640px){
+  .auth-card{ padding:22px; }
+  .auth-overlay{ padding:16px; }
 }

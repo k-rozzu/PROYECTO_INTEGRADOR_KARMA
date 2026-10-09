@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pantalla de Inicio de Sesión</title>
-    <link rel="stylesheet" href="/CSS/Login/style.css">
+    <link rel="stylesheet" href="CSS/Login/style.css">
     <!-- Fuente Montserrat de Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
 </head>
@@ -13,18 +13,20 @@
         
         <!-- 1. CAMPO PARA LA IMAGEN DEL LADO IZQUIERDO -->
         <div class="left-panel">
-            <img src="/assets/Login/imagen_rueda_Audi.jpg" alt="Imagen Rueda Audi" class="left-image">
+            <img src="assets/Login/imagen_rueda_Audi.jpg" alt="Imagen Rueda Audi" class="left-image">
         </div>
 
         <!-- 2. CAMPO PARA LA IMAGEN DEL LOGO CENTRAL -->
         <div class="overlap-logo">
-            <img src="/assets/logo-karma.png" alt="Logo K" class="logo-image">
+            <img src="assets/logo-karma.png" alt="Logo K" class="logo-image">
         </div>
 
         <!-- PANEL DERECHO: Formulario de Login -->
         <div class="right-panel">
             <div class="header-section">
                 <h1>BIENVENIDO</h1>
+                <!-- Se muestra al llegar desde el botón "Punto de Venta" del Catálogo (index.html?destino=pos) -->
+                <p id="avisoDestino" hidden>ACCESO AL PUNTO DE VENTA · SOLO PERSONAL AUTORIZADO</p>
             </div>
             
             <form class="login-form">
@@ -40,12 +42,14 @@
                 
                 <button type="submit">INGRESAR</button>
                 <a href="#" class="forgot-password">¿NO PUEDES INGRESAR?</a>
+                <!-- Regreso al sitio de clientes (Catálogo) -->
+                <a href="PHP/Catalogo/index.php" class="forgot-password" style="margin-top:14px;">← VOLVER AL CATÁLOGO</a>
             </form>
         </div>
 
     </div>
 
-    <script src="/JavaScript/login.js"></script>
+    <script src="JavaScript/login.js"></script>
     
 </body>
 </html>

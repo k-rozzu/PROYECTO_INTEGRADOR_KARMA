@@ -24,11 +24,23 @@ const PLAZOS_CREDITO = [12, 24, 36, 48, 60];
 /* Estado de carga y sincronización */
 let datosDBCargados = false;
 
-// Llama a api.php con la acción indicada y regresa su JSON (lanza error si el servidor responde con falla)
+// Token CSRF de la sesión del POS (lo publica index.php); se manda en cada petición a api.php
+const CSRF_TOKEN = document.querySelector('meta[name="karma-csrf"]')?.content || "";
+
+// Llama a api.php con la acción indicada y regresa su JSON (lanza error si el servidor responde con falla).
+// options.autorizacion = permiso de un solo uso que entregó el servidor tras validar el gafete (acciones sensibles)
 async function apiFetch(action, options = {}) {
   const url = `api.php?action=${encodeURIComponent(action)}`;
-  const config = { headers: { "Content-Type": "application/json" }, ...options };
+  const { autorizacion, ...opciones } = options;
+  const headers = { "Content-Type": "application/json", "X-CSRF-Token": CSRF_TOKEN };
+  if (autorizacion) headers["X-Karma-Autorizacion"] = autorizacion;
+  const config = { headers, ...opciones };
   const response = await fetch(url, config);
+  // Sesión del POS vencida o inexistente: se regresa a la pantalla de login
+  if (response.status === 401 && action !== "logout"){
+    window.location.href = "../../index.html?destino=pos";
+    throw new Error("Tu sesión del Punto de Venta expiró.");
+  }
   const data = await response.json().catch(() => ({ ok:false, error:"Respuesta inválida del servidor." }));
   if (!response.ok || data.ok === false) throw new Error(data.error || "No fue posible completar la solicitud.");
   return data;
@@ -1030,6 +1042,7 @@ async function guardarArticulo(){
         cantidad: 1,
         cliente, email, celular, rfcIne,
         pieza: item.nombre,
+        webOrderId: borrador.webOrderId || null,
         marcaVehiculo: item.marca,
         modeloCompatible: item.modelo,
         traccion: item.traccion,
@@ -1064,7 +1077,7 @@ async function guardarArticulo(){
 
       ticketIdCounter += 1;
       ticketItems.push({
-        id: ticketIdCounter, productoId, esVehiculo: true, esCredito: true,
+        id: ticketIdCounter, productoId, esVehiculo: true, esCredito: true, webOrderId: borrador.webOrderId || null,
         articulo: `${item.marca} ${item.modelo} (${item.anio})`,
         marca: item.marca, modelo: item.modelo, anio: item.anio,
         colorExterior: item.color, colorInterior: item.colorInterior || "",
@@ -1088,7 +1101,7 @@ async function guardarArticulo(){
 
       ticketIdCounter += 1;
       ticketItems.push({
-        id: ticketIdCounter, productoId: item.id, esVehiculo: true,
+        id: ticketIdCounter, productoId: item.id, esVehiculo: true, webOrderId: borrador.webOrderId || null,
         articulo: `${item.marca} ${item.modelo} (${item.anio})`,
         marca: item.marca, modelo: item.modelo, anio: item.anio,
         colorExterior: item.color, colorInterior: item.colorInterior || "",
@@ -1309,9 +1322,14 @@ async function confirmarVentaDB(){
   const primerVehiculo = ticketItems.find(it => it.esVehiculo) || {};
   const itemCredito = ticketItems.find(it => it.esCredito) || null;
 
+  // Autorización de empleado (gafete QR o código): sin ella el servidor rechaza la venta o el crédito
+  const autorizacion = await solicitarAutorizacionEmpleado(itemCredito ? "CREDITO" : "VENTA", ticketNumero);
+  if (!autorizacion){ if (boton) boton.disabled = false; return; }
+
   try {
     const data = await apiFetch("crear_venta", {
       method: "POST",
+      autorizacion,
       body: JSON.stringify({
         id_usuario: USUARIO_ACTUAL_ID,
         id_sucursal: SUCURSAL_ACTUAL_ID,
@@ -1320,6 +1338,8 @@ async function confirmarVentaDB(){
         efectivo_recibido: pagoEstado.recibido,
         cambio: pagoEstado.cambio,
         ticket_numero: ticketNumero,
+        // Órdenes web atendidas con esta venta (llegaron con "Continuar" desde Web orders)
+        ordenes_web: ticketItems.map(it => it.webOrderId).filter(Boolean),
         items: ticketItems.map(it => ({
           producto_id: it.productoId,
           cantidad: it.cantidad || 1,
@@ -1858,7 +1878,14 @@ function abrirGarantiaForm(id){
 
   $("#btnCerrarGarantia").addEventListener("click", cerrarGarantiaForm);
   $("#btnCancelarGarantia").addEventListener("click", cerrarGarantiaForm);
-  $("#btnGuardarGarantia").addEventListener("click", () => { cerrarGarantiaForm(); renderGarantias(); });
+  $("#btnGuardarGarantia").addEventListener("click", async () => {
+    // Autorización de empleado (gafete QR o código): el servidor la valida y la registra antes de aplicar la garantía
+    const autorizacion = await solicitarAutorizacionEmpleado("GARANTIA", id);
+    if (!autorizacion) return;
+    try { await apiFetch("aplicar_garantia", { method: "POST", autorizacion, body: JSON.stringify({ id_garantia: id }) }); }
+    catch (error) { avisar(error.message); return; }
+    cerrarGarantiaForm(); renderGarantias();
+  });
 
   $("#garantiaOverlay").classList.add("is-open");
 }
@@ -1872,20 +1899,44 @@ function renderWebOrders(){
   const categorias = ["Todo", "Porsche", "Audi", "Ducati", "Refacciones"];
   const q = searchQuery.trim().toLowerCase();
 
+  // Texto seguro: los datos de las órdenes los escribe el cliente en el Catálogo web
+  const t = (v) => escapeHTML(v ?? "—");
+  const esRefaccion = (o) => o.tipo === "refaccion";
   const ordenes = WEBORDERS.filter(o =>
-    (webOrdersFiltro === "Todo" || o.marca === webOrdersFiltro) &&
-    (!q || o.nombre.toLowerCase().includes(q))
+    (webOrdersFiltro === "Todo" ||
+      (webOrdersFiltro === "Refacciones" ? esRefaccion(o) : (o.marca === webOrdersFiltro || (o.lineas || []).some(l => l.marca === webOrdersFiltro)))) &&
+    (!q || `${o.nombre} ${o.folio || ""}`.toLowerCase().includes(q))
   );
+  // Pedidos del Catálogo con varias piezas (recoger en sucursal + efectivo): se cobran directo con "Cobrar"
+  const pedidosCatalogo = ordenes.filter(o => esRefaccion(o) && (o.lineas || []).length);
   const vehiculos = ordenes.filter(o => o.tipo === "vehiculo");
-  const refacciones = ordenes.filter(o => o.tipo === "refaccion");
+  const refacciones = ordenes.filter(o => esRefaccion(o) && !(o.lineas || []).length);
 
   panel.innerHTML = `
-    <div class="panel-heading"><h2>Web orders</h2></div>
+    <div class="panel-heading"><h2>Web orders</h2><button class="btn-table" id="btnRefrescarWeb" type="button">Actualizar</button></div>
     <div class="section-toolbar">
       <div class="filter-pills" id="webFiltros">
         ${categorias.map(c => `<button class="filter-pill ${webOrdersFiltro === c ? "is-active" : ""}" data-filtro="${c}">${c}</button>`).join("")}
       </div>
     </div>
+
+    ${pedidosCatalogo.length ? `
+      <p class="form-field-info" style="margin-bottom:10px;"><strong>Pedidos del Catálogo · pendientes de cobro en caja.</strong> Las piezas ya están apartadas del inventario de esta sucursal.</p>
+      <div class="table-wrap" style="margin-bottom:22px;">
+        <table class="data-table">
+          <thead><tr><th>Folio</th><th>Cliente</th><th>Celular</th><th>Artículos</th><th>Total</th><th>Recibido</th><th></th></tr></thead>
+          <tbody>
+            ${pedidosCatalogo.map(o => `
+              <tr>
+                <td>${t(o.folio)}</td><td>${t(o.nombre)}</td><td>${t(o.celular)}</td>
+                <td>${o.lineas.map(l => `${l.cantidad}× ${escapeHTML(l.descripcion)}`).join("<br>")}</td>
+                <td>${formatoMoneda(o.total)}</td><td>${t(o.fechaCreacion)}</td>
+                <td style="white-space:nowrap;"><button class="btn-table" data-cobrar-web="${o.id}">Cobrar</button> <button class="btn-table" data-cancelar-web="${o.id}">Cancelar</button></td>
+              </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>` : ""
+    }
 
     ${vehiculos.length ? `
       <div class="table-wrap" style="margin-bottom:22px;">
@@ -1894,11 +1945,11 @@ function renderWebOrders(){
           <tbody>
             ${vehiculos.map(o => `
               <tr>
-                <td>${o.nombre}</td><td>${o.celular}</td><td>${o.email}</td>
-                <td>${o.articulo}</td><td>${o.color}</td>
+                <td>${t(o.nombre)}${o.folio ? `<br><small>${t(o.folio)}</small>` : ""}</td><td>${t(o.celular)}</td><td>${t(o.email)}</td>
+                <td>${t(o.articulo)}</td><td>${t(o.color)}</td>
                 <td>${o.enganche ? formatoMoneda(o.enganche) : "—"}</td>
-                <td>${o.fechaVisita}</td>
-                <td><button class="btn-table" data-continuar="${o.id}">Continuar</button></td>
+                <td>${t(o.fechaVisita)}</td>
+                <td style="white-space:nowrap;"><button class="btn-table" data-continuar="${o.id}">Continuar</button>${o.folio ? ` <button class="btn-table" data-cancelar-web="${o.id}">Cancelar</button>` : ""}</td>
               </tr>`).join("")}
           </tbody>
         </table>
@@ -1912,8 +1963,8 @@ function renderWebOrders(){
           <tbody>
             ${refacciones.map(o => `
               <tr>
-                <td>${o.nombre}</td><td>${o.celular}</td><td>${o.pieza}</td><td>${o.modelo}</td>
-                <td>${o.motor}</td><td>${o.cilindraje}</td><td>${o.traccion}</td><td>${o.transmision}</td><td>${o.lado}</td>
+                <td>${t(o.nombre)}</td><td>${t(o.celular)}</td><td>${t(o.pieza)}</td><td>${t(o.modelo)}</td>
+                <td>${t(o.motor)}</td><td>${t(o.cilindraje)}</td><td>${t(o.traccion)}</td><td>${t(o.transmision)}</td><td>${t(o.lado)}</td>
                 <td><button class="btn-table" data-continuar="${o.id}">Continuar</button></td>
               </tr>`).join("")}
           </tbody>
@@ -1921,11 +1972,11 @@ function renderWebOrders(){
       </div>` : ""
     }
 
-    ${!vehiculos.length && !refacciones.length ? `
+    ${!pedidosCatalogo.length && !vehiculos.length && !refacciones.length ? `
       <div class="empty-state"><strong>Sin órdenes</strong>Ninguna orden coincide con este filtro o búsqueda.</div>` : ""
     }
 
-    <p class="form-field-info" style="margin-top:18px;">Estas son órdenes de ejemplo — el seguimiento en tiempo real se activará cuando el sitio web esté conectado.</p>
+    <p class="form-field-info" style="margin-top:18px;">Órdenes recibidas desde el Catálogo web para esta sucursal (visitas, apartados y pedidos de refacciones con pago en efectivo). Los pedidos pagados con tarjeta no aparecen aquí porque ya están cobrados.</p>
   `;
 
   $$("[data-filtro]", panel).forEach(btn => btn.addEventListener("click", () => { webOrdersFiltro = btn.dataset.filtro; renderWebOrders(); }));
@@ -1933,6 +1984,91 @@ function renderWebOrders(){
     const orden = WEBORDERS.find(o => o.id === Number(btn.dataset.continuar));
     continuarDesdeWebOrder(orden);
   }));
+  $$("[data-cobrar-web]", panel).forEach(btn => btn.addEventListener("click", () => abrirCobroOrdenWeb(WEBORDERS.find(o => o.id === Number(btn.dataset.cobrarWeb)))));
+  $$("[data-cancelar-web]", panel).forEach(btn => btn.addEventListener("click", () => cancelarOrdenWebPOS(Number(btn.dataset.cancelarWeb))));
+  $("#btnRefrescarWeb")?.addEventListener("click", async () => {
+    try { await refrescarDatosDB(); renderWebOrders(); } catch (error) { avisar(error.message); }
+  });
+}
+
+/* Cobro en efectivo de un pedido del Catálogo (mismo diseño del cobro normal; no descuenta inventario otra vez) */
+let pagoOrdenWeb = null;
+function abrirCobroOrdenWeb(orden){
+  if (!orden) return;
+  pagoOrdenWeb = { orden, monto: Number(orden.total || 0), recibido: 0, cambio: 0, valido: false };
+  $("#modalPagoContent").innerHTML = `
+    <div class="payment-title">Cobrar pedido ${escapeHTML(orden.folio || "")}</div>
+    <p class="payment-subtitle">${escapeHTML(orden.nombre)} · ${orden.lineas.map(l => `${l.cantidad}× ${escapeHTML(l.descripcion)}`).join(", ")}</p>
+    <div class="payment-total-box"><span>Total a pagar</span><strong>${formatoMoneda(pagoOrdenWeb.monto)}</strong></div>
+    <div class="cash-form">
+      <label for="inpEfectivoWeb">Dinero recibido</label>
+      <input type="number" id="inpEfectivoWeb" min="0" step="0.01" placeholder="0.00">
+      <div id="cashMessageWeb" class="cash-message"></div>
+      <div class="cash-change"><span>Cambio</span><strong id="cashChangeWeb">${formatoMoneda(0)}</strong></div>
+    </div>
+    <div class="payment-actions">
+      <button class="btn btn-ghost" id="btnCancelarCobroWeb" type="button">Cancelar</button>
+      <button class="btn btn-primary" id="btnConfirmarCobroWeb" type="button" disabled>Cobrar pedido</button>
+    </div>`;
+  abrirModal("#modalPago");
+  const input = $("#inpEfectivoWeb");
+  input.addEventListener("input", () => {
+    const recibido = Number(input.value || 0);
+    pagoOrdenWeb.recibido = recibido;
+    pagoOrdenWeb.cambio = Math.max(recibido - pagoOrdenWeb.monto, 0);
+    pagoOrdenWeb.valido = recibido >= pagoOrdenWeb.monto;
+    const msg = $("#cashMessageWeb");
+    msg.textContent = recibido <= 0 ? "" : (pagoOrdenWeb.valido ? "Dinero correcto." : `Faltan ${formatoMoneda(pagoOrdenWeb.monto - recibido)}.`);
+    msg.classList.toggle("is-error", recibido > 0 && !pagoOrdenWeb.valido);
+    msg.classList.toggle("is-ok", pagoOrdenWeb.valido);
+    $("#cashChangeWeb").textContent = formatoMoneda(pagoOrdenWeb.cambio);
+    $("#btnConfirmarCobroWeb").disabled = !pagoOrdenWeb.valido;
+  });
+  $("#btnCancelarCobroWeb").addEventListener("click", cerrarModales);
+  $("#btnConfirmarCobroWeb").addEventListener("click", confirmarCobroOrdenWeb);
+  input.focus();
+}
+
+async function confirmarCobroOrdenWeb(){
+  if (!pagoOrdenWeb?.valido) return;
+  const boton = $("#btnConfirmarCobroWeb");
+  boton.disabled = true;
+  const { orden, recibido } = pagoOrdenWeb;
+  // Autorización de empleado (gafete QR o código) ligada a esta orden: sin ella el servidor no cobra
+  const autorizacion = await solicitarAutorizacionEmpleado("ORDEN_WEB", orden.id, `Cobrar pedido ${orden.folio || ""}`.trim());
+  if (!autorizacion){ boton.disabled = false; return; }
+  try {
+    const data = await apiFetch("cobrar_orden_web", { method: "POST", autorizacion, body: JSON.stringify({ id_orden: orden.id, efectivo_recibido: recibido, ticket_numero: ticketNumero }) });
+    // Ticket digital igual al de una venta normal
+    ticketCerrado = {
+      numero: ticketNumero, ventaId: data.venta_id, folio: data.folio, fecha: data.fecha,
+      cajero: CAJERO_ACTUAL, sucursal: SUCURSAL_ACTUAL, sucursalDireccion: SUCURSAL_ACTUAL_DIRECCION, sucursalTelefono: SUCURSAL_ACTUAL_TELEFONO,
+      caja: CAJA_ACTUAL, metodo: "Efectivo", subtotal: data.total, total: data.total, recibido, cambio: data.cambio,
+      items: data.lineas.map(l => ({ articulo: `${l.cantidad}× ${l.descripcion}`, precioTotal: l.subtotal, cantidad: l.cantidad, cliente: orden.nombre, email: orden.email || "", celular: orden.celular || "" }))
+    };
+    pagoOrdenWeb = null;
+    cerrarModales();
+    ticketNumero += 1;
+    await refrescarDatosDB();
+    renderWebOrders();
+    mostrarTicketCliente();
+  } catch (error) {
+    boton.disabled = false;
+    avisar(error.message);
+  }
+}
+
+/* Cancela una orden web pendiente; si había apartado piezas, regresan al inventario de la sucursal */
+async function cancelarOrdenWebPOS(idOrden){
+  if (!confirm("¿Cancelar esta orden web? Si apartó piezas, regresarán al inventario de la sucursal.")) return;
+  // Autorización de empleado (gafete QR o código) ligada a esta orden: sin ella el servidor no cancela
+  const autorizacion = await solicitarAutorizacionEmpleado("ORDEN_WEB", idOrden, "Cancelar orden web");
+  if (!autorizacion) return;
+  try {
+    await apiFetch("cancelar_orden_web", { method: "POST", autorizacion, body: JSON.stringify({ id_orden: idOrden }) });
+    await refrescarDatosDB();
+    renderWebOrders();
+  } catch (error) { avisar(error.message); }
 }
 
 // Lleva los datos de una orden web directo al formulario de Venta
@@ -1947,6 +2083,7 @@ function continuarDesdeWebOrder(orden){
     if (orden.enganche){
       formTipoArticulo = "Credito";
       borrador = {
+        webOrderId: orden.id,
         cliente: orden.nombre, email: orden.email, celular: orden.celular,
         marca: item?.marca, modelo: item?.modelo, anio: item?.anio, color: item?.color,
         engancheTipo: "monto", engancheValor: orden.enganche,
@@ -1955,6 +2092,7 @@ function continuarDesdeWebOrder(orden){
     } else {
       formTipoArticulo = "Vehiculo";
       borrador = {
+        webOrderId: orden.id,
         cliente: orden.nombre, email: orden.email, celular: orden.celular,
         marca: item?.marca, modelo: item?.modelo, anio: item?.anio, color: item?.color,
         articuloRef: orden.articulo, colorRef: orden.color
@@ -1963,6 +2101,7 @@ function continuarDesdeWebOrder(orden){
   } else {
     formTipoArticulo = "Refaccion";
     borrador = {
+      webOrderId: orden.id,
       cliente: orden.nombre,
       marcaVehiculo: orden.marcaVehiculo, modelo: orden.modelo,
       traccion: orden.traccion, lado: orden.lado, motor: orden.motor
@@ -2018,18 +2157,16 @@ function alFallarTraduccion(e){
   window.KarmaTraductor?.setIdioma("es");
 }
 
-/* Cierra la sesión visualmente; la autenticación completa se integrará después */
+/* Cierra la sesión del POS en el servidor y regresa a la pantalla de login */
 async function cerrarSesion(){
   const btn = $("#logoutBtn");
   if (btn.dataset.busy) return;
   btn.dataset.busy = "1";
-  const textoOriginal = btn.textContent;
   btn.textContent = "Cerrando sesión…";
   btn.disabled = true;
   try { await apiFetch("logout", { method:"POST", body:"{}" }); } catch (_) {}
-  btn.textContent = textoOriginal;
-  btn.disabled = false;
-  delete btn.dataset.busy;
+  localStorage.removeItem("karma_user");
+  window.location.href = "../../index.html";
 }
 
 /* ===== 16. BUSCADOR — enrutado según la vista activa ===== */
@@ -2063,6 +2200,10 @@ function initEventosGlobales(){
   $("#themeToggle").addEventListener("click", toggleTema);
   $("#langToggle").addEventListener("click", toggleIdioma);
   $("#logoutBtn").addEventListener("click", cerrarSesion);
+  // Catálogo web: si hay un ticket en curso se confirma antes de salir para no perder la venta
+  $("#catalogLink")?.addEventListener("click", (e) => {
+    if (ticketItems.length && !confirm("Hay un ticket en curso. ¿Salir al Catálogo? Se perderán los artículos capturados.")) e.preventDefault();
+  });
 
   // Traductor: refleja el idioma activo y avisa si la API de traducción falla
   document.addEventListener("karma:idioma", marcarIdiomaActivo);
