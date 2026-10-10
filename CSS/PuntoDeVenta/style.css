@@ -1327,3 +1327,13 @@ body.dark .auth-enlace{ color:#E2697A; }
   .visor-overlay{ padding:12px; }
 }
 
+/* ===== GARANTÍAS — estado de la solicitud enviada al gerente ===== */
+.garantia-estado-celda{ min-width:190px; }
+.garantia-estado{ display:inline-block; padding:4px 10px; border-radius:999px; font-size:11.5px; font-weight:600; }
+.garantia-estado--pendiente{ background:rgba(183,121,31,.14); color:#8A5A00; }
+.garantia-estado--denegada{ background:var(--red-soft); color:var(--red); }
+body.dark .garantia-estado--pendiente{ background:rgba(214,158,46,.18); color:#E2B04A; }
+body.dark .garantia-estado--denegada{ color:#E2697A; }
+.garantia-detalle{ display:block; margin:4px 0 6px; font-size:11px; color:var(--text-muted); line-height:1.4; }
+.garantia-denegada-banner{ border-color:rgba(158,27,46,.35); color:var(--red); }
+

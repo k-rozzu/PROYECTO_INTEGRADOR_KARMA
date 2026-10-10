@@ -1925,36 +1925,78 @@ function contratosClienteHTML(c){
 
 /* ===== 11. GARANTÍAS — tabla + formulario de pantalla completa ===== */
 // Dibuja la tabla de garantías vigentes (filtrada por el buscador)
+// Garantías que siguen vigentes en este instante (cada una desaparece justo en su fecha y hora de vencimiento)
+function garantiasVigentes(){
+  const ahora = Date.now();
+  return GARANTIAS.filter(g => !g.expiraIso || Date.parse(g.expiraIso) > ahora);
+}
+
+// Si la pantalla de Garantías sigue abierta, se vuelve a dibujar en el momento exacto en que vence la siguiente garantía
+let temporizadorGarantias = null;
+function programarVencimientoGarantias(){
+  clearTimeout(temporizadorGarantias);
+  const ahora = Date.now();
+  const proximo = Math.min(...garantiasVigentes().map(g => Date.parse(g.expiraIso)).filter(t => t > ahora));
+  if (!Number.isFinite(proximo) || proximo - ahora > 2147483000) return;
+  temporizadorGarantias = setTimeout(() => { if (currentView === "garantias") renderGarantias(); }, proximo - ahora + 50);
+}
+
+// Columna de estado: aplicar garantía, solicitud pendiente del gerente o solicitud denegada (con el motivo)
+function estadoGarantiaHTML(g){
+  if (g.solicitudEstado === "pendiente"){
+    return `<span class="garantia-estado garantia-estado--pendiente">Pendiente de aprobación del gerente</span>
+      <small class="garantia-detalle">Solicitud ${escapeHTML(g.solicitudFolio || "")} · ${escapeHTML(g.solicitudFecha || "")}</small>`;
+  }
+  const boton = (texto) => `<button class="btn btn-primary" data-garantia="${g.id}" style="padding:7px 16px; font-size:12px;">${texto}</button>`;
+  if (g.solicitudEstado === "denegada"){
+    return `<span class="garantia-estado garantia-estado--denegada">Denegada por el gerente</span>
+      <small class="garantia-detalle">Motivo: ${escapeHTML(g.motivoRechazo || "sin motivo registrado")}</small>
+      ${boton("Enviar nueva solicitud")}`;
+  }
+  return boton("Aplicar garantía");
+}
+
+// Garantías vigentes pendientes de atención, de la más próxima a vencer a la de mayor vigencia (orden del servidor)
 function renderGarantias(){
   const panel = $("#panelFull");
   const q = searchQuery.trim().toLowerCase();
-  const lista = GARANTIAS.filter(g => !q || g.nombre.toLowerCase().includes(q) || g.articulo.toLowerCase().includes(q));
+  const vigentes = garantiasVigentes();
+  const lista = vigentes.filter(g => !q || `${g.nombre || ""} ${g.articulo || ""} ${g.vin || ""}`.toLowerCase().includes(q));
 
   panel.innerHTML = `
     <div class="panel-heading"><h2>Garantías</h2></div>
-    <p class="venta-empty-hint" style="margin-bottom:18px;">Vehículos entregados actualmente en periodo de garantía.</p>
+    <p class="venta-empty-hint" style="margin-bottom:18px;">Garantías de 4 años de los vehículos vendidos (contado y crédito), de la más próxima a vencer a la de mayor vigencia. El cajero envía la solicitud y el gerente la confirma o la deniega.</p>
     ${lista.length ? `
       <div class="table-wrap">
         <table class="data-table">
-          <thead><tr><th>Nombre</th><th>Celular</th><th>Artículo</th><th>Expira</th><th></th></tr></thead>
+          <thead><tr><th>Nombre</th><th>Celular</th><th>Artículo</th><th>Compra</th><th>Expira</th><th>Estado</th></tr></thead>
           <tbody>
             ${lista.map(g => `
               <tr>
-                <td>${g.nombre}</td><td>${g.celular}</td><td>${g.articulo}</td><td>${g.expira}</td>
-                <td><button class="btn btn-primary" data-garantia="${g.id}" style="padding:7px 16px; font-size:12px;">Aplicar garantía</button></td>
+                <td>${escapeHTML(g.nombre || "—")}</td><td>${escapeHTML(g.celular || "—")}</td>
+                <td>${escapeHTML(g.articulo)}${g.vin ? `<br><small class="garantia-detalle" translate="no">VIN ${escapeHTML(g.vin)}</small>` : ""}</td>
+                <td>${escapeHTML(g.compra || "—")}</td>
+                <td>${escapeHTML(g.expira)}${g.expiraHora ? `<br><small class="garantia-detalle">${escapeHTML(g.expiraHora)} h</small>` : ""}</td>
+                <td class="garantia-estado-celda">${estadoGarantiaHTML(g)}</td>
               </tr>`).join("")}
           </tbody>
         </table>
-      </div>` : `<div class="empty-state"><strong>Sin resultados</strong>Ninguna garantía coincide con “${escapeHTML(searchQuery)}”.</div>`
+      </div>`
+      : vigentes.length
+        ? `<div class="empty-state"><strong>Sin resultados</strong>Ninguna garantía coincide con “${escapeHTML(searchQuery)}”.</div>`
+        : `<div class="empty-state"><strong>Sin garantías vigentes</strong>Cada vehículo que se venda (de contado o a crédito) registra aquí su garantía de 4 años automáticamente.</div>`
     }
   `;
   $$("[data-garantia]", panel).forEach(btn => btn.addEventListener("click", () => abrirGarantiaForm(Number(btn.dataset.garantia))));
+  programarVencimientoGarantias();
 }
 
-// Abre el formulario de garantía a pantalla completa, prellenado con el cliente elegido
+// Abre el formulario de garantía a pantalla completa, prellenado con el cliente y el vehículo de la garantía
 function abrirGarantiaForm(id){
   const g = GARANTIAS.find(x => x.id === id);
-  const contacto = g ? `${g.nombre} — ${g.celular}` : "";
+  if (!g || !garantiasVigentes().includes(g)){ avisar("Esta garantía ya no está vigente."); renderGarantias(); return; }
+  if (g.solicitudEstado === "pendiente"){ avisar("Esta garantía ya tiene una solicitud pendiente de aprobación del gerente."); return; }
+  const contacto = [g.nombre, g.celular, g.email].filter(Boolean).join(" — ");
 
   $("#garantiaOverlayContent").innerHTML = `
     <div class="fullscreen-header">
@@ -1964,26 +2006,28 @@ function abrirGarantiaForm(id){
       </div>
       <button class="btn btn-ghost" id="btnCerrarGarantia">Cerrar</button>
     </div>
+    <div class="hint-banner">La garantía no se aplica desde caja: al enviar se valida tu gafete y la solicitud queda <strong>pendiente de aprobación del gerente</strong>, que la confirma o la deniega. Vigente hasta el ${escapeHTML(g.expira)} a las ${escapeHTML(g.expiraHora || "")} h.</div>
+    ${g.solicitudEstado === "denegada" ? `<div class="hint-banner garantia-denegada-banner">La solicitud anterior (${escapeHTML(g.solicitudFolio || "")}) fue denegada. Motivo: ${escapeHTML(g.motivoRechazo || "sin motivo registrado")}</div>` : ""}
     <div class="fullscreen-body">
       <div class="fullscreen-form">
         <div class="form-grid">
           <div class="form-field span-2"><label>Nombre del propietario</label><input type="text" id="gNombre" value="${escapeHTML(g?.nombre || "")}"></div>
           <div class="form-field span-2"><label>Datos de contacto (teléfono y correo)</label><input type="text" id="gContacto" value="${escapeHTML(contacto)}"></div>
-          <div class="form-field"><label>Número de Identificación Vehicular (VIN)</label><input type="text" id="gVin" placeholder="17 caracteres"></div>
+          <div class="form-field"><label>Número de Identificación Vehicular (VIN)</label><input type="text" id="gVin" value="${escapeHTML(g.vin || "")}" placeholder="17 caracteres"></div>
           <div class="form-field"><label>Placa y año del modelo</label><input type="text" id="gPlaca" placeholder="Ej. KMA-2026 / 2025"></div>
           <div class="form-field"><label>Kilometraje actual</label><input type="number" id="gKm" placeholder="Ej. 8500"></div>
-          <div class="form-field"><label>Factura o contrato de compra-venta</label><input type="text" id="gFactura" placeholder="Folio de factura / contrato"></div>
+          <div class="form-field"><label>Factura o contrato de compra-venta</label><input type="text" id="gFactura" value="${escapeHTML(g.folioVenta || "")}" placeholder="Folio de factura / contrato"></div>
           <div class="form-field span-2"><label>Carnet / historial de servicios de mantenimiento</label><input type="text" id="gCarnet" placeholder="Referencia de historial"></div>
           <div class="form-field"><label>Fecha y hora de inicio de la falla</label><input type="datetime-local" id="gFechaFalla"></div>
           <div class="form-field"><label>Fecha de recepción de la unidad</label><input type="datetime-local" id="gFechaRecepcion"></div>
-          <div class="form-field span-2"><label>Descripción detallada del síntoma</label><textarea id="gSintoma"></textarea></div>
+          <div class="form-field span-2"><label>Descripción detallada del síntoma (obligatoria)</label><textarea id="gSintoma"></textarea></div>
           <div class="form-field span-2"><label>Condiciones en las que ocurre la falla</label><textarea id="gCondiciones"></textarea></div>
           <div class="form-field span-2"><label>Evidencia física o digital (fotos / videos / códigos)</label><input type="text" id="gEvidencia" placeholder="Descripción de la evidencia adjunta"></div>
           <div class="form-field"><label>Nombre y firma del asesor</label><input type="text" id="gAsesor" value="${escapeHTML(CAJERO_ACTUAL)}"></div>
           <div class="form-field"><label>Firma de conformidad del cliente</label><input type="text" id="gFirmaCliente" placeholder="Nombre de conformidad"></div>
         </div>
         <div class="venta-actions">
-          <button class="btn btn-primary" id="btnGuardarGarantia">Registrar garantía</button>
+          <button class="btn btn-primary" id="btnGuardarGarantia">Enviar solicitud al gerente</button>
           <button class="btn btn-ghost" id="btnCancelarGarantia">Cancelar</button>
         </div>
       </div>
@@ -2011,12 +2055,35 @@ function abrirGarantiaForm(id){
   $("#btnCerrarGarantia").addEventListener("click", cerrarGarantiaForm);
   $("#btnCancelarGarantia").addEventListener("click", cerrarGarantiaForm);
   $("#btnGuardarGarantia").addEventListener("click", async () => {
-    // Autorización de empleado (gafete QR o código): el servidor la valida y la registra antes de aplicar la garantía
-    const autorizacion = await solicitarAutorizacionEmpleado("GARANTIA", id);
-    if (!autorizacion) return;
-    try { await apiFetch("aplicar_garantia", { method: "POST", autorizacion, body: JSON.stringify({ id_garantia: id }) }); }
-    catch (error) { avisar(error.message); return; }
-    cerrarGarantiaForm(); renderGarantias();
+    const valor = (sel) => ($(sel)?.value || "").trim();
+    if (!valor("#gSintoma")){ $("#gSintoma").focus(); avisar("Describe el síntoma de la falla antes de enviar la solicitud."); return; }
+    const boton = $("#btnGuardarGarantia");
+    boton.disabled = true;
+    // Autorización de empleado (gafete QR o código): el servidor la valida y la registra antes de guardar la solicitud
+    const autorizacion = await solicitarAutorizacionEmpleado("GARANTIA", id, "Solicitud de garantía");
+    if (!autorizacion){ boton.disabled = false; return; }
+    try {
+      const data = await apiFetch("aplicar_garantia", {
+        method: "POST",
+        autorizacion,
+        body: JSON.stringify({
+          id_garantia: id,
+          formulario: {
+            propietario: valor("#gNombre"), contacto: valor("#gContacto"), vin: valor("#gVin"), placa_anio: valor("#gPlaca"),
+            kilometraje: valor("#gKm"), factura: valor("#gFactura"), historial_servicios: valor("#gCarnet"),
+            fecha_falla: valor("#gFechaFalla"), fecha_recepcion: valor("#gFechaRecepcion"), sintoma: valor("#gSintoma"),
+            condiciones: valor("#gCondiciones"), evidencia: valor("#gEvidencia"), asesor: valor("#gAsesor"), conformidad_cliente: valor("#gFirmaCliente")
+          }
+        })
+      });
+      cerrarGarantiaForm();
+      try { await refrescarDatosDB(); } catch (_) { /* la solicitud ya quedó guardada */ }
+      renderGarantias();
+      avisar(data.message || "Solicitud enviada al gerente.");
+    } catch (error) {
+      boton.disabled = false;
+      avisar(error.message);
+    }
   });
 
   $("#garantiaOverlay").classList.add("is-open");

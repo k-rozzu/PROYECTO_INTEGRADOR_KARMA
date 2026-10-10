@@ -225,20 +225,45 @@ function bootstrap(): never {
     }
     unset($cliente);
 
-    // Garantías registradas, de la más lejana a la más próxima a vencer
+    // Respaldo del evento ev_garantias_vencidas (Database/garantias.sql): si el programador de eventos de MySQL estuviera
+    // apagado, las garantías cuya fecha y hora de vencimiento ya llegó dejan de estar vigentes aquí también
+    $pdo->exec("UPDATE garantias SET estado = 'vencida' WHERE estado = 'vigente' AND fecha_expiracion <= NOW()");
+
+    // Garantías vigentes pendientes de atención, de la más próxima a vencer a la de mayor vigencia, con su última solicitud.
+    // Las confirmadas por el gerente quedan 'aplicadas' y ya no aparecen; las denegadas siguen aquí con el motivo.
     $garantias = $pdo->query("
         SELECT
             g.id_garantia AS id,
-            c.nombre, c.celular,
+            COALESCE(g.cliente_nombre, c.nombre) AS nombre,
+            COALESCE(g.cliente_celular, c.celular) AS celular,
+            COALESCE(g.cliente_email, c.email) AS email,
             p.nombre AS articulo,
-            p.marca, p.modelo, p.anio,
+            p.marca, p.modelo, p.anio, g.vin, g.id_venta AS ventaId, g.id_sucursal AS sucursalId,
+            DATE_FORMAT(g.fecha_compra, '%d/%m/%Y %H:%i') AS compra,
             DATE_FORMAT(g.fecha_expiracion, '%d/%m/%Y') AS expira,
-            g.estado
+            DATE_FORMAT(g.fecha_expiracion, '%H:%i') AS expiraHora,
+            DATE_FORMAT(g.fecha_expiracion, '%Y-%m-%dT%H:%i:%s') AS expiraIso,
+            g.estado,
+            s.folio AS solicitudFolio, s.estado AS solicitudEstado, s.motivo_rechazo AS motivoRechazo,
+            DATE_FORMAT(s.fecha_solicitud, '%d/%m/%Y %H:%i') AS solicitudFecha
         FROM garantias g
-        JOIN clientes c ON c.id_cliente = g.id_cliente
         JOIN productos p ON p.id_producto = g.id_producto
-        ORDER BY g.fecha_expiracion DESC
+        LEFT JOIN clientes c ON c.id_cliente = g.id_cliente
+        LEFT JOIN solicitudes_garantia s ON s.id_solicitud = (
+            SELECT MAX(s2.id_solicitud) FROM solicitudes_garantia s2 WHERE s2.id_garantia = g.id_garantia
+        )
+        WHERE g.estado = 'vigente' AND g.fecha_expiracion > NOW()
+        ORDER BY g.fecha_expiracion ASC, g.id_garantia ASC
     ")->fetchAll();
+    foreach ($garantias as &$garantia) {
+        $garantia['id'] = (int)$garantia['id'];
+        $garantia['ventaId'] = $garantia['ventaId'] !== null ? (int)$garantia['ventaId'] : null;
+        // Folio de la venta (factura / contrato de compra-venta) para prellenar el formulario de garantía
+        $garantia['folioVenta'] = $garantia['ventaId'] ? sprintf('KRM-%02d-%06d', (int)$garantia['sucursalId'], $garantia['ventaId']) : null;
+        // Vencimiento con la zona del proyecto: la pantalla oculta la garantía en el instante exacto en que vence
+        $garantia['expiraIso'] .= (new DateTimeImmutable('now'))->format('P');
+    }
+    unset($garantia);
 
     // Órdenes web pendientes que llegan del Catálogo (PHP/Catalogo) para ESTA sucursal + las de ejemplo sin sucursal.
     // Los pedidos de refacciones del Catálogo traen sus líneas en web_order_detalle (un carrito = varias piezas).
@@ -464,6 +489,12 @@ function crearVenta(): never {
         // Órdenes web que se atendieron con esta venta (botón "Continuar" de Web orders)
         posMarcarOrdenesWeb($pdo, (array)($data['ordenes_web'] ?? []), $ventaId, $idSucursal);
 
+        // Garantía de 4 años por cada vehículo vendido (sección Garantías)
+        posRegistrarGarantias($pdo, $ventaId, $idSucursal, $productosVenta, [
+            'nombre' => trim((string)($data['cliente'] ?? '')), 'celular' => trim((string)($data['celular'] ?? '')),
+            'email' => trim((string)($data['email'] ?? ''))
+        ], null);
+
         // Fecha y hora con que quedó registrada la venta (ventas.fecha_hora): es la que se imprime en el ticket y en el PDF
         $fechaStmt = $pdo->prepare("SELECT DATE_FORMAT(fecha_hora, '%d/%m/%Y %H:%i:%s') FROM ventas WHERE id_venta = ?");
         $fechaStmt->execute([$ventaId]);
@@ -586,6 +617,39 @@ function posMarcarOrdenesWeb(PDO $pdo, array $ordenes, int $ventaId, int $idSucu
             $citaCompletada->execute([$idOrdenWeb]);
             notificarClienteOrden($pdo, $idOrdenWeb, 'Tu visita fue atendida', 'Gracias por tu compra en KARMA. Tu orden web quedó atendida en caja.');
         }
+    }
+}
+
+/* Garantía KARMA de 4 años para cada vehículo (auto o moto) de una venta, sin importar la marca ni el método de pago.
+   La compra y el vencimiento salen de ventas.fecha_hora (el momento real en que se concretó), con la misma hora exacta.
+   $idCliente: cliente de la sección Clientes (créditos); en contado se liga solo si el correo ya pertenece a un cliente. */
+function posRegistrarGarantias(PDO $pdo, int $ventaId, int $idSucursal, array $lineas, array $comprador, ?int $idCliente): void {
+    $tipo = $pdo->prepare("SELECT tipo FROM productos WHERE id_producto = ?");
+    $vehiculos = array_values(array_filter($lineas, function (array $l) use ($tipo): bool {
+        $tipo->execute([(int)$l['id']]);
+        return in_array($tipo->fetchColumn(), ['auto', 'moto'], true);
+    }));
+    if (!$vehiculos) return;
+
+    $email = trim((string)($comprador['email'] ?? ''));
+    if ($idCliente === null && $email !== '') {
+        $find = $pdo->prepare("SELECT id_cliente FROM clientes WHERE email = ? LIMIT 1");
+        $find->execute([$email]);
+        $idCliente = ($id = $find->fetchColumn()) ? (int)$id : null;
+    }
+
+    $ins = $pdo->prepare("
+        INSERT INTO garantias
+        (id_cliente, id_producto, id_venta, id_sucursal, vin, cliente_nombre, cliente_celular, cliente_email, fecha_compra, fecha_expiracion, estado)
+        SELECT ?, ?, v.id_venta, ?, ?, ?, ?, ?, v.fecha_hora, v.fecha_hora + INTERVAL 4 YEAR, 'vigente'
+        FROM ventas v WHERE v.id_venta = ?
+    ");
+    foreach ($vehiculos as $l) {
+        $ins->execute([
+            $idCliente, (int)$l['id'], $idSucursal, trim((string)($l['vin'] ?? '')) ?: null,
+            trim((string)($comprador['nombre'] ?? '')) ?: null, trim((string)($comprador['celular'] ?? '')) ?: null, $email ?: null,
+            $ventaId
+        ]);
     }
 }
 
@@ -744,6 +808,9 @@ function cobrarOrdenWeb(): never {
 
         $det = $pdo->prepare("INSERT INTO detalle_ventas (id_venta, id_producto, cantidad, precio_unitario, subtotal_linea) VALUES (?, ?, ?, ?, ?)");
         foreach ($lineas as $l) $det->execute([$ventaId, $l['id_producto'], $l['cantidad'], $l['precio_unitario'], $l['subtotal_linea']]);
+        posRegistrarGarantias($pdo, $ventaId, $idSucursal, array_map(fn($l) => ['id' => (int)$l['id_producto'], 'vin' => ''], $lineas),
+            ['nombre' => (string)$orden['nombre'], 'celular' => (string)($orden['celular'] ?? ''), 'email' => (string)($orden['email'] ?? '')],
+            $orden['id_cliente'] ? (int)$orden['id_cliente'] : null);
 
         $pdo->prepare("UPDATE web_orders SET estado = 'atendida', estado_pago = 'pagado', id_venta = ?, fecha_pago = NOW(), id_metodo_pago = ? WHERE id_orden = ?")
             ->execute([$ventaId, $metodo, $idOrden]);
@@ -811,12 +878,56 @@ function autorizarEmpleado(): never {
     ok(['autorizado' => true, 'autorizacion' => $r['permiso'], 'vigencia' => $r['vigencia']]);
 }
 
-/* Aplicar garantía: el formulario actual no guarda datos en la BD (se llena en pantalla), así que este paso no cambia ninguna tabla.
-   Solo llega aquí si el enrutador ya validó y consumió la autorización del empleado (queda registrada en la auditoría). */
+/* Solicitud de garantía: el cajero llena el formulario y la ENVÍA al gerente; queda 'pendiente' (el cajero no la aprueba).
+   Solo llega aquí si el enrutador ya validó y consumió la autorización del gafete ligada a esta garantía.
+   Confirmar o denegar lo hará el módulo del gerente (reglas en los triggers de Database/garantias.sql). */
 function aplicarGarantia(): never {
-    $stmt = db()->prepare("SELECT id_garantia FROM garantias WHERE id_garantia = ?");
-    $stmt->execute([(int)(jsonInput()['id_garantia'] ?? 0)]);
-    if (!$stmt->fetchColumn()) fail('La garantía ya no existe.', 404);
-    ok(['message' => 'Garantía autorizada.']);
+    $data = jsonInput();
+    $cajero = $GLOBALS['cajeroSesion'];
+    $idGarantia = (int)($data['id_garantia'] ?? 0);
+    $texto = fn(string $k, int $max): string => mb_substr(trim((string)($data['formulario'][$k] ?? '')), 0, $max);
+    $form = [
+        'propietario' => $texto('propietario', 150), 'contacto' => $texto('contacto', 200), 'vin' => strtoupper($texto('vin', 17)),
+        'placa_anio' => $texto('placa_anio', 60), 'kilometraje' => $texto('kilometraje', 10), 'factura' => $texto('factura', 80),
+        'historial_servicios' => $texto('historial_servicios', 200), 'fecha_falla' => $texto('fecha_falla', 20),
+        'fecha_recepcion' => $texto('fecha_recepcion', 20), 'sintoma' => $texto('sintoma', 2000), 'condiciones' => $texto('condiciones', 2000),
+        'evidencia' => $texto('evidencia', 500), 'asesor' => $texto('asesor', 150), 'conformidad_cliente' => $texto('conformidad_cliente', 150)
+    ];
+    if ($form['sintoma'] === '') fail('Describe el síntoma de la falla antes de enviar la solicitud.');
+    if ($form['kilometraje'] !== '' && !ctype_digit($form['kilometraje'])) fail('El kilometraje debe ser un número entero.');
+
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare("SELECT id_garantia, vin, estado, fecha_expiracion > NOW() AS vigente FROM garantias WHERE id_garantia = ? FOR UPDATE");
+        $stmt->execute([$idGarantia]);
+        $garantia = $stmt->fetch();
+        if (!$garantia) throw new RuntimeException('La garantía ya no existe.');
+        if ($garantia['estado'] !== 'vigente' || !(int)$garantia['vigente']) throw new RuntimeException('Esta garantía ya no está vigente.');
+        if ($form['vin'] !== '' && $garantia['vin'] && $form['vin'] !== strtoupper((string)$garantia['vin'])) {
+            throw new RuntimeException('El VIN no coincide con el vehículo de esta garantía.');
+        }
+        $pendiente = $pdo->prepare("SELECT folio FROM solicitudes_garantia WHERE id_garantia = ? AND estado = 'pendiente' LIMIT 1");
+        $pendiente->execute([$idGarantia]);
+        $folioPendiente = $pendiente->fetchColumn();
+        if ($folioPendiente) {
+            throw new RuntimeException("Esta garantía ya tiene la solicitud {$folioPendiente} pendiente de aprobación del gerente.");
+        }
+
+        $pdo->prepare("INSERT INTO solicitudes_garantia (id_garantia, id_sucursal, id_usuario_solicita, datos_json) VALUES (?, ?, ?, ?)")
+            ->execute([$idGarantia, (int)$cajero['id_sucursal'], (int)$cajero['id_usuario'], json_encode($form, JSON_UNESCAPED_UNICODE)]);
+        $idSolicitud = (int)$pdo->lastInsertId();
+        $folio = sprintf('KRM-SG-%02d-%06d', (int)$cajero['id_sucursal'], $idSolicitud);
+        $pdo->prepare("UPDATE solicitudes_garantia SET folio = ? WHERE id_solicitud = ?")->execute([$folio, $idSolicitud]);
+        $pdo->commit();
+    } catch (RuntimeException $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        fail($e->getMessage(), 409);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+
+    ok(['message' => "Solicitud {$folio} enviada al gerente. Queda pendiente de su aprobación.", 'folio' => $folio]);
 }
 ?>

@@ -776,6 +776,8 @@ function concretarCredito(): never {
             'cambio' => (float)$contrato['cambio'], 'ticket_numero' => (int)$contrato['ticket_numero']
         ], $lineas);
         posMarcarOrdenesWeb($pdo, (array)($sol['ordenes_web'] ?? []), $ventaId, $idSucursal);
+        // Garantía de 4 años del vehículo a crédito (y de cualquier otro vehículo del mismo ticket)
+        posRegistrarGarantias($pdo, $ventaId, $idSucursal, $lineas, $sol['cliente'], $idCliente);
 
         // Fecha definitiva = momento de la firma (las mensualidades se cuentan desde aquí)
         $ahora = contratoAhora($pdo);
