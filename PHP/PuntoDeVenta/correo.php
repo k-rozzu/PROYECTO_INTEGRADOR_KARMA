@@ -17,6 +17,17 @@ function h($valor): string {
     return htmlspecialchars((string)($valor ?? ''), ENT_QUOTES, 'UTF-8');
 }
 
+// Logo vectorial y sello corporativo azul de KARMA guardados en assets/ (los usan el ticket y el contrato de crédito)
+function karmaAssetSvg(string $archivo): string {
+    $ruta = dirname(__DIR__, 2) . '/assets/' . $archivo;
+    return is_file($ruta) ? (string)file_get_contents($ruta) : '';
+}
+
+// Imagen SVG lista para <img src="..."> (funciona igual en el navegador y en dompdf, que la dibuja sin la extensión GD)
+function karmaSvgDataUri(string $svg): string {
+    return 'data:image/svg+xml;base64,' . base64_encode($svg);
+}
+
 // Formatea un monto como "$ 1,234.00"
 function karmaMoneyFmt($n): string {
     return '$ ' . number_format((float)($n ?? 0), 2);
@@ -40,7 +51,7 @@ function karmaConvertirEntero(int $n): string {
 
     $millones = intdiv($n, 1000000);
     $resto = $n % 1000000;
-    $prefijo = ($millones === 1) ? 'UN MILLON' : trim(karmaConvertirMenorMillon($millones)) . ' MILLONES';
+    $prefijo = ($millones === 1) ? 'UN MILLON' : karmaApocope(trim(karmaConvertirMenorMillon($millones))) . ' MILLONES';
     return trim($prefijo . ($resto > 0 ? ' ' . karmaConvertirMenorMillon($resto) : ''));
 }
 
@@ -51,8 +62,13 @@ function karmaConvertirMenorMillon(int $n): string {
 
     $miles = intdiv($n, 1000);
     $resto = $n % 1000;
-    $prefijo = ($miles === 1) ? 'MIL' : trim(karmaConvertirCentenas($miles)) . ' MIL';
+    $prefijo = ($miles === 1) ? 'MIL' : karmaApocope(trim(karmaConvertirCentenas($miles))) . ' MIL';
     return trim($prefijo . ($resto > 0 ? ' ' . karmaConvertirCentenas($resto) : ''));
+}
+
+// Antes de MIL o MILLONES "UNO" se escribe "UN" (CINCUENTA Y UN MIL, VEINTIUN MILLONES)
+function karmaApocope(string $texto): string {
+    return (string)preg_replace('/UNO$/', 'UN', $texto);
 }
 
 // Convierte a palabras un número de 1 a 999
@@ -127,7 +143,10 @@ function construirTicketHTML(string $nombreCliente, string $emailCliente, array 
           <tr><td class="etq">Kilometraje de entrega</td><td>0 km</td></tr>
           <tr><td class="etq">Estado de la unidad</td><td>Unidad Nueva</td></tr>
           <tr><td class="etq">Garantía</td><td>' . ($conGarantia ? '4 años de garantía KARMA' : 'Consultar condiciones de garantía con el vendedor') . '</td></tr>
-          <tr><td class="etq">Precio</td><td>' . karmaMoneyFmt($v['precioTotal'] ?? 0) . '</td></tr>
+          ' . (!empty($v['esCredito'])
+            ? '<tr><td class="etq">Precio de contado</td><td>' . karmaMoneyFmt($v['precioContado'] ?? 0) . '</td></tr>
+          <tr><td class="etq">Cobrado hoy (enganche)</td><td>' . karmaMoneyFmt($v['precioTotal'] ?? 0) . '</td></tr>'
+            : '<tr><td class="etq">Precio</td><td>' . karmaMoneyFmt($v['precioTotal'] ?? 0) . '</td></tr>') . '
         </table>';
     }
 
@@ -143,7 +162,10 @@ function construirTicketHTML(string $nombreCliente, string $emailCliente, array 
         $bloqueCredito = '
         <h2>5b. Condiciones de crédito</h2>
         <table class="tabla-datos">
+          ' . (!empty($ticket['contrato']['folio']) ? '<tr><td class="etq">Contrato de crédito</td><td>' . h($ticket['contrato']['folio']) . ' (se adjunta firmado)</td></tr>' : '') . '
+          <tr><td class="etq">Precio de contado</td><td>' . karmaMoneyFmt($primerVehiculo['precioContado'] ?? 0) . '</td></tr>
           <tr><td class="etq">Enganche</td><td>' . karmaMoneyFmt($primerVehiculo['enganche'] ?? 0) . '</td></tr>
+          <tr><td class="etq">Saldo a financiar</td><td>' . karmaMoneyFmt($primerVehiculo['saldoFinanciar'] ?? 0) . '</td></tr>
           <tr><td class="etq">Plazo</td><td>' . h($primerVehiculo['abonos'] ?? '') . '</td></tr>
           <tr><td class="etq">Tasa de interés anual</td><td>' . h($primerVehiculo['tasaAnual'] ?? '') . '%</td></tr>
           <tr><td class="etq">Comisión por apertura</td><td>' . karmaMoneyFmt($primerVehiculo['comisionApertura'] ?? 0) . '</td></tr>
@@ -169,7 +191,8 @@ function construirTicketHTML(string $nombreCliente, string $emailCliente, array 
       .der{ text-align:right; }
       .total-box{ margin-top:10px; padding:8px 10px; background:#f7f7f5; border:1px solid #ddd; }
       .legal{ margin-top:16px; font-size:9.5px; color:#444; line-height:1.5; }
-      .firma{ margin-top:26px; }
+      .firma{ margin-top:16px; width:230px; text-align:center; }
+      .firma .sello{ width:112px; height:112px; margin:0 auto -6px; display:block; }
     </style></head><body>
 
       <h1>KARMA — Agencia de Autos</h1>
@@ -193,7 +216,7 @@ function construirTicketHTML(string $nombreCliente, string $emailCliente, array 
       <h2>3. Desglose financiero</h2>
       <table class="tabla-datos">
         <tr><td class="etq">Subtotal</td><td>' . karmaMoneyFmt($subtotal) . '</td></tr>
-        <tr><td class="etq">Total</td><td>' . karmaMoneyFmt($total) . '</td></tr>
+        <tr><td class="etq">' . ($esCredito ? 'Total cobrado hoy (enganche y contado)' : 'Total') . '</td><td>' . karmaMoneyFmt($total) . '</td></tr>
         <tr><td class="etq">Total con letra</td><td>' . $totalLetras . '</td></tr>
         <tr><td class="etq">Efectivo recibido</td><td>' . karmaMoneyFmt($recibido) . '</td></tr>
         <tr><td class="etq">Cambio</td><td>' . karmaMoneyFmt($cambio) . '</td></tr>
@@ -214,7 +237,7 @@ function construirTicketHTML(string $nombreCliente, string $emailCliente, array 
         <strong>Validez digital:</strong> Documento firmado digitalmente por ' . $cajero . ' en representación de KARMA, Sucursal ' . $sucursalNombre . '.<br>
         <strong>Conformidad del cliente:</strong> &ldquo;Recibí de conformidad el vehículo y los documentos arriba descritos.&rdquo;
       </div>
-      <div class="firma">________________________________<br><span class="muted">Firma digital / sello de recepción del vendedor</span></div>
+      <div class="firma">' . (($sello = karmaAssetSvg('sello-karma.svg')) !== '' ? '<img class="sello" src="' . karmaSvgDataUri($sello) . '" alt="Sello digital de KARMA S.A. de C.V.">' : '') . '________________________________<br><span class="muted">Firma digital / sello de recepción del vendedor</span></div>
 
     </body></html>';
 }
@@ -237,16 +260,26 @@ function construirCuerpoCorreo(string $nombre, string $folio): string {
         . '</div>';
 }
 
-// API BREVO: genera el PDF del ticket y lo manda como adjunto al correo del cliente (POST https://api.brevo.com/v3/smtp/email)
-function enviarTicketPorCorreo(string $email, string $nombre, array $ticket): array {
-    // Dompdf se instala con Composer (carpeta vendor dentro de PHP/PuntoDeVenta)
+// Carga Dompdf (se instala con Composer en PHP/PuntoDeVenta/vendor). Regresa null si está listo o el mensaje del problema
+function karmaCargarDompdf(): ?string {
     $autoload = __DIR__ . '/vendor/autoload.php';
     if (!file_exists($autoload)) {
-        return ['ok' => false, 'message' => 'Falta instalar Dompdf: abre una terminal en PHP/PuntoDeVenta y ejecuta "composer install" (ver explicacion_api.txt).'];
+        return 'Falta instalar Dompdf: abre una terminal en PHP/PuntoDeVenta y ejecuta "composer install" (ver explicacion_api.txt).';
     }
     require_once $autoload;
     if (!class_exists('Dompdf\\Dompdf')) {
-        return ['ok' => false, 'message' => 'Dompdf no está disponible. Ejecuta "composer install" en PHP/PuntoDeVenta.'];
+        return 'Dompdf no está disponible. Ejecuta "composer install" en PHP/PuntoDeVenta.';
+    }
+    return null;
+}
+
+// API BREVO: genera el PDF del ticket y lo manda como adjunto al correo del cliente (POST https://api.brevo.com/v3/smtp/email).
+// $adjuntosExtra = otros PDF ya generados (ej. el contrato de crédito firmado): [['name' => ..., 'content' => base64], ...]
+function enviarTicketPorCorreo(string $email, string $nombre, array $ticket, array $adjuntosExtra = []): array {
+    // Dompdf se instala con Composer (carpeta vendor dentro de PHP/PuntoDeVenta)
+    $errorDompdf = karmaCargarDompdf();
+    if ($errorDompdf !== null) {
+        return ['ok' => false, 'message' => $errorDompdf];
     }
 
     // API BREVO: credenciales leídas del archivo .env (nunca se mandan al navegador)
@@ -263,13 +296,15 @@ function enviarTicketPorCorreo(string $email, string $nombre, array $ticket): ar
     $nombreArchivo = 'ticket-karma-' . preg_replace('/[^A-Za-z0-9\-]/', '', $folio) . '.pdf';
 
     // API BREVO: cuerpo JSON de la petición (remitente, destinatario, asunto, HTML y PDF en base64)
+    $conContrato = !empty($adjuntosExtra);
     $payload = [
         'sender' => ['name' => $remitenteNombre, 'email' => $remitenteEmail],
         'to' => [['email' => $email, 'name' => $nombre]],
         'replyTo' => ['email' => $remitenteEmail, 'name' => $remitenteNombre],
-        'subject' => 'Ticket de compra KARMA — ' . $folio,
-        'htmlContent' => construirCuerpoCorreo($nombre, $folio),
-        'attachment' => [['name' => $nombreArchivo, 'content' => base64_encode($pdf)]]
+        'subject' => ($conContrato ? 'Ticket y contrato de crédito KARMA — ' : 'Ticket de compra KARMA — ') . $folio,
+        'htmlContent' => construirCuerpoCorreo($nombre, $folio)
+            . ($conContrato ? '<p style="font-family:Arial,sans-serif;font-size:14px;color:#17181A">También adjuntamos tu contrato de crédito firmado en PDF. Consérvalo para cualquier aclaración.</p>' : ''),
+        'attachment' => array_merge([['name' => $nombreArchivo, 'content' => base64_encode($pdf)]], $adjuntosExtra)
     ];
 
     // API BREVO: llamada HTTPS con la clave en el encabezado "api-key"
@@ -302,5 +337,6 @@ function enviarTicketPorCorreo(string $email, string $nombre, array $ticket): ar
         return ['ok' => false, 'message' => 'Brevo rechazó el envío: ' . $detalle];
     }
 
-    return ['ok' => true, 'message' => 'El PDF con el ticket completo fue enviado a ' . $email . '.', 'id' => $datos['messageId'] ?? null];
+    $enviado = $conContrato ? 'El ticket y el contrato de crédito firmado (PDF) fueron enviados a ' : 'El PDF con el ticket completo fue enviado a ';
+    return ['ok' => true, 'message' => $enviado . $email . '.', 'id' => $datos['messageId'] ?? null];
 }

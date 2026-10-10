@@ -71,6 +71,18 @@ El proyecto contempla la integración de pagos mediante **PayPal**, utilizando m
 
 Esta integración permite incorporar el procesamiento de pagos electrónicos dentro del flujo del punto de venta.
 
+### 🌐 Catálogo web
+
+Sitio para clientes (`PHP/Catalogo/index.php`) integrado con el punto de venta y la misma base de datos:
+
+* Vehículos Audi, Porsche y Ducati, refacciones y accesorios con existencias reales de cada sucursal (Manzanillo y Colima tienen inventario independiente).
+* Carrito con dos modalidades: envío con pago con tarjeta (simulado) o recoger en sucursal pagando en efectivo; estos pedidos llegan a **Web orders** del cajero para cobrarse.
+* Ver modelos, simular créditos, agendar citas (visita u orden de servicio de taller) y apartar vehículos; configurador, vista 3D y perfil del cliente.
+* Servicios de la agencia: seguros (cobertura amplia, vida y desempleo, llantas y rines), comisión por apertura, gestoría de placas, ISAN, tenencia, verificación (holograma 00), mantenimiento prepagado, garantía extendida, accesorios e instalación, polarizado y orden de servicio de taller.
+* Botón **Punto de Venta** que lleva al login existente (solo entran cajeros) y botón **Catálogo** en el punto de venta.
+
+La documentación completa del módulo está en [`docs/CATALOGO.md`](docs/CATALOGO.md).
+
 ## 🗄️ Base de datos
 
 Karma utiliza **MySQL** como sistema gestor de bases de datos para almacenar, organizar y consultar la información necesaria para el funcionamiento del sistema.
@@ -154,6 +166,7 @@ La documentación del proyecto incluye información relacionada con:
 * Avances del desarrollo.
 * Implementación de funcionalidades.
 * Gestión y seguimiento del proyecto.
+* Módulo Catálogo web: [`docs/CATALOGO.md`](docs/CATALOGO.md).
 
 ---
 ## 👥 Integrantes del equipo

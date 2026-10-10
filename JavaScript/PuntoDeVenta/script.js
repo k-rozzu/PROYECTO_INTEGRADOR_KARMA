@@ -24,11 +24,23 @@ const PLAZOS_CREDITO = [12, 24, 36, 48, 60];
 /* Estado de carga y sincronización */
 let datosDBCargados = false;
 
-// Llama a api.php con la acción indicada y regresa su JSON (lanza error si el servidor responde con falla)
+// Token CSRF de la sesión del POS (lo publica index.php); se manda en cada petición a api.php
+const CSRF_TOKEN = document.querySelector('meta[name="karma-csrf"]')?.content || "";
+
+// Llama a api.php con la acción indicada y regresa su JSON (lanza error si el servidor responde con falla).
+// options.autorizacion = permiso de un solo uso que entregó el servidor tras validar el gafete (acciones sensibles)
 async function apiFetch(action, options = {}) {
   const url = `api.php?action=${encodeURIComponent(action)}`;
-  const config = { headers: { "Content-Type": "application/json" }, ...options };
+  const { autorizacion, ...opciones } = options;
+  const headers = { "Content-Type": "application/json", "X-CSRF-Token": CSRF_TOKEN };
+  if (autorizacion) headers["X-Karma-Autorizacion"] = autorizacion;
+  const config = { headers, ...opciones };
   const response = await fetch(url, config);
+  // Sesión del POS vencida o inexistente: se regresa a la pantalla de login
+  if (response.status === 401 && action !== "logout"){
+    window.location.href = "../../index.html?destino=pos";
+    throw new Error("Tu sesión del Punto de Venta expiró.");
+  }
   const data = await response.json().catch(() => ({ ok:false, error:"Respuesta inválida del servidor." }));
   if (!response.ok || data.ok === false) throw new Error(data.error || "No fue posible completar la solicitud.");
   return data;
@@ -133,6 +145,11 @@ const $$ = (sel, ctx = document) => Array.from(ctx.querySelectorAll(sel));
 function formatoMoneda(n){
   if (n === null || n === undefined || n === "") return "—";
   return Number(n).toLocaleString("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 });
+}
+// Igual que formatoMoneda pero con centavos (importe exacto que se cobra del enganche)
+function formatoMonedaCentavos(n){
+  if (n === null || n === undefined || n === "") return "—";
+  return Number(n).toLocaleString("es-MX", { style: "currency", currency: "MXN", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 // Evita inyección de HTML al insertar texto libre del usuario
 function escapeHTML(str){
@@ -418,9 +435,15 @@ function renderMain(){
 function renderPanelVenta(){
   const panel = $("#panelVenta");
   if (!panel) return;
+  // Se conserva la posición del scroll al redibujar (plazo, tipo de enganche, cajones…). En pantallas angostas el que se
+  // desplaza es <main> (formulario y ticket apilados), por eso se guardan los dos
+  const main = $("#main");
+  const scroll = panel.scrollTop, scrollMain = main ? main.scrollTop : 0;
   panel.innerHTML = formularioVentaHTML();
   bindFormularioVenta();
   montarVistaPrevia3D();
+  panel.scrollTop = scroll;
+  if (main) main.scrollTop = scrollMain;
 }
 
 // Producto que debe verse en la vista previa 3D según la pestaña activa (null si aún no está completo)
@@ -606,8 +629,9 @@ function camposVehiculoHTML(){
   `;
 }
 
-// Campos extra del ticket completo: dirección, identificación y el VIN (cajita con los VIN registrados)
-function camposExtraVehiculoHTML(sufijo, b){
+// Campos extra del ticket completo: dirección, identificación y el VIN (cajita con los VIN registrados).
+// conNumeroId = true agrega el número de la identificación (lo pide el contrato de crédito)
+function camposExtraVehiculoHTML(sufijo, b, conNumeroId = false){
   const vins = vinsDisponibles(b);
   // Texto de cada VIN en la lista: VIN · marca modelo año
   const textoVin = (vin) => {
@@ -624,6 +648,7 @@ function camposExtraVehiculoHTML(sufijo, b){
         <option value="Otra" ${b.identificacionTipo === "Otra" ? "selected" : ""}>Otra</option>
       </select>
     </div>
+    ${conNumeroId ? `<div class="form-field"><label>Número de identificación</label><input type="text" id="inpIdNumero${sufijo}" value="${escapeHTML(b.identificacionNumero || "")}" placeholder="Folio / número del documento" autocomplete="off"></div>` : ""}
     <div class="form-field span-2">
       <label>VIN / Número de serie de la unidad</label>
       <select id="selVin${sufijo}" ${!vins.length ? "disabled" : ""}>
@@ -798,33 +823,59 @@ function camposRefaccionHTML(){
   `;
 }
 
-// Campos del módulo de Crédito (solo vehículos): enganche, plazo, tasa y simulación de intereses
-function camposCreditoHTML(){
-  const b = borrador;
+// Simulación del crédito con lo capturado: precio del inventario, enganche (por % o monto, redondeado a centavos), plazo y tasa
+function simulacionCredito(b){
   const tasa = b.tasaAnual ?? TASA_INTERES_ANUAL_DEFAULT;
   const plazo = Number(b.plazoMeses) || null;
   const engancheTipo = b.engancheTipo || "monto";
-
   const itemInventario = articuloDeBorrador(b);
   const precio = Number(itemInventario?.precio || 0);
-  const engancheMonto = engancheTipo === "pct"
+  const engancheBruto = engancheTipo === "pct"
     ? precio * (Number(b.engancheValor || 0) / 100)
     : Number(b.engancheValor || 0);
-
+  // Mismo redondeo que el servidor (contrato_credito.php) para que ticket, contrato y crédito registrado coincidan
+  const engancheMonto = Math.round(engancheBruto * 100) / 100;
   const calculo = (precio > 0 && plazo) ? calcularCredito({ precio, engancheMonto, plazoMeses: plazo, tasaAnualPct: Number(tasa) }) : null;
+  return { tasa, plazo, engancheTipo, itemInventario, precio, engancheMonto, calculo };
+}
+
+// Cuadros con el resultado de la simulación (se reemplazan solos al escribir, sin redibujar el formulario)
+function resultadoCreditoHTML(calculo){
+  return `
+      <div class="credito-info-box"><span>Comisión por apertura (2%)</span><strong>${calculo ? formatoMoneda(calculo.comisionApertura) : "—"}</strong></div>
+      <div class="credito-info-box"><span>Monto de interés</span><strong>${calculo ? formatoMoneda(calculo.montoInteres) : "—"}</strong></div>
+      <div class="credito-info-box"><span>Monto final (con interés)</span><strong>${calculo ? formatoMoneda(calculo.montoFinal) : "—"}</strong></div>
+      <div class="credito-info-box"><span>Mensualidad estimada</span><strong>${calculo ? formatoMoneda(calculo.mensualidad) : "—"}</strong></div>`;
+}
+
+// Texto bajo el enganche: su equivalente en dinero (si se captura por %) o en porcentaje (si se captura por monto)
+function equivalenciaEngancheTexto(sim){
+  if (!sim.precio) return "Elige el vehículo para calcular el enganche.";
+  if (sim.engancheMonto <= 0) return "Sin enganche: se cobrarán $0 y se financia el precio completo.";
+  const pct = sim.engancheMonto / sim.precio * 100;
+  return sim.engancheTipo === "pct"
+    ? `Equivale a ${formatoMoneda(sim.engancheMonto)} — es lo que se cobrará en caja.`
+    : `Equivale al ${pct.toLocaleString("es-MX", { maximumFractionDigits: 2 })}% del precio — es lo que se cobrará en caja.`;
+}
+
+// Campos del módulo de Crédito (solo vehículos): enganche, plazo, tasa y simulación de intereses
+function camposCreditoHTML(){
+  const b = borrador;
+  const sim = simulacionCredito(b);
+  const { tasa, plazo, engancheTipo, calculo } = sim;
 
   return `
     <div class="form-grid">
       <div class="form-field"><label>Cliente</label><input type="text" id="inpClienteC" value="${escapeHTML(b.cliente || "")}" placeholder="Nombre completo"></div>
-      <div class="form-field"><label>RFC / INE</label><input type="text" id="inpRfcIneC" value="${escapeHTML(b.rfcIne || "")}" placeholder="Identificación"></div>
+      <div class="form-field"><label>RFC / CURP</label><input type="text" id="inpRfcIneC" value="${escapeHTML(b.rfcIne || "")}" placeholder="RFC (13) o CURP (18)" autocapitalize="characters"></div>
       <div class="form-field"><label>Email</label><input type="email" id="inpEmailC" value="${escapeHTML(b.email || "")}" placeholder="correo@ejemplo.com"></div>
       <div class="form-field"><label>Celular</label><input type="tel" id="inpCelularC" value="${escapeHTML(b.celular || "")}" placeholder="10 dígitos"></div>
 
-      <div class="form-field span-2"><p class="form-field-info" style="margin:0;">El crédito solo aplica para vehículos — las refacciones se venden de contado.</p></div>
+      <div class="form-field span-2"><p class="form-field-info" style="margin:0;">El crédito solo aplica para vehículos — las refacciones se venden de contado. Para el contrato se necesitan RFC o CURP, domicilio, identificación oficial y su número.</p></div>
 
       ${selectoresArticuloHTML("Credito", b)}
 
-      ${camposExtraVehiculoHTML("C", b)}
+      ${camposExtraVehiculoHTML("C", b, true)}
 
       <!-- Enganche: por porcentaje o por monto en dinero -->
       <div class="form-field">
@@ -833,7 +884,8 @@ function camposCreditoHTML(){
           <button type="button" class="segmented-btn ${engancheTipo === "pct" ? "is-active" : ""}" data-eng-tipo="pct">Porcentaje</button>
           <button type="button" class="segmented-btn ${engancheTipo === "monto" ? "is-active" : ""}" data-eng-tipo="monto">Monto: $</button>
         </div>
-        <input type="number" id="inpEngancheValor" style="margin-top:8px;" value="${escapeHTML(b.engancheValor ?? "")}" placeholder="${engancheTipo === "pct" ? "Ej. 20" : "$ 0.00"}">
+        <input type="number" id="inpEngancheValor" style="margin-top:8px;" min="0" step="any" value="${escapeHTML(b.engancheValor ?? "")}" placeholder="${engancheTipo === "pct" ? "Ej. 20" : "$ 0.00"}">
+        <div class="form-field-info" id="engancheEquivalente">${escapeHTML(equivalenciaEngancheTexto(sim))}</div>
       </div>
 
       <!-- Plazo del crédito en meses -->
@@ -848,12 +900,7 @@ function camposCreditoHTML(){
     </div>
 
     <!-- Resultado de la simulación: se recalcula en vivo con cada cambio -->
-    <div class="credito-info-grid">
-      <div class="credito-info-box"><span>Comisión por apertura (2%)</span><strong>${calculo ? formatoMoneda(calculo.comisionApertura) : "—"}</strong></div>
-      <div class="credito-info-box"><span>Monto de interés</span><strong>${calculo ? formatoMoneda(calculo.montoInteres) : "—"}</strong></div>
-      <div class="credito-info-box"><span>Monto final (con interés)</span><strong>${calculo ? formatoMoneda(calculo.montoFinal) : "—"}</strong></div>
-      <div class="credito-info-box"><span>Mensualidad estimada</span><strong>${calculo ? formatoMoneda(calculo.mensualidad) : "—"}</strong></div>
-    </div>
+    <div class="credito-info-grid" id="creditoResultado">${resultadoCreditoHTML(calculo)}</div>
 
     <div class="venta-actions" style="margin-top:16px;">
       <button type="button" class="btn btn-outline" id="btnTablaAmortizacion" ${calculo ? "" : "disabled"}>
@@ -862,6 +909,19 @@ function camposCreditoHTML(){
     </div>
     <div id="tablaAmortizacionWrap">${mostrarTablaAmortizacion && calculo ? tablaAmortizacionHTML(calculo) : ""}</div>
   `;
+}
+
+// Al escribir el enganche o la tasa solo se actualizan los resultados: el campo conserva el foco y la página no se mueve
+function actualizarSimulacionCredito(panel){
+  const sim = simulacionCredito(borrador);
+  const resultado = $("#creditoResultado", panel);
+  if (resultado) resultado.innerHTML = resultadoCreditoHTML(sim.calculo);
+  const equivalente = $("#engancheEquivalente", panel);
+  if (equivalente) equivalente.textContent = equivalenciaEngancheTexto(sim);
+  const btnTabla = $("#btnTablaAmortizacion", panel);
+  if (btnTabla) btnTabla.disabled = !sim.calculo;
+  const tabla = $("#tablaAmortizacionWrap", panel);
+  if (tabla) tabla.innerHTML = mostrarTablaAmortizacion && sim.calculo ? tablaAmortizacionHTML(sim.calculo) : "";
 }
 
 // Fórmula de anualidades vencidas (tasa fija): calcula comisión, mensualidad, interés total y monto final
@@ -958,6 +1018,7 @@ function bindFormularioVenta(){
     bindTexto("inpEmailC", "email", panel);
     bindTexto("inpCelularC", "celular", panel);
     bindTexto("inpDireccionC", "direccion", panel);
+    bindTexto("inpIdNumeroC", "identificacionNumero", panel);
     $("#selIdentificacionC", panel)?.addEventListener("change", (e) => { borrador.identificacionTipo = e.target.value; });
     bindSelectoresArticulo("Credito", panel, renderPanelVenta);
     bindSelectVin("selVinC", panel, renderPanelVenta);
@@ -967,13 +1028,14 @@ function bindFormularioVenta(){
       borrador.engancheTipo = btn.dataset.engTipo;
       renderPanelVenta();
     }));
-    $("#inpEngancheValor", panel)?.addEventListener("input", (e) => { borrador.engancheValor = e.target.value; renderPanelVenta(); });
+    // Escribir el enganche o la tasa solo recalcula los resultados (antes redibujaba todo y la página saltaba hasta arriba)
+    $("#inpEngancheValor", panel)?.addEventListener("input", (e) => { borrador.engancheValor = e.target.value; actualizarSimulacionCredito(panel); });
 
     $$("[data-plazo]", panel).forEach(btn => btn.addEventListener("click", () => {
       borrador.plazoMeses = btn.dataset.plazo;
       renderPanelVenta();
     }));
-    $("#inpTasaAnual", panel)?.addEventListener("input", (e) => { borrador.tasaAnual = e.target.value; renderPanelVenta(); });
+    $("#inpTasaAnual", panel)?.addEventListener("input", (e) => { borrador.tasaAnual = e.target.value; actualizarSimulacionCredito(panel); });
 
     $("#btnTablaAmortizacion", panel)?.addEventListener("click", () => {
       mostrarTablaAmortizacion = !mostrarTablaAmortizacion;
@@ -1030,6 +1092,7 @@ async function guardarArticulo(){
         cantidad: 1,
         cliente, email, celular, rfcIne,
         pieza: item.nombre,
+        webOrderId: borrador.webOrderId || null,
         marcaVehiculo: item.marca,
         modeloCompatible: item.modelo,
         traccion: item.traccion,
@@ -1037,42 +1100,60 @@ async function guardarArticulo(){
         motor: item.motor
       });
     } else if (formTipoArticulo === "Credito"){
+      // Un contrato por operación: un solo crédito por ticket
+      if (ticketItems.some(it => it.esCredito)) throw new Error("Este ticket ya tiene un crédito. Concrétalo o quítalo (F4) antes de registrar otro: cada crédito lleva su propio contrato.");
       cliente = $("#inpClienteC").value.trim();
       if (!cliente){ $("#inpClienteC").focus(); return; }
       email = $("#inpEmailC").value.trim();
       celular = $("#inpCelularC").value.trim();
-      rfcIne = $("#inpRfcIneC").value.trim();
+      rfcIne = $("#inpRfcIneC").value.trim().replace(/\s+/g, "").toUpperCase();
 
       item = articuloDeBorrador(borrador);
       if (!item) throw new Error(MSG_COMPLETAR_VEHICULO);
       if (item.unidades < 1) throw new Error(MSG_SIN_STOCK_VEHICULO);
 
-      const precio = Number(item.precio || 0);
-      const plazo = Number(borrador.plazoMeses || 0);
-      if (!precio || !plazo) return;
+      const sim = simulacionCredito(borrador);
+      const precio = sim.precio;
+      const plazo = sim.plazo;
+      if (!precio) throw new Error(MSG_COMPLETAR_VEHICULO);
+      if (!plazo) throw new Error("Elige el plazo del crédito.");
+      if (Number(borrador.engancheValor || 0) < 0) throw new Error("El enganche no puede ser negativo.");
+      if (sim.engancheMonto >= precio) throw new Error("El enganche debe ser menor que el precio de contado del vehículo.");
+
+      // Datos que el contrato necesita del acreditado
+      const direccion = (borrador.direccion || "").trim();
+      const identificacionNumero = (borrador.identificacionNumero || "").trim();
+      if (!/^([A-ZÑ&]{3,4}\d{6}[A-Z\d]{3}|[A-Z]{4}\d{6}[HMX][A-Z]{5}[A-Z\d]\d)$/.test(rfcIne)){
+        $("#inpRfcIneC").focus();
+        throw new Error("Escribe un RFC (13 caracteres) o una CURP (18 caracteres) válidos: se imprimen en el contrato.");
+      }
+      if (!direccion){ $("#inpDireccionC").focus(); throw new Error("El contrato necesita el domicilio particular del cliente."); }
+      if (!identificacionNumero){ $("#inpIdNumeroC").focus(); throw new Error("Escribe el número o folio de la identificación oficial."); }
+      if (email && !/^\S+@\S+\.\S+$/.test(email)) throw new Error("El correo electrónico del cliente no es válido.");
 
       // El VIN elegido en la cajita debe coincidir con el registrado para este vehículo
       const vin = await validarVinEnServidor(item.id, $("#selVinC").value.trim());
 
       productoId = item.id;
 
-      const tasa = Number(borrador.tasaAnual ?? TASA_INTERES_ANUAL_DEFAULT);
-      const engancheMonto = borrador.engancheTipo === "pct"
-        ? precio * (Number(borrador.engancheValor || 0) / 100)
-        : Number(borrador.engancheValor || 0);
-      const calculo = calcularCredito({ precio, engancheMonto, plazoMeses: plazo, tasaAnualPct: tasa });
+      const tasa = Number(sim.tasa);
+      const engancheMonto = sim.engancheMonto;
+      const calculo = sim.calculo;
 
       ticketIdCounter += 1;
       ticketItems.push({
-        id: ticketIdCounter, productoId, esVehiculo: true, esCredito: true,
+        id: ticketIdCounter, productoId, esVehiculo: true, esCredito: true, webOrderId: borrador.webOrderId || null,
         articulo: `${item.marca} ${item.modelo} (${item.anio})`,
         marca: item.marca, modelo: item.modelo, anio: item.anio,
         colorExterior: item.color, colorInterior: item.colorInterior || "",
         vin, motorTipo: item.motor,
-        direccion: borrador.direccion || "", identificacionTipo: borrador.identificacionTipo || "INE",
-        abonos: `${plazo} meses`, enganche: engancheMonto, montoAbono: calculo.mensualidad,
+        direccion, identificacionTipo: borrador.identificacionTipo || "INE", identificacionNumero,
+        abonos: `${plazo} meses`, plazoMeses: plazo, enganche: engancheMonto, montoAbono: calculo.mensualidad,
+        engancheTipo: sim.engancheTipo, engancheValor: Number(borrador.engancheValor || 0),
         tasaAnual: tasa, comisionApertura: calculo.comisionApertura, montoInteres: calculo.montoInteres,
-        montoFinal: calculo.montoFinal, precioTotal: engancheMonto + calculo.montoFinal,
+        montoFinal: calculo.montoFinal, precioContado: precio, saldoFinanciar: calculo.baseFinanciar,
+        // En un crédito solo se cobra el enganche: es el importe de este artículo en el ticket
+        precioTotal: engancheMonto,
         cantidad: 1, cliente, email, celular, rfcIne
       });
     } else {
@@ -1088,7 +1169,7 @@ async function guardarArticulo(){
 
       ticketIdCounter += 1;
       ticketItems.push({
-        id: ticketIdCounter, productoId: item.id, esVehiculo: true,
+        id: ticketIdCounter, productoId: item.id, esVehiculo: true, webOrderId: borrador.webOrderId || null,
         articulo: `${item.marca} ${item.modelo} (${item.anio})`,
         marca: item.marca, modelo: item.modelo, anio: item.anio,
         colorExterior: item.color, colorInterior: item.colorInterior || "",
@@ -1116,15 +1197,9 @@ function calcularCotizacion(){
     total = item?.precio || 0;
     detalle = item ? item.nombre : "";
   } else if (formTipoArticulo === "Credito"){
-    const item = articuloDeBorrador(borrador);
-    const precio = Number(item?.precio || 0);
-    const plazo = Number(borrador.plazoMeses || 0);
-    if (precio && plazo){
-      const tasa = Number(borrador.tasaAnual ?? TASA_INTERES_ANUAL_DEFAULT);
-      const engancheMonto = borrador.engancheTipo === "pct" ? precio * (Number(borrador.engancheValor || 0) / 100) : Number(borrador.engancheValor || 0);
-      const calculo = calcularCredito({ precio, engancheMonto, plazoMeses: plazo, tasaAnualPct: tasa });
-      total = engancheMonto + calculo.montoFinal;
-    }
+    const sim = simulacionCredito(borrador);
+    const item = sim.itemInventario;
+    if (sim.calculo) total = sim.engancheMonto + sim.calculo.montoFinal;
     detalle = item ? `${item.marca} ${item.modelo}` : "";
   } else {
     const item = articuloDeBorrador(borrador);
@@ -1160,8 +1235,9 @@ function renderPanelLateral(){
     </div>
     <div class="ticket-total">
       <span class="label">Total con IVA incluido</span>
-      <span class="value">${formatoMoneda(calcularTotalTicket())}</span>
+      <span class="value">${ticketItems.some(it => it.esCredito) ? formatoMonedaCentavos(calcularTotalTicket()) : formatoMoneda(calcularTotalTicket())}</span>
     </div>
+    ${ticketItems.some(it => it.esCredito) ? `<p class="ticket-credito-nota">Crédito: hoy solo se cobra el enganche${calcularTotalTicket() <= 0 ? " ($0: no se pedirá método de pago)" : ""}; el saldo se paga en mensualidades según el contrato.</p>` : ""}
   `;
 
   if (modoEliminarTicket){
@@ -1190,9 +1266,16 @@ function ticketItemHTML(it){
           <div><span>Tasa anual</span><strong>${it.tasaAnual}%</strong></div>
           <div><span>Comisión apertura</span><strong>${formatoMoneda(it.comisionApertura)}</strong></div>
           <div><span>Monto final</span><strong>${formatoMoneda(it.montoFinal)}</strong></div>
+        </div>
+        <div class="ticket-item-grid">
+          <div><span>Precio de contado</span><strong>${formatoMoneda(it.precioContado)}</strong></div>
+          <div><span>Saldo a financiar</span><strong>${formatoMoneda(it.saldoFinanciar)}</strong></div>
+          <div><span>Contrato</span><strong>Al concretar</strong></div>
         </div>` : ""
       }
-      <div class="ticket-item-total">Precio total <strong>${formatoMoneda(it.precioTotal)}</strong></div>
+      ${it.esCredito
+        ? `<div class="ticket-item-total">Importe a cobrar (enganche) <strong>${formatoMonedaCentavos(it.precioTotal)}</strong></div>`
+        : `<div class="ticket-item-total">Precio total <strong>${formatoMoneda(it.precioTotal)}</strong></div>`}
     </div>`;
 }
 
@@ -1229,7 +1312,19 @@ function renderShortcutsBar(){
 // F3 — abre el cobro; el número de ticket solo avanza cuando la venta se concreta de verdad
 function concretarVenta(){
   if (!ticketItems.length || pagoEstado) return;
+  // Crédito con enganche de $0 (y nada más que cobrar): no hay método de pago, se pasa directo a la verificación del empleado
+  if (ticketItems.some(it => it.esCredito) && calcularTotalTicket() <= 0){
+    pagoEstado = { metodo: "Sin cobro", monto: 0, recibido: 0, cambio: 0, valido: true };
+    renderShortcutsBar();
+    confirmarVentaDB();
+    return;
+  }
   abrirModalPago();
+}
+
+// ¿El ticket actual es un crédito? (el cobro es solo el enganche y termina en el contrato)
+function ticketEsCredito(){
+  return ticketItems.some(it => it.esCredito);
 }
 
 /* ===== 7b. COBRO — selección de método, efectivo y confirmación ===== */
@@ -1237,9 +1332,12 @@ function concretarVenta(){
 /* Abre la ventana de selección de método de pago */
 function abrirModalPago(){
   pagoEstado = { metodo: null, monto: calcularTotalTicket(), recibido: 0, cambio: 0, valido: false };
+  const esCredito = ticketEsCredito();
   $("#modalPagoContent").innerHTML = `
-    <div class="payment-title">Concretar venta</div>
-    <p class="payment-subtitle">Selecciona el método de pago para el ticket #${String(ticketNumero).padStart(2, "0")}.</p>
+    <div class="payment-title">${esCredito ? "Cobrar enganche" : "Concretar venta"}</div>
+    <p class="payment-subtitle">${esCredito
+      ? `Crédito: solo se cobra el enganche (${formatoMonedaCentavos(pagoEstado.monto)}). Después se verifica tu código de empleado y se genera el contrato para firma del cliente.`
+      : `Selecciona el método de pago para el ticket #${String(ticketNumero).padStart(2, "0")}.`}</p>
     <div class="payment-method-grid">
       <button class="payment-method-card" id="btnPagoEfectivo" type="button">
         <span class="payment-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="5" width="19" height="14" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M5 9h.01M19 15h.01"/></svg></span><strong>Efectivo</strong><span>Recibir dinero y calcular cambio</span>
@@ -1260,9 +1358,10 @@ function abrirModalPago(){
 function abrirCobroEfectivo(){
   pagoEstado.metodo = "Efectivo";
   pagoEstado.valido = false;
+  const esCredito = ticketEsCredito();
   $("#modalPagoContent").innerHTML = `
     <div class="payment-title">Pago en efectivo</div>
-    <div class="payment-total-box"><span>Total a pagar</span><strong>${formatoMoneda(pagoEstado.monto)}</strong></div>
+    <div class="payment-total-box"><span>${esCredito ? "Enganche a cobrar" : "Total a pagar"}</span><strong>${esCredito ? formatoMonedaCentavos(pagoEstado.monto) : formatoMoneda(pagoEstado.monto)}</strong></div>
     <div class="cash-form">
       <label for="inpEfectivo">Dinero recibido</label>
       <input type="number" id="inpEfectivo" min="0" step="0.01" placeholder="0.00" autofocus>
@@ -1271,7 +1370,7 @@ function abrirCobroEfectivo(){
     </div>
     <div class="payment-actions">
       <button class="btn btn-ghost" id="btnVolverMetodo" type="button">Volver</button>
-      <button class="btn btn-primary" id="btnConfirmarEfectivo" type="button" disabled>F3 · Concretar venta</button>
+      <button class="btn btn-primary" id="btnConfirmarEfectivo" type="button" disabled>${esCredito ? "F3 · Continuar al contrato" : "F3 · Concretar venta"}</button>
     </div>
   `;
   renderShortcutsBar();
@@ -1290,12 +1389,14 @@ function actualizarEfectivo(){
   pagoEstado.cambio = Math.max(diferencia, 0);
   pagoEstado.valido = recibido >= pagoEstado.monto;
   const msg = $("#cashMessage");
+  // En crédito el enganche se muestra con centavos: es el importe exacto que exige el cobro
+  const fmt = ticketEsCredito() ? formatoMonedaCentavos : formatoMoneda;
   if (recibido <= 0) msg.textContent = "";
-  else if (!pagoEstado.valido) msg.textContent = `Faltan ${formatoMoneda(Math.abs(diferencia))}.`;
+  else if (!pagoEstado.valido) msg.textContent = `Faltan ${fmt(Math.abs(diferencia))}.`;
   else msg.textContent = "Dinero correcto. Puedes presionar F3 para concretar.";
   msg.classList.toggle("is-error", recibido > 0 && !pagoEstado.valido);
   msg.classList.toggle("is-ok", pagoEstado.valido);
-  $("#cashChange").textContent = formatoMoneda(pagoEstado.cambio);
+  $("#cashChange").textContent = fmt(pagoEstado.cambio);
   $("#btnConfirmarEfectivo").disabled = !pagoEstado.valido;
   renderShortcutsBar();
 }
@@ -1309,9 +1410,20 @@ async function confirmarVentaDB(){
   const primerVehiculo = ticketItems.find(it => it.esVehiculo) || {};
   const itemCredito = ticketItems.find(it => it.esCredito) || null;
 
+  // Crédito: verificación del empleado → contrato → firma del cliente (contrato_credito.js). No se registra hasta firmar
+  if (itemCredito){
+    await iniciarContratoCredito(itemCredito, boton);
+    return;
+  }
+
+  // Autorización de empleado (gafete QR o código): sin ella el servidor rechaza la venta o el crédito
+  const autorizacion = await solicitarAutorizacionEmpleado(itemCredito ? "CREDITO" : "VENTA", ticketNumero);
+  if (!autorizacion){ if (boton) boton.disabled = false; return; }
+
   try {
     const data = await apiFetch("crear_venta", {
       method: "POST",
+      autorizacion,
       body: JSON.stringify({
         id_usuario: USUARIO_ACTUAL_ID,
         id_sucursal: SUCURSAL_ACTUAL_ID,
@@ -1320,6 +1432,8 @@ async function confirmarVentaDB(){
         efectivo_recibido: pagoEstado.recibido,
         cambio: pagoEstado.cambio,
         ticket_numero: ticketNumero,
+        // Órdenes web atendidas con esta venta (llegaron con "Continuar" desde Web orders)
+        ordenes_web: ticketItems.map(it => it.webOrderId).filter(Boolean),
         items: ticketItems.map(it => ({
           producto_id: it.productoId,
           cantidad: it.cantidad || 1,
@@ -1395,20 +1509,25 @@ function mostrarTicketCliente(){
       <div class="digital-ticket-head"><strong>KARMA</strong><span>Venta #${String(t.numero).padStart(2,"0")}</span></div>
       <div class="digital-ticket-meta">${escapeHTML(t.sucursal)} · Caja ${escapeHTML(CAJA_ACTUAL)}<br>${escapeHTML(t.fecha)}</div>
       <div class="digital-ticket-lines">
-        ${t.items.map(it => `<div class="digital-ticket-line"><span>${escapeHTML(it.articulo)}</span><strong>${formatoMoneda(it.precioTotal)}</strong></div>`).join("")}
+        ${t.items.map(it => it.esCredito
+          ? `<div class="digital-ticket-line"><span>${escapeHTML(it.articulo)}<br><small>Crédito ${escapeHTML(it.abonos || "")} · enganche (precio de contado ${formatoMonedaCentavos(it.precioContado)})</small></span><strong>${formatoMonedaCentavos(it.precioTotal)}</strong></div>`
+          : `<div class="digital-ticket-line"><span>${escapeHTML(it.articulo)}</span><strong>${formatoMoneda(it.precioTotal)}</strong></div>`).join("")}
       </div>
-      <div class="digital-ticket-total"><span>Total</span><strong>${formatoMoneda(t.total)}</strong></div>
+      <div class="digital-ticket-total"><span>${t.contrato ? "Total cobrado" : "Total"}</span><strong>${t.contrato ? formatoMonedaCentavos(t.total) : formatoMoneda(t.total)}</strong></div>
       <div class="digital-ticket-paid"><span>Recibido</span><span>${formatoMoneda(t.recibido)}</span><span>Cambio</span><span>${formatoMoneda(t.cambio)}</span></div>
+      ${t.contrato ? `<div class="digital-ticket-contrato">${t.metodo !== "Efectivo" ? `${escapeHTML(t.metodo)}<br>` : ""}Contrato de crédito <strong>${escapeHTML(t.contrato.folio)}</strong> firmado · ${escapeHTML(t.contrato.resumen || "")}</div>` : ""}
       <div class="digital-ticket-thanks">Gracias por tu compra.</div>
     </div>
     <div class="ticket-client-actions">
       <button class="btn btn-primary" id="btnAceptarTicket" type="button">Aceptar</button>
+      ${t.contrato ? `<button class="btn btn-outline" id="btnVerContratoTicket" type="button">Ver contrato</button>` : ""}
       <button class="btn btn-ghost" id="btnEnviarTicket" type="button">Enviar</button>
     </div>
   `;
   abrirModal("#modalTicketCliente");
   $("#btnAceptarTicket").addEventListener("click", cerrarTicketCliente);
   $("#btnEnviarTicket").addEventListener("click", abrirFormularioEnvioTicket);
+  $("#btnVerContratoTicket")?.addEventListener("click", () => abrirVisorContrato(t.contrato.id, t.contrato.folio));
 }
 
 /* Cierra el ticket mostrado al cliente y deja el POS listo */
@@ -1423,8 +1542,10 @@ function cerrarTicketCliente(){
 /* Abre el formulario de nombre, celular y correo para el envío */
 function abrirFormularioEnvioTicket(){
   $("#ticketClienteContent").innerHTML = `
-    <div class="payment-title">Enviar ticket</div>
-    <p class="payment-subtitle">Ingresa los datos del cliente: se le enviará el ticket completo en PDF a su correo.</p>
+    <div class="payment-title">${ticketCerrado?.contrato ? "Enviar ticket y contrato" : "Enviar ticket"}</div>
+    <p class="payment-subtitle">${ticketCerrado?.contrato
+      ? "Ingresa los datos del cliente: se le enviarán el ticket y el contrato de crédito firmado, ambos en PDF, a su correo."
+      : "Ingresa los datos del cliente: se le enviará el ticket completo en PDF a su correo."}</p>
     <div class="form-grid">
       <div class="form-field span-2"><label>Nombre completo</label><input id="envioNombre" type="text" value="${escapeHTML(ticketCerrado?.items?.[0]?.cliente || "")}"></div>
       <div class="form-field"><label>Celular</label><input id="envioCelular" type="tel" value="${escapeHTML(ticketCerrado?.items?.[0]?.celular || "")}"></div>
@@ -1459,7 +1580,8 @@ async function enviarTicketPorCorreo(){
   try {
     const data = await apiFetch("enviar_ticket", {
       method: "POST",
-      body: JSON.stringify({ nombre, celular, email, ticket: ticketCerrado })
+      // En un crédito también se adjunta el contrato firmado (el servidor lo toma de la BD, ligado a esta venta)
+      body: JSON.stringify({ nombre, celular, email, ticket: ticketCerrado, id_contrato: ticketCerrado?.contrato?.id || null })
     });
     avisar(data.message || "Ticket enviado.");
     cerrarTicketCliente();
@@ -1765,10 +1887,40 @@ function abrirDetalleCliente(id){
       ${campo("Monto de abono", formatoMoneda(c.montoAbono))}
       ${campo("Enganche", c.enganche ? formatoMoneda(c.enganche) : "—")}
       ${campo("Total de abonos", `${c.abonosPagados} de ${c.abonosTotales}`)}
+      ${campo("RFC / CURP", escapeHTML(c.rfcIne || "—"))}
+      ${campo("Identificación", escapeHTML([c.identificacionTipo, c.identificacionNumero].filter(Boolean).join(" · ") || "—"))}
+      <div class="form-field span-2"><label>Domicilio</label>
+        <div class="venta-field-sub" style="font-size:14px; color:var(--text-main); font-weight:600;">${escapeHTML(c.direccion || "—")}</div>
+      </div>
     </div>
-    <div class="venta-actions"><button class="btn btn-ghost" data-close-modal>Cerrar</button></div>
+    ${contratosClienteHTML(c)}
+    <div class="venta-actions">
+      <button class="btn btn-ghost" data-close-modal>Cerrar</button>
+    </div>
   `;
   abrirModal("#modalCliente");
+  $$("[data-ver-contrato]", $("#modalClienteContent")).forEach(btn => btn.addEventListener("click", () => abrirVisorContrato(Number(btn.dataset.verContrato), btn.dataset.folio)));
+}
+
+// Lista de contratos de crédito del cliente: cada operación tiene el suyo y se abre por separado
+function contratosClienteHTML(c){
+  const contratos = c.contratos || [];
+  if (!contratos.length){
+    return `<div class="contratos-cliente"><p class="form-field-info" style="margin:0;">Sin contrato digital: este crédito se registró antes de que el POS generara contratos firmados.</p>
+      <button class="btn btn-outline" type="button" disabled title="No hay un contrato firmado para este cliente">Ver contrato</button></div>`;
+  }
+  return `
+    <div class="contratos-cliente">
+      <label>Contratos de crédito (${contratos.length})</label>
+      ${contratos.map(k => `
+        <div class="contrato-fila">
+          <div>
+            <strong>${escapeHTML(k.folio)}</strong> · ${escapeHTML(k.vehiculo)}<br>
+            <span>Firmado el ${escapeHTML(k.fecha || "—")} en ${escapeHTML(k.sucursal)} · ${k.plazo} meses de ${formatoMoneda(k.mensualidad)} · VIN ${escapeHTML(k.vin || "—")}</span>
+          </div>
+          <button class="btn btn-outline" type="button" data-ver-contrato="${k.id}" data-folio="${escapeHTML(k.folio)}">Ver contrato</button>
+        </div>`).join("")}
+    </div>`;
 }
 
 /* ===== 11. GARANTÍAS — tabla + formulario de pantalla completa ===== */
@@ -1858,7 +2010,14 @@ function abrirGarantiaForm(id){
 
   $("#btnCerrarGarantia").addEventListener("click", cerrarGarantiaForm);
   $("#btnCancelarGarantia").addEventListener("click", cerrarGarantiaForm);
-  $("#btnGuardarGarantia").addEventListener("click", () => { cerrarGarantiaForm(); renderGarantias(); });
+  $("#btnGuardarGarantia").addEventListener("click", async () => {
+    // Autorización de empleado (gafete QR o código): el servidor la valida y la registra antes de aplicar la garantía
+    const autorizacion = await solicitarAutorizacionEmpleado("GARANTIA", id);
+    if (!autorizacion) return;
+    try { await apiFetch("aplicar_garantia", { method: "POST", autorizacion, body: JSON.stringify({ id_garantia: id }) }); }
+    catch (error) { avisar(error.message); return; }
+    cerrarGarantiaForm(); renderGarantias();
+  });
 
   $("#garantiaOverlay").classList.add("is-open");
 }
@@ -1872,20 +2031,44 @@ function renderWebOrders(){
   const categorias = ["Todo", "Porsche", "Audi", "Ducati", "Refacciones"];
   const q = searchQuery.trim().toLowerCase();
 
+  // Texto seguro: los datos de las órdenes los escribe el cliente en el Catálogo web
+  const t = (v) => escapeHTML(v ?? "—");
+  const esRefaccion = (o) => o.tipo === "refaccion";
   const ordenes = WEBORDERS.filter(o =>
-    (webOrdersFiltro === "Todo" || o.marca === webOrdersFiltro) &&
-    (!q || o.nombre.toLowerCase().includes(q))
+    (webOrdersFiltro === "Todo" ||
+      (webOrdersFiltro === "Refacciones" ? esRefaccion(o) : (o.marca === webOrdersFiltro || (o.lineas || []).some(l => l.marca === webOrdersFiltro)))) &&
+    (!q || `${o.nombre} ${o.folio || ""}`.toLowerCase().includes(q))
   );
+  // Pedidos del Catálogo con varias piezas (recoger en sucursal + efectivo): se cobran directo con "Cobrar"
+  const pedidosCatalogo = ordenes.filter(o => esRefaccion(o) && (o.lineas || []).length);
   const vehiculos = ordenes.filter(o => o.tipo === "vehiculo");
-  const refacciones = ordenes.filter(o => o.tipo === "refaccion");
+  const refacciones = ordenes.filter(o => esRefaccion(o) && !(o.lineas || []).length);
 
   panel.innerHTML = `
-    <div class="panel-heading"><h2>Web orders</h2></div>
+    <div class="panel-heading"><h2>Web orders</h2><button class="btn-table" id="btnRefrescarWeb" type="button">Actualizar</button></div>
     <div class="section-toolbar">
       <div class="filter-pills" id="webFiltros">
         ${categorias.map(c => `<button class="filter-pill ${webOrdersFiltro === c ? "is-active" : ""}" data-filtro="${c}">${c}</button>`).join("")}
       </div>
     </div>
+
+    ${pedidosCatalogo.length ? `
+      <p class="form-field-info" style="margin-bottom:10px;"><strong>Pedidos del Catálogo · pendientes de cobro en caja.</strong> Las piezas ya están apartadas del inventario de esta sucursal.</p>
+      <div class="table-wrap" style="margin-bottom:22px;">
+        <table class="data-table">
+          <thead><tr><th>Folio</th><th>Cliente</th><th>Celular</th><th>Artículos</th><th>Total</th><th>Recibido</th><th></th></tr></thead>
+          <tbody>
+            ${pedidosCatalogo.map(o => `
+              <tr>
+                <td>${t(o.folio)}</td><td>${t(o.nombre)}</td><td>${t(o.celular)}</td>
+                <td>${o.lineas.map(l => `${l.cantidad}× ${escapeHTML(l.descripcion)}`).join("<br>")}</td>
+                <td>${formatoMoneda(o.total)}</td><td>${t(o.fechaCreacion)}</td>
+                <td style="white-space:nowrap;"><button class="btn-table" data-cobrar-web="${o.id}">Cobrar</button> <button class="btn-table" data-cancelar-web="${o.id}">Cancelar</button></td>
+              </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>` : ""
+    }
 
     ${vehiculos.length ? `
       <div class="table-wrap" style="margin-bottom:22px;">
@@ -1894,11 +2077,11 @@ function renderWebOrders(){
           <tbody>
             ${vehiculos.map(o => `
               <tr>
-                <td>${o.nombre}</td><td>${o.celular}</td><td>${o.email}</td>
-                <td>${o.articulo}</td><td>${o.color}</td>
+                <td>${t(o.nombre)}${o.folio ? `<br><small>${t(o.folio)}</small>` : ""}</td><td>${t(o.celular)}</td><td>${t(o.email)}</td>
+                <td>${t(o.articulo)}</td><td>${t(o.color)}</td>
                 <td>${o.enganche ? formatoMoneda(o.enganche) : "—"}</td>
-                <td>${o.fechaVisita}</td>
-                <td><button class="btn-table" data-continuar="${o.id}">Continuar</button></td>
+                <td>${t(o.fechaVisita)}</td>
+                <td style="white-space:nowrap;"><button class="btn-table" data-continuar="${o.id}">Continuar</button>${o.folio ? ` <button class="btn-table" data-cancelar-web="${o.id}">Cancelar</button>` : ""}</td>
               </tr>`).join("")}
           </tbody>
         </table>
@@ -1912,8 +2095,8 @@ function renderWebOrders(){
           <tbody>
             ${refacciones.map(o => `
               <tr>
-                <td>${o.nombre}</td><td>${o.celular}</td><td>${o.pieza}</td><td>${o.modelo}</td>
-                <td>${o.motor}</td><td>${o.cilindraje}</td><td>${o.traccion}</td><td>${o.transmision}</td><td>${o.lado}</td>
+                <td>${t(o.nombre)}</td><td>${t(o.celular)}</td><td>${t(o.pieza)}</td><td>${t(o.modelo)}</td>
+                <td>${t(o.motor)}</td><td>${t(o.cilindraje)}</td><td>${t(o.traccion)}</td><td>${t(o.transmision)}</td><td>${t(o.lado)}</td>
                 <td><button class="btn-table" data-continuar="${o.id}">Continuar</button></td>
               </tr>`).join("")}
           </tbody>
@@ -1921,11 +2104,11 @@ function renderWebOrders(){
       </div>` : ""
     }
 
-    ${!vehiculos.length && !refacciones.length ? `
+    ${!pedidosCatalogo.length && !vehiculos.length && !refacciones.length ? `
       <div class="empty-state"><strong>Sin órdenes</strong>Ninguna orden coincide con este filtro o búsqueda.</div>` : ""
     }
 
-    <p class="form-field-info" style="margin-top:18px;">Estas son órdenes de ejemplo — el seguimiento en tiempo real se activará cuando el sitio web esté conectado.</p>
+    <p class="form-field-info" style="margin-top:18px;">Órdenes recibidas desde el Catálogo web para esta sucursal (visitas, apartados y pedidos de refacciones con pago en efectivo). Los pedidos pagados con tarjeta no aparecen aquí porque ya están cobrados.</p>
   `;
 
   $$("[data-filtro]", panel).forEach(btn => btn.addEventListener("click", () => { webOrdersFiltro = btn.dataset.filtro; renderWebOrders(); }));
@@ -1933,6 +2116,91 @@ function renderWebOrders(){
     const orden = WEBORDERS.find(o => o.id === Number(btn.dataset.continuar));
     continuarDesdeWebOrder(orden);
   }));
+  $$("[data-cobrar-web]", panel).forEach(btn => btn.addEventListener("click", () => abrirCobroOrdenWeb(WEBORDERS.find(o => o.id === Number(btn.dataset.cobrarWeb)))));
+  $$("[data-cancelar-web]", panel).forEach(btn => btn.addEventListener("click", () => cancelarOrdenWebPOS(Number(btn.dataset.cancelarWeb))));
+  $("#btnRefrescarWeb")?.addEventListener("click", async () => {
+    try { await refrescarDatosDB(); renderWebOrders(); } catch (error) { avisar(error.message); }
+  });
+}
+
+/* Cobro en efectivo de un pedido del Catálogo (mismo diseño del cobro normal; no descuenta inventario otra vez) */
+let pagoOrdenWeb = null;
+function abrirCobroOrdenWeb(orden){
+  if (!orden) return;
+  pagoOrdenWeb = { orden, monto: Number(orden.total || 0), recibido: 0, cambio: 0, valido: false };
+  $("#modalPagoContent").innerHTML = `
+    <div class="payment-title">Cobrar pedido ${escapeHTML(orden.folio || "")}</div>
+    <p class="payment-subtitle">${escapeHTML(orden.nombre)} · ${orden.lineas.map(l => `${l.cantidad}× ${escapeHTML(l.descripcion)}`).join(", ")}</p>
+    <div class="payment-total-box"><span>Total a pagar</span><strong>${formatoMoneda(pagoOrdenWeb.monto)}</strong></div>
+    <div class="cash-form">
+      <label for="inpEfectivoWeb">Dinero recibido</label>
+      <input type="number" id="inpEfectivoWeb" min="0" step="0.01" placeholder="0.00">
+      <div id="cashMessageWeb" class="cash-message"></div>
+      <div class="cash-change"><span>Cambio</span><strong id="cashChangeWeb">${formatoMoneda(0)}</strong></div>
+    </div>
+    <div class="payment-actions">
+      <button class="btn btn-ghost" id="btnCancelarCobroWeb" type="button">Cancelar</button>
+      <button class="btn btn-primary" id="btnConfirmarCobroWeb" type="button" disabled>Cobrar pedido</button>
+    </div>`;
+  abrirModal("#modalPago");
+  const input = $("#inpEfectivoWeb");
+  input.addEventListener("input", () => {
+    const recibido = Number(input.value || 0);
+    pagoOrdenWeb.recibido = recibido;
+    pagoOrdenWeb.cambio = Math.max(recibido - pagoOrdenWeb.monto, 0);
+    pagoOrdenWeb.valido = recibido >= pagoOrdenWeb.monto;
+    const msg = $("#cashMessageWeb");
+    msg.textContent = recibido <= 0 ? "" : (pagoOrdenWeb.valido ? "Dinero correcto." : `Faltan ${formatoMoneda(pagoOrdenWeb.monto - recibido)}.`);
+    msg.classList.toggle("is-error", recibido > 0 && !pagoOrdenWeb.valido);
+    msg.classList.toggle("is-ok", pagoOrdenWeb.valido);
+    $("#cashChangeWeb").textContent = formatoMoneda(pagoOrdenWeb.cambio);
+    $("#btnConfirmarCobroWeb").disabled = !pagoOrdenWeb.valido;
+  });
+  $("#btnCancelarCobroWeb").addEventListener("click", cerrarModales);
+  $("#btnConfirmarCobroWeb").addEventListener("click", confirmarCobroOrdenWeb);
+  input.focus();
+}
+
+async function confirmarCobroOrdenWeb(){
+  if (!pagoOrdenWeb?.valido) return;
+  const boton = $("#btnConfirmarCobroWeb");
+  boton.disabled = true;
+  const { orden, recibido } = pagoOrdenWeb;
+  // Autorización de empleado (gafete QR o código) ligada a esta orden: sin ella el servidor no cobra
+  const autorizacion = await solicitarAutorizacionEmpleado("ORDEN_WEB", orden.id, `Cobrar pedido ${orden.folio || ""}`.trim());
+  if (!autorizacion){ boton.disabled = false; return; }
+  try {
+    const data = await apiFetch("cobrar_orden_web", { method: "POST", autorizacion, body: JSON.stringify({ id_orden: orden.id, efectivo_recibido: recibido, ticket_numero: ticketNumero }) });
+    // Ticket digital igual al de una venta normal
+    ticketCerrado = {
+      numero: ticketNumero, ventaId: data.venta_id, folio: data.folio, fecha: data.fecha,
+      cajero: CAJERO_ACTUAL, sucursal: SUCURSAL_ACTUAL, sucursalDireccion: SUCURSAL_ACTUAL_DIRECCION, sucursalTelefono: SUCURSAL_ACTUAL_TELEFONO,
+      caja: CAJA_ACTUAL, metodo: "Efectivo", subtotal: data.total, total: data.total, recibido, cambio: data.cambio,
+      items: data.lineas.map(l => ({ articulo: `${l.cantidad}× ${l.descripcion}`, precioTotal: l.subtotal, cantidad: l.cantidad, cliente: orden.nombre, email: orden.email || "", celular: orden.celular || "" }))
+    };
+    pagoOrdenWeb = null;
+    cerrarModales();
+    ticketNumero += 1;
+    await refrescarDatosDB();
+    renderWebOrders();
+    mostrarTicketCliente();
+  } catch (error) {
+    boton.disabled = false;
+    avisar(error.message);
+  }
+}
+
+/* Cancela una orden web pendiente; si había apartado piezas, regresan al inventario de la sucursal */
+async function cancelarOrdenWebPOS(idOrden){
+  if (!confirm("¿Cancelar esta orden web? Si apartó piezas, regresarán al inventario de la sucursal.")) return;
+  // Autorización de empleado (gafete QR o código) ligada a esta orden: sin ella el servidor no cancela
+  const autorizacion = await solicitarAutorizacionEmpleado("ORDEN_WEB", idOrden, "Cancelar orden web");
+  if (!autorizacion) return;
+  try {
+    await apiFetch("cancelar_orden_web", { method: "POST", autorizacion, body: JSON.stringify({ id_orden: idOrden }) });
+    await refrescarDatosDB();
+    renderWebOrders();
+  } catch (error) { avisar(error.message); }
 }
 
 // Lleva los datos de una orden web directo al formulario de Venta
@@ -1947,6 +2215,7 @@ function continuarDesdeWebOrder(orden){
     if (orden.enganche){
       formTipoArticulo = "Credito";
       borrador = {
+        webOrderId: orden.id,
         cliente: orden.nombre, email: orden.email, celular: orden.celular,
         marca: item?.marca, modelo: item?.modelo, anio: item?.anio, color: item?.color,
         engancheTipo: "monto", engancheValor: orden.enganche,
@@ -1955,6 +2224,7 @@ function continuarDesdeWebOrder(orden){
     } else {
       formTipoArticulo = "Vehiculo";
       borrador = {
+        webOrderId: orden.id,
         cliente: orden.nombre, email: orden.email, celular: orden.celular,
         marca: item?.marca, modelo: item?.modelo, anio: item?.anio, color: item?.color,
         articuloRef: orden.articulo, colorRef: orden.color
@@ -1963,6 +2233,7 @@ function continuarDesdeWebOrder(orden){
   } else {
     formTipoArticulo = "Refaccion";
     borrador = {
+      webOrderId: orden.id,
       cliente: orden.nombre,
       marcaVehiculo: orden.marcaVehiculo, modelo: orden.modelo,
       traccion: orden.traccion, lado: orden.lado, motor: orden.motor
@@ -2018,18 +2289,16 @@ function alFallarTraduccion(e){
   window.KarmaTraductor?.setIdioma("es");
 }
 
-/* Cierra la sesión visualmente; la autenticación completa se integrará después */
+/* Cierra la sesión del POS en el servidor y regresa a la pantalla de login */
 async function cerrarSesion(){
   const btn = $("#logoutBtn");
   if (btn.dataset.busy) return;
   btn.dataset.busy = "1";
-  const textoOriginal = btn.textContent;
   btn.textContent = "Cerrando sesión…";
   btn.disabled = true;
   try { await apiFetch("logout", { method:"POST", body:"{}" }); } catch (_) {}
-  btn.textContent = textoOriginal;
-  btn.disabled = false;
-  delete btn.dataset.busy;
+  localStorage.removeItem("karma_user");
+  window.location.href = "../../index.html";
 }
 
 /* ===== 16. BUSCADOR — enrutado según la vista activa ===== */
@@ -2063,6 +2332,10 @@ function initEventosGlobales(){
   $("#themeToggle").addEventListener("click", toggleTema);
   $("#langToggle").addEventListener("click", toggleIdioma);
   $("#logoutBtn").addEventListener("click", cerrarSesion);
+  // Catálogo web: si hay un ticket en curso se confirma antes de salir para no perder la venta
+  $("#catalogLink")?.addEventListener("click", (e) => {
+    if (ticketItems.length && !confirm("Hay un ticket en curso. ¿Salir al Catálogo? Se perderán los artículos capturados.")) e.preventDefault();
+  });
 
   // Traductor: refleja el idioma activo y avisa si la API de traducción falla
   document.addEventListener("karma:idioma", marcarIdiomaActivo);

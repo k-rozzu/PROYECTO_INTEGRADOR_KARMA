@@ -71,10 +71,12 @@ app.post("/api/login", async (req, res) => {
             });
         }
 
-        const passwordCorrecta = await bcrypt.compare(
-            password,
-            usuario.password_hash
-        );
+        // Igual que PHP/Login/login.php: un usuario insertado a mano con SQL puede tener la contraseña en texto plano
+        const guardado = String(usuario.password_hash || "");
+        const esHash = /^\$(2[abxy]\$\d\d\$|argon2id?\$)/.test(guardado);
+        const passwordCorrecta = esHash
+            ? await bcrypt.compare(password, guardado)
+            : guardado !== "" && guardado === String(password);
 
         if (!passwordCorrecta) {
             return res.status(401).json({

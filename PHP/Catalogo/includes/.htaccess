@@ -1,0 +1,2 @@
+# Archivos internos del Catálogo: solo se cargan con require desde las páginas, no se abren directo en el navegador
+Require all denied
