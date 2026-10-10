@@ -157,42 +157,6 @@ INSERT INTO clientes
 SELECT 'Héctor Iván Solórzano', 'SOIH930303XXX', '312 456 7890', 'hector.solorzano@email.com',
        'Ducati Panigale V4 S', 496000, 62000, 124000, 0, 24, 'activo'
 WHERE NOT EXISTS (SELECT 1 FROM clientes WHERE email='hector.solorzano@email.com');
-INSERT INTO garantias (id_cliente, id_producto, fecha_expiracion, estado)
-SELECT c.id_cliente, p.id_producto, '2027-03-12', 'vigente'
-FROM clientes c
-JOIN productos p ON p.codigo_barras='KRM-P911-24'
-WHERE c.email='roberto.fernandez@email.com'
-AND NOT EXISTS (
-  SELECT 1 FROM garantias g
-  WHERE g.id_cliente=c.id_cliente AND g.id_producto=p.id_producto
-);
-INSERT INTO garantias (id_cliente, id_producto, fecha_expiracion, estado)
-SELECT c.id_cliente, p.id_producto, '2026-07-28', 'vencida'
-FROM clientes c
-JOIN productos p ON p.codigo_barras='KRM-ARS7-24'
-WHERE c.email='marina.lopez@email.com'
-AND NOT EXISTS (
-  SELECT 1 FROM garantias g
-  WHERE g.id_cliente=c.id_cliente AND g.id_producto=p.id_producto
-);
-INSERT INTO garantias (id_cliente, id_producto, fecha_expiracion, estado)
-SELECT c.id_cliente, p.id_producto, '2026-11-05', 'vigente'
-FROM clientes c
-JOIN productos p ON p.codigo_barras='KRM-DPAN-24'
-WHERE c.email='hector.ivan@solorzano.local'
-AND NOT EXISTS (
-  SELECT 1 FROM garantias g
-  WHERE g.id_cliente=c.id_cliente AND g.id_producto=p.id_producto
-);
-INSERT INTO garantias (id_cliente, id_producto, fecha_expiracion, estado)
-SELECT c.id_cliente, p.id_producto, '2026-11-05', 'vigente'
-FROM clientes c
-JOIN productos p ON p.codigo_barras='KRM-DPAN-24'
-WHERE c.nombre='Héctor Iván Solórzano'
-AND NOT EXISTS (
-  SELECT 1 FROM garantias g
-  WHERE g.id_cliente=c.id_cliente AND g.id_producto=p.id_producto
-);
 INSERT INTO web_orders
 (tipo,id_producto,nombre,celular,email,enganche,fecha_visita,color,estado)
 SELECT 'vehiculo', p.id_producto, 'Daniela Ruiz Ponce', '314 222 3344', 'daniela.ruiz@email.com',
