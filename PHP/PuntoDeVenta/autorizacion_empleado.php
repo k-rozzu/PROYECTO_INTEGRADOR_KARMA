@@ -11,7 +11,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/Login/sesion_pos.php';
 
 // Acciones protegidas (nombres internos; al usuario no se le muestran)
-const POS_ACCIONES_PROTEGIDAS = ['VENTA', 'CREDITO', 'GARANTIA', 'ORDEN_WEB'];
+const POS_ACCIONES_PROTEGIDAS = ['VENTA', 'CREDITO', 'GARANTIA', 'ORDEN_WEB', 'ABONO'];
 // Segundos que dura una autorización sin usarse (el navegador envía la operación justo después de autorizar)
 const POS_AUTORIZACION_VIGENCIA = 60;
 // Freno a intentos: tras 5 códigos rechazados seguidos hay que esperar 60 segundos
@@ -45,6 +45,9 @@ function posAccionProtegida(string $ruta, array $datos): ?array {
         case 'crear_venta':
             $esCredito = isset($datos['credito']) && is_array($datos['credito']) && $datos['credito'];
             return [$esCredito ? 'CREDITO' : 'VENTA', (int)($datos['ticket_numero'] ?? 0)];
+        case 'cobrar_abono':
+            // Abono mensual de un crédito: ligado al ticket en el que se cobra
+            return ['ABONO', (int)($datos['ticket_numero'] ?? 0)];
         case 'preparar_credito':
             // Crédito: el gafete se valida después de cobrar el enganche y antes de generar el contrato
             return ['CREDITO', (int)($datos['ticket_numero'] ?? 0)];

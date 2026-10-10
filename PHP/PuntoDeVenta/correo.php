@@ -104,23 +104,26 @@ function karmaConvertirDecenas(int $n): string {
 function construirTicketHTML(string $nombreCliente, string $emailCliente, array $ticket): string {
     $items = is_array($ticket['items'] ?? null) ? $ticket['items'] : [];
     $vehiculos = array_values(array_filter($items, fn($it) => !empty($it['esVehiculo'])));
-    $refacciones = array_values(array_filter($items, fn($it) => empty($it['esVehiculo'])));
+    $refacciones = array_values(array_filter($items, fn($it) => empty($it['esVehiculo']) && empty($it['esAbono'])));
     $primerVehiculo = $vehiculos[0] ?? null;
     $esCredito = $primerVehiculo && !empty($primerVehiculo['esCredito']);
+    // Comprobante de un abono mensual (botón «Cobrar abono» de Clientes): no es una venta de vehículo ni de refacciones
+    $abono = is_array($ticket['abono'] ?? null) ? $ticket['abono'] : null;
 
     $folioTicket = h($ticket['numero'] ?? '');
     $folioCompleto = h($ticket['folio'] ?? ('KRM-' . ($ticket['ventaId'] ?? '')));
-    $serieDigital = h('KRM-' . ($ticket['ventaId'] ?? '0'));
+    $serieDigital = h($abono ? ($ticket['folio'] ?? '') : 'KRM-' . ($ticket['ventaId'] ?? '0'));
     $fecha = h($ticket['fecha'] ?? date('d/m/Y H:i:s'));
     $sucursalNombre = h($ticket['sucursal'] ?? 'Manzanillo');
     $sucursalDireccion = h($ticket['sucursalDireccion'] ?? '');
     $sucursalTelefono = h($ticket['sucursalTelefono'] ?? '');
     $cajero = h($ticket['cajero'] ?? '');
 
-    $rfcIne = h($primerVehiculo['rfcIne'] ?? '');
-    $direccionCliente = h($primerVehiculo['direccion'] ?? '');
-    $idTipo = h($primerVehiculo['identificacionTipo'] ?? 'INE');
-    $celularCliente = h($primerVehiculo['celular'] ?? '');
+    $datosComprador = $primerVehiculo ?? $abono;
+    $rfcIne = h($datosComprador['rfcIne'] ?? '');
+    $direccionCliente = h($datosComprador['direccion'] ?? '');
+    $idTipo = h($datosComprador['identificacionTipo'] ?? 'INE');
+    $celularCliente = h($datosComprador['celular'] ?? '');
 
     $subtotal = (float)($ticket['subtotal'] ?? ($ticket['total'] ?? 0));
     $total = (float)($ticket['total'] ?? 0);
@@ -176,9 +179,26 @@ function construirTicketHTML(string $nombreCliente, string $emailCliente, array 
     }
 
     // Leyenda de forma de pago según sea contado o crédito
-    $leyendaPago = $esCredito
+    $bloqueAbono = '';
+    if ($abono) {
+        $bloqueAbono = '
+        <h2>2. Abono a crédito automotriz</h2>
+        <table class="tabla-datos">
+          <tr><td class="etq">Concepto</td><td>Abono mensual</td></tr>
+          <tr><td class="etq">Contrato de crédito</td><td>' . h($abono['contratoFolio'] ?? '') . '</td></tr>
+          <tr><td class="etq">Vehículo</td><td>' . h($abono['vehiculo'] ?? '') . (!empty($abono['vin']) ? ' · VIN ' . h($abono['vin']) : '') . '</td></tr>
+          <tr><td class="etq">Mensualidad</td><td>' . h(($abono['numero'] ?? '') . ' de ' . ($abono['plazo'] ?? '')) . (!empty($abono['vence']) ? ' · vencimiento ' . h($abono['vence']) : '') . '</td></tr>
+          <tr><td class="etq">Importe del abono</td><td>' . karmaMoneyFmt($abono['importe'] ?? 0) . '</td></tr>
+          <tr><td class="etq">Saldo anterior</td><td>' . karmaMoneyFmt($abono['saldoAnterior'] ?? 0) . '</td></tr>
+          <tr><td class="etq">Saldo pendiente después del abono</td><td>' . karmaMoneyFmt($abono['saldoRestante'] ?? 0) . (!empty($abono['liquidado']) ? ' — CRÉDITO LIQUIDADO' : '') . '</td></tr>
+        </table>';
+    }
+
+    $leyendaPago = $abono
+        ? ('Forma de pago: ABONO MENSUAL A CRÉDITO — PAGO ' . h(($abono['numero'] ?? '') . ' DE ' . ($abono['plazo'] ?? '')) . (!empty($abono['liquidado']) ? ' (CRÉDITO LIQUIDADO).' : '.'))
+        : ($esCredito
         ? ('Forma de pago: ENGANCHE + FINANCIAMIENTO A ' . h($primerVehiculo['abonos'] ?? '') . '.')
-        : 'Forma de pago: PAGO EN UNA SOLA EXHIBICIÓN — CONTADO.';
+        : 'Forma de pago: PAGO EN UNA SOLA EXHIBICIÓN — CONTADO.');
 
     return '<html><head><meta charset="UTF-8"><style>
       body{ font-family: Arial, sans-serif; font-size:11px; color:#17181A; }
@@ -213,6 +233,8 @@ function construirTicketHTML(string $nombreCliente, string $emailCliente, array 
 
       ' . ($refacciones ? '<h2>2b. Refacciones incluidas</h2><table>' . $filasRefacciones . '</table>' : '') . '
 
+      ' . $bloqueAbono . '
+
       <h2>3. Desglose financiero</h2>
       <table class="tabla-datos">
         <tr><td class="etq">Subtotal</td><td>' . karmaMoneyFmt($subtotal) . '</td></tr>
@@ -235,7 +257,7 @@ function construirTicketHTML(string $nombreCliente, string $emailCliente, array 
 
       <div class="legal">
         <strong>Validez digital:</strong> Documento firmado digitalmente por ' . $cajero . ' en representación de KARMA, Sucursal ' . $sucursalNombre . '.<br>
-        <strong>Conformidad del cliente:</strong> &ldquo;Recibí de conformidad el vehículo y los documentos arriba descritos.&rdquo;
+        <strong>Conformidad del cliente:</strong> &ldquo;' . ($abono ? 'Recibí comprobante del abono arriba descrito.' : 'Recibí de conformidad el vehículo y los documentos arriba descritos.') . '&rdquo;
       </div>
       <div class="firma">' . (($sello = karmaAssetSvg('sello-karma.svg')) !== '' ? '<img class="sello" src="' . karmaSvgDataUri($sello) . '" alt="Sello digital de KARMA S.A. de C.V.">' : '') . '________________________________<br><span class="muted">Firma digital / sello de recepción del vendedor</span></div>
 

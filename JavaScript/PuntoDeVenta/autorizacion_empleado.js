@@ -11,7 +11,7 @@ const RUTA_JSQR = new URL("lib/jsQR.js", document.currentScript.src).href;
 // Formato del gafete (EMP-0001): solo para avisar en pantalla; el servidor valida contra la base de datos
 const FORMATO_CODIGO_EMPLEADO = /^EMP-\d{4,16}$/;
 // Texto que aparece arriba del título según la acción protegida
-const ETIQUETAS_AUTORIZACION = { VENTA: "Concretar venta", CREDITO: "Concretar crédito", GARANTIA: "Aplicar garantía", ORDEN_WEB: "Orden web" };
+const ETIQUETAS_AUTORIZACION = { VENTA: "Concretar venta", CREDITO: "Concretar crédito", GARANTIA: "Aplicar garantía", ORDEN_WEB: "Orden web", ABONO: "Cobrar abono" };
 
 let autorizacionActual = null;   // estado del modal mientras está abierto (acción, referencia, cámara, envío…)
 let promesaJsQR = null;          // carga única de la librería

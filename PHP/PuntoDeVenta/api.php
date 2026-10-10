@@ -92,6 +92,10 @@ try {
             require_once __DIR__ . '/contrato_credito.php';
             verContrato();
             break;
+        case 'cobrar_abono':
+            require_once __DIR__ . '/contrato_credito.php';
+            cobrarAbono();
+            break;
         case 'logout':
             posCerrarSesion();
             ok(['message' => 'Sesión cerrada.']);
@@ -151,11 +155,12 @@ function bootstrap(): never {
         fail('No existe la caja 01 para la sucursal del cajero.', 503);
     }
 
-    // Número del siguiente ticket = ventas de HOY en esta caja + 1 (así no se reinicia al recargar)
+    // Número del siguiente ticket = ventas + abonos de HOY en esta caja + 1 (así no se reinicia al recargar)
     $siguienteTicketStmt = $pdo->prepare("
-        SELECT COUNT(*) FROM ventas WHERE id_caja = ? AND DATE(fecha_hora) = CURDATE()
+        SELECT (SELECT COUNT(*) FROM ventas WHERE id_caja = ? AND DATE(fecha_hora) = CURDATE())
+             + (SELECT COUNT(*) FROM abonos_credito WHERE id_caja = ? AND DATE(fecha_hora) = CURDATE())
     ");
-    $siguienteTicketStmt->execute([$caja['id_caja']]);
+    $siguienteTicketStmt->execute([$caja['id_caja'], $caja['id_caja']]);
     $siguienteTicket = (int)$siguienteTicketStmt->fetchColumn() + 1;
 
     // Inventario completo de la sucursal (incluye productos con 0 unidades, su VIN, color y modelo 3D)
@@ -190,21 +195,41 @@ function bootstrap(): never {
     $inventario->execute([$sucursal['id_sucursal']]);
     $inventarioRows = $inventario->fetchAll(PDO::FETCH_ASSOC);
 
-    // Clientes con crédito activo
-    $clientes = $pdo->query("
-        SELECT id_cliente AS id, nombre, rfc_ine AS rfcIne, celular, email,
-               direccion, identificacion_tipo AS identificacionTipo, identificacion_numero AS identificacionNumero,
-               articulo, total_adeudo AS totalAdeudo, monto_abono AS montoAbono,
-               enganche, abonos_pagados AS abonosPagados, abonos_totales AS abonosTotales
-        FROM clientes
-        WHERE estado='activo' AND abonos_totales > 0
-        ORDER BY nombre
+    // Sección Clientes: SOLO créditos automotrices activos con saldo pendiente (un renglón por crédito).
+    // Al liquidar la última mensualidad el crédito queda 'liquidado' y deja de aparecer; su historial se conserva.
+    $creditosActivos = $pdo->query("
+        SELECT cc.id_contrato, cc.folio, c.id_cliente, c.nombre, c.rfc_ine, c.celular, c.email, c.direccion,
+               c.identificacion_tipo, c.identificacion_numero, CONCAT_WS(' ', p.marca, p.modelo, p.anio) AS articulo,
+               cc.vin, cc.enganche, cc.mensualidad, cc.plazo_meses, cc.abonos_pagados, cc.saldo_pendiente, cc.monto_total, cc.datos_json
+        FROM contratos_credito cc
+        JOIN clientes c ON c.id_cliente = cc.id_cliente
+        JOIN productos p ON p.id_producto = cc.id_producto
+        WHERE cc.estado = 'firmado' AND cc.estado_credito = 'activo' AND cc.saldo_pendiente > 0
+        ORDER BY c.nombre, cc.id_contrato
     ")->fetchAll();
+    $clientes = [];
+    foreach ($creditosActivos as $k) {
+        // Siguiente mensualidad según la tabla de amortización guardada con el contrato
+        $siguiente = (int)$k['abonos_pagados'] + 1;
+        $fila = (json_decode((string)$k['datos_json'], true) ?: [])['amortizacion'][$siguiente - 1] ?? null;
+        $clientes[] = [
+            'id' => (int)$k['id_contrato'], 'idCliente' => (int)$k['id_cliente'],
+            'contratoId' => (int)$k['id_contrato'], 'contratoFolio' => $k['folio'],
+            'nombre' => $k['nombre'], 'rfcIne' => $k['rfc_ine'], 'celular' => $k['celular'], 'email' => $k['email'],
+            'direccion' => $k['direccion'], 'identificacionTipo' => $k['identificacion_tipo'], 'identificacionNumero' => $k['identificacion_numero'],
+            'articulo' => $k['articulo'], 'vin' => $k['vin'],
+            'totalAdeudo' => (float)$k['saldo_pendiente'], 'montoTotal' => (float)$k['monto_total'],
+            'montoAbono' => $fila ? (float)$fila['cuota'] : round((float)$k['mensualidad'], 2), 'enganche' => (float)$k['enganche'],
+            'abonosPagados' => (int)$k['abonos_pagados'], 'abonosTotales' => (int)$k['plazo_meses'],
+            'siguienteAbono' => $siguiente, 'venceSiguiente' => $fila['fecha'] ?? null
+        ];
+    }
 
     // Contratos de crédito firmados de cada cliente (botón "Ver contrato" del detalle): uno por operación
     $contratosPorCliente = [];
     $contratosStmt = $pdo->query("
         SELECT cc.id_contrato, cc.id_cliente, cc.folio, cc.id_venta, cc.plazo_meses, cc.mensualidad, cc.enganche,
+               cc.estado_credito, cc.abonos_pagados,
                DATE_FORMAT(cc.fecha_firma, '%d/%m/%Y %H:%i') AS fecha, s.nombre AS sucursal,
                CONCAT_WS(' ', p.marca, p.modelo, p.anio) AS vehiculo, cc.vin
         FROM contratos_credito cc
@@ -217,11 +242,12 @@ function bootstrap(): never {
         $contratosPorCliente[(int)$k['id_cliente']][] = [
             'id' => (int)$k['id_contrato'], 'folio' => $k['folio'], 'fecha' => $k['fecha'], 'sucursal' => $k['sucursal'],
             'vehiculo' => $k['vehiculo'], 'vin' => $k['vin'], 'ventaId' => $k['id_venta'] !== null ? (int)$k['id_venta'] : null,
-            'plazo' => (int)$k['plazo_meses'], 'mensualidad' => (float)$k['mensualidad'], 'enganche' => (float)$k['enganche']
+            'plazo' => (int)$k['plazo_meses'], 'mensualidad' => (float)$k['mensualidad'], 'enganche' => (float)$k['enganche'],
+            'estadoCredito' => $k['estado_credito'], 'abonosPagados' => (int)$k['abonos_pagados']
         ];
     }
     foreach ($clientes as &$cliente) {
-        $cliente['contratos'] = $contratosPorCliente[(int)$cliente['id']] ?? [];
+        $cliente['contratos'] = $contratosPorCliente[$cliente['idCliente']] ?? [];
     }
     unset($cliente);
 

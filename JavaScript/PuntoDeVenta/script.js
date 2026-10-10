@@ -1014,7 +1014,12 @@ function bindFormularioVenta(){
   // Crédito (solo vehículos): mismos cajones + VIN, y cada cambio recalcula comisión, interés y mensualidad
   if (formTipoArticulo === "Credito"){
     bindTexto("inpClienteC", "cliente", panel);
-    bindTexto("inpRfcIneC", "rfcIne", panel);
+    // RFC / CURP en mayúsculas y sin espacios mientras se escribe: se guarda y se imprime tal como se ve
+    $("#inpRfcIneC", panel)?.addEventListener("input", (e) => {
+      const limpio = e.target.value.replace(/\s+/g, "").toUpperCase();
+      if (limpio !== e.target.value) e.target.value = limpio;
+      borrador.rfcIne = limpio;
+    });
     bindTexto("inpEmailC", "email", panel);
     bindTexto("inpCelularC", "celular", panel);
     bindTexto("inpDireccionC", "direccion", panel);
@@ -1065,6 +1070,8 @@ const MSG_SIN_STOCK_VEHICULO = "0 unidades disponibles: este vehículo no tiene 
 // Lee el formulario, arma el artículo y lo agrega al ticket
 async function guardarArticulo(){
   try {
+    // Un abono se cobra en su propio ticket (no es una venta)
+    if (ticketEsAbono()) throw new Error("El ticket tiene un abono mensual. Cóbralo (F3) o cancélalo (F6) antes de registrar una venta.");
     let cliente = "", email = "", celular = "", rfcIne = "", productoId = null, item = null;
 
     if (formTipoArticulo === "Refaccion"){
@@ -1123,9 +1130,10 @@ async function guardarArticulo(){
       // Datos que el contrato necesita del acreditado
       const direccion = (borrador.direccion || "").trim();
       const identificacionNumero = (borrador.identificacionNumero || "").trim();
-      if (!/^([A-ZÑ&]{3,4}\d{6}[A-Z\d]{3}|[A-Z]{4}\d{6}[HMX][A-Z]{5}[A-Z\d]\d)$/.test(rfcIne)){
+      // Solo la estructura (letras y números en su lugar): se aceptan RFC y CURP ficticios
+      if (!/^([A-ZÑ&]{3,4}\d{6}[A-ZÑ\d]{3}|[A-ZÑ]{4}\d{6}[A-ZÑ\d]{8})$/.test(rfcIne)){
         $("#inpRfcIneC").focus();
-        throw new Error("Escribe un RFC (13 caracteres) o una CURP (18 caracteres) válidos: se imprimen en el contrato.");
+        throw new Error("El RFC debe tener 12 o 13 caracteres (3 o 4 letras, 6 números y 3 letras o números) y la CURP 18 (4 letras, 6 números y 8 letras o números).");
       }
       if (!direccion){ $("#inpDireccionC").focus(); throw new Error("El contrato necesita el domicilio particular del cliente."); }
       if (!identificacionNumero){ $("#inpIdNumeroC").focus(); throw new Error("Escribe el número o folio de la identificación oficial."); }
@@ -1235,7 +1243,7 @@ function renderPanelLateral(){
     </div>
     <div class="ticket-total">
       <span class="label">Total con IVA incluido</span>
-      <span class="value">${ticketItems.some(it => it.esCredito) ? formatoMonedaCentavos(calcularTotalTicket()) : formatoMoneda(calcularTotalTicket())}</span>
+      <span class="value">${ticketItems.some(it => it.esCredito || it.esAbono) ? formatoMonedaCentavos(calcularTotalTicket()) : formatoMoneda(calcularTotalTicket())}</span>
     </div>
     ${ticketItems.some(it => it.esCredito) ? `<p class="ticket-credito-nota">Crédito: hoy solo se cobra el enganche${calcularTotalTicket() <= 0 ? " ($0: no se pedirá método de pago)" : ""}; el saldo se paga en mensualidades según el contrato.</p>` : ""}
   `;
@@ -1247,6 +1255,26 @@ function renderPanelLateral(){
 
 // Dibuja un artículo con solo los datos visibles del ticket
 function ticketItemHTML(it){
+  if (it.esAbono){
+    return `
+    <div class="ticket-item">
+      <div class="ticket-item-head">
+        <span class="ticket-item-articulo">Abono mensual</span>
+        ${modoEliminarTicket ? `<button class="ticket-item-remove" data-quitar-item="${it.id}" title="Quitar artículo">×</button>` : ""}
+      </div>
+      <div class="ticket-item-grid">
+        <div><span>Cliente</span><strong>${escapeHTML(it.cliente)}</strong></div>
+        <div><span>Mensualidad</span><strong>${it.numeroAbono} de ${it.abonosTotales}</strong></div>
+        <div><span>Contrato</span><strong>${escapeHTML(it.contratoFolio || "—")}</strong></div>
+      </div>
+      <div class="ticket-item-grid">
+        <div><span>Vehículo</span><strong>${escapeHTML(it.vehiculo || "—")}</strong></div>
+        <div><span>Saldo actual</span><strong>${formatoMonedaCentavos(it.saldoAnterior)}</strong></div>
+        <div><span>Saldo después</span><strong>${formatoMonedaCentavos(it.saldoRestante)}</strong></div>
+      </div>
+      <div class="ticket-item-total">Importe del abono <strong>${formatoMonedaCentavos(it.precioTotal)}</strong></div>
+    </div>`;
+  }
   const mostrarGrid = it.esVehiculo && (it.abonos || it.enganche != null || it.montoAbono != null);
   return `
     <div class="ticket-item">
@@ -1333,9 +1361,12 @@ function ticketEsCredito(){
 function abrirModalPago(){
   pagoEstado = { metodo: null, monto: calcularTotalTicket(), recibido: 0, cambio: 0, valido: false };
   const esCredito = ticketEsCredito();
+  const abono = ticketItems.find(it => it.esAbono);
   $("#modalPagoContent").innerHTML = `
-    <div class="payment-title">${esCredito ? "Cobrar enganche" : "Concretar venta"}</div>
-    <p class="payment-subtitle">${esCredito
+    <div class="payment-title">${abono ? "Cobrar abono" : (esCredito ? "Cobrar enganche" : "Concretar venta")}</div>
+    <p class="payment-subtitle">${abono
+      ? `Abono mensual ${abono.numeroAbono} de ${abono.abonosTotales} del contrato ${escapeHTML(abono.contratoFolio || "")} (${formatoMonedaCentavos(pagoEstado.monto)}).`
+      : esCredito
       ? `Crédito: solo se cobra el enganche (${formatoMonedaCentavos(pagoEstado.monto)}). Después se verifica tu código de empleado y se genera el contrato para firma del cliente.`
       : `Selecciona el método de pago para el ticket #${String(ticketNumero).padStart(2, "0")}.`}</p>
     <div class="payment-method-grid">
@@ -1359,9 +1390,10 @@ function abrirCobroEfectivo(){
   pagoEstado.metodo = "Efectivo";
   pagoEstado.valido = false;
   const esCredito = ticketEsCredito();
+  const esAbono = ticketEsAbono();
   $("#modalPagoContent").innerHTML = `
     <div class="payment-title">Pago en efectivo</div>
-    <div class="payment-total-box"><span>${esCredito ? "Enganche a cobrar" : "Total a pagar"}</span><strong>${esCredito ? formatoMonedaCentavos(pagoEstado.monto) : formatoMoneda(pagoEstado.monto)}</strong></div>
+    <div class="payment-total-box"><span>${esAbono ? "Abono a cobrar" : (esCredito ? "Enganche a cobrar" : "Total a pagar")}</span><strong>${esCredito || esAbono ? formatoMonedaCentavos(pagoEstado.monto) : formatoMoneda(pagoEstado.monto)}</strong></div>
     <div class="cash-form">
       <label for="inpEfectivo">Dinero recibido</label>
       <input type="number" id="inpEfectivo" min="0" step="0.01" placeholder="0.00" autofocus>
@@ -1370,7 +1402,7 @@ function abrirCobroEfectivo(){
     </div>
     <div class="payment-actions">
       <button class="btn btn-ghost" id="btnVolverMetodo" type="button">Volver</button>
-      <button class="btn btn-primary" id="btnConfirmarEfectivo" type="button" disabled>${esCredito ? "F3 · Continuar al contrato" : "F3 · Concretar venta"}</button>
+      <button class="btn btn-primary" id="btnConfirmarEfectivo" type="button" disabled>${esAbono ? "F3 · Cobrar abono" : (esCredito ? "F3 · Continuar al contrato" : "F3 · Concretar venta")}</button>
     </div>
   `;
   renderShortcutsBar();
@@ -1390,7 +1422,7 @@ function actualizarEfectivo(){
   pagoEstado.valido = recibido >= pagoEstado.monto;
   const msg = $("#cashMessage");
   // En crédito el enganche se muestra con centavos: es el importe exacto que exige el cobro
-  const fmt = ticketEsCredito() ? formatoMonedaCentavos : formatoMoneda;
+  const fmt = ticketEsCredito() || ticketEsAbono() ? formatoMonedaCentavos : formatoMoneda;
   if (recibido <= 0) msg.textContent = "";
   else if (!pagoEstado.valido) msg.textContent = `Faltan ${fmt(Math.abs(diferencia))}.`;
   else msg.textContent = "Dinero correcto. Puedes presionar F3 para concretar.";
@@ -1409,6 +1441,13 @@ async function confirmarVentaDB(){
 
   const primerVehiculo = ticketItems.find(it => it.esVehiculo) || {};
   const itemCredito = ticketItems.find(it => it.esCredito) || null;
+
+  // Abono mensual: se registra como pago del crédito (no genera venta ni toca el formulario de venta)
+  const itemAbono = ticketItems.find(it => it.esAbono) || null;
+  if (itemAbono){
+    await cobrarAbonoDB(itemAbono, boton);
+    return;
+  }
 
   // Crédito: verificación del empleado → contrato → firma del cliente (contrato_credito.js). No se registra hasta firmar
   if (itemCredito){
@@ -1493,6 +1532,46 @@ async function confirmarVentaDB(){
   }
 }
 
+/* Cobra el abono mensual: gafete del empleado → cobrar_abono (registra el pago y actualiza el crédito) → ticket */
+async function cobrarAbonoDB(item, boton){
+  const autorizacion = await solicitarAutorizacionEmpleado("ABONO", ticketNumero, "Cobrar abono");
+  if (!autorizacion){ if (boton) boton.disabled = false; return; }
+  try {
+    const data = await apiFetch("cobrar_abono", {
+      method: "POST",
+      autorizacion,
+      body: JSON.stringify({
+        id_contrato: item.contratoId, numero_abono: item.numeroAbono, clave: item.clave,
+        id_caja: CAJA_ACTUAL_ID, ticket_numero: ticketNumero, metodo_pago: "Efectivo",
+        efectivo_recibido: pagoEstado.recibido, cambio: pagoEstado.cambio
+      })
+    });
+    ticketCerrado = {
+      numero: ticketNumero, ventaId: null, folio: data.folio, fecha: data.fecha,
+      cajero: CAJERO_ACTUAL, sucursal: SUCURSAL_ACTUAL, sucursalDireccion: SUCURSAL_ACTUAL_DIRECCION, sucursalTelefono: SUCURSAL_ACTUAL_TELEFONO,
+      caja: CAJA_ACTUAL, metodo: data.metodo, subtotal: data.importe, total: data.importe, recibido: data.recibido, cambio: data.cambio,
+      items: [{ ...item, precioTotal: data.importe, numeroAbono: data.numero, saldoAnterior: data.saldo_anterior, saldoRestante: data.saldo_restante }],
+      abono: {
+        contratoFolio: data.contrato, numero: data.numero, plazo: data.plazo, importe: data.importe, vence: item.vence,
+        saldoAnterior: data.saldo_anterior, saldoRestante: data.saldo_restante, liquidado: data.liquidado,
+        vehiculo: item.vehiculo, vin: item.vin, rfcIne: item.rfcIne, direccion: item.direccion,
+        identificacionTipo: item.identificacionTipo, celular: item.celular
+      }
+    };
+    cerrarPago();
+    ticketItems = [];
+    modoEliminarTicket = false;
+    ticketNumero += 1;
+    try { await refrescarDatosDB(); } catch (_) { /* el abono ya quedó registrado */ }
+    renderPanelLateral();
+    renderShortcutsBar();
+    mostrarTicketCliente();
+  } catch (error) {
+    if (boton) boton.disabled = false;
+    avisar(error.message);
+  }
+}
+
 /* Cierra la ventana temporal de pago */
 function cerrarPago(){
   pagoEstado = null;
@@ -1506,15 +1585,18 @@ function mostrarTicketCliente(){
   if (!t) return;
   $("#ticketClienteContent").innerHTML = `
     <div class="digital-ticket">
-      <div class="digital-ticket-head"><strong>KARMA</strong><span>Venta #${String(t.numero).padStart(2,"0")}</span></div>
+      <div class="digital-ticket-head"><strong>KARMA</strong><span>${t.abono ? "Abono" : "Venta"} #${String(t.numero).padStart(2,"0")}</span></div>
       <div class="digital-ticket-meta">${escapeHTML(t.sucursal)} · Caja ${escapeHTML(CAJA_ACTUAL)}<br>${escapeHTML(t.fecha)}</div>
       <div class="digital-ticket-lines">
-        ${t.items.map(it => it.esCredito
+        ${t.items.map(it => it.esAbono
+          ? `<div class="digital-ticket-line"><span>Abono mensual<br><small>${escapeHTML(it.cliente)} · ${escapeHTML(it.vehiculo || "")} · pago ${it.numeroAbono} de ${it.abonosTotales}</small></span><strong>${formatoMonedaCentavos(it.precioTotal)}</strong></div>`
+          : it.esCredito
           ? `<div class="digital-ticket-line"><span>${escapeHTML(it.articulo)}<br><small>Crédito ${escapeHTML(it.abonos || "")} · enganche (precio de contado ${formatoMonedaCentavos(it.precioContado)})</small></span><strong>${formatoMonedaCentavos(it.precioTotal)}</strong></div>`
           : `<div class="digital-ticket-line"><span>${escapeHTML(it.articulo)}</span><strong>${formatoMoneda(it.precioTotal)}</strong></div>`).join("")}
       </div>
-      <div class="digital-ticket-total"><span>${t.contrato ? "Total cobrado" : "Total"}</span><strong>${t.contrato ? formatoMonedaCentavos(t.total) : formatoMoneda(t.total)}</strong></div>
+      <div class="digital-ticket-total"><span>${t.contrato || t.abono ? "Total cobrado" : "Total"}</span><strong>${t.contrato || t.abono ? formatoMonedaCentavos(t.total) : formatoMoneda(t.total)}</strong></div>
       <div class="digital-ticket-paid"><span>Recibido</span><span>${formatoMoneda(t.recibido)}</span><span>Cambio</span><span>${formatoMoneda(t.cambio)}</span></div>
+      ${t.abono ? `<div class="digital-ticket-contrato">Folio ${escapeHTML(t.folio)} · contrato <strong>${escapeHTML(t.abono.contratoFolio)}</strong><br>${t.abono.liquidado ? "<strong>Crédito liquidado.</strong> ¡Gracias por completar tus pagos!" : `Saldo pendiente: <strong>${formatoMonedaCentavos(t.abono.saldoRestante)}</strong> · ${t.abono.plazo - t.abono.numero} mensualidad${t.abono.plazo - t.abono.numero === 1 ? "" : "es"} por pagar`}</div>` : ""}
       ${t.contrato ? `<div class="digital-ticket-contrato">${t.metodo !== "Efectivo" ? `${escapeHTML(t.metodo)}<br>` : ""}Contrato de crédito <strong>${escapeHTML(t.contrato.folio)}</strong> firmado · ${escapeHTML(t.contrato.resumen || "")}</div>` : ""}
       <div class="digital-ticket-thanks">Gracias por tu compra.</div>
     </div>
@@ -1844,26 +1926,69 @@ function tileTipoHTML(tipo){
 function renderClientes(){
   const panel = $("#panelFull");
   const q = searchQuery.trim().toLowerCase();
-  const lista = CLIENTES.filter(c => !q || c.nombre.toLowerCase().includes(q));
+  const lista = CLIENTES.filter(c => !q || `${c.nombre} ${c.articulo || ""}`.toLowerCase().includes(q));
 
   panel.innerHTML = `
     <div class="panel-heading"><h2>Clientes</h2></div>
-    <p class="venta-empty-hint" style="margin-bottom:18px;">Clientes con crédito activo o pagos en curso. Toca una fila para ver el detalle completo.</p>
+    <p class="venta-empty-hint" style="margin-bottom:18px;">Clientes con un crédito automotriz activo y saldo pendiente. Toca una fila para ver el detalle completo; al liquidar la última mensualidad el cliente sale de la lista.</p>
     ${lista.length ? `
       <div class="table-wrap">
         <table class="data-table">
-          <thead><tr><th>Nombre</th><th>Celular</th><th>Artículo</th><th>Total</th></tr></thead>
+          <thead><tr><th>Nombre</th><th>Celular</th><th>Artículo</th><th>Abonos</th><th>Próximo abono</th><th>Saldo pendiente</th><th></th></tr></thead>
           <tbody>
             ${lista.map(c => `
               <tr class="is-clickable" data-cliente="${c.id}">
-                <td>${c.nombre}</td><td>${c.celular}</td><td>${c.articulo}</td><td>${formatoMoneda(c.totalAdeudo)}</td>
+                <td>${escapeHTML(c.nombre)}</td><td>${escapeHTML(c.celular || "—")}</td><td>${escapeHTML(c.articulo || "—")}</td>
+                <td>${c.abonosPagados} de ${c.abonosTotales}</td>
+                <td>${formatoMonedaCentavos(c.montoAbono)}${c.venceSiguiente ? `<br><small class="garantia-detalle">Vence ${escapeHTML(c.venceSiguiente)}</small>` : ""}</td>
+                <td>${formatoMonedaCentavos(c.totalAdeudo)}</td>
+                <td><button class="btn-table" type="button" data-cobrar-abono="${c.id}">Cobrar abono</button></td>
               </tr>`).join("")}
           </tbody>
         </table>
-      </div>` : `<div class="empty-state"><strong>Sin resultados</strong>Ningún cliente coincide con “${escapeHTML(searchQuery)}”.</div>`
+      </div>`
+      : CLIENTES.length
+        ? `<div class="empty-state"><strong>Sin resultados</strong>Ningún cliente coincide con “${escapeHTML(searchQuery)}”.</div>`
+        : `<div class="empty-state"><strong>Sin créditos activos</strong>Los clientes aparecen aquí al concretar un crédito automotriz y salen al liquidarlo.</div>`
     }
   `;
   $$("[data-cliente]", panel).forEach(row => row.addEventListener("click", () => abrirDetalleCliente(Number(row.dataset.cliente))));
+  $$("[data-cobrar-abono]", panel).forEach(btn => btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    iniciarCobroAbono(Number(btn.dataset.cobrarAbono));
+  }));
+}
+
+// «Cobrar abono»: manda la siguiente mensualidad del crédito al ticket de Venta (el formulario de venta no se toca)
+function iniciarCobroAbono(id){
+  const c = CLIENTES.find(x => x.id === id);
+  if (!c) return;
+  if (pagoEstado){ avisar("Termina primero el cobro que está en curso."); return; }
+  if (ticketItems.some(it => it.esAbono && it.contratoId === c.contratoId)){ setActiveView("venta"); return; }
+  if (ticketItems.length){
+    avisar("El ticket actual tiene artículos. Concrétalo o cancélalo (F6) antes de cobrar un abono: el abono se cobra en su propio ticket.");
+    return;
+  }
+  ticketIdCounter += 1;
+  ticketItems.push({
+    id: ticketIdCounter, esAbono: true, articulo: "Abono mensual", cantidad: 1,
+    // Importe exacto de la siguiente mensualidad según la tabla de amortización del contrato
+    precioTotal: Number(c.montoAbono), contratoId: c.contratoId, contratoFolio: c.contratoFolio,
+    numeroAbono: c.siguienteAbono, abonosTotales: c.abonosTotales, vence: c.venceSiguiente,
+    saldoAnterior: Number(c.totalAdeudo), saldoRestante: Math.max(Math.round((Number(c.totalAdeudo) - Number(c.montoAbono)) * 100) / 100, 0),
+    cliente: c.nombre, celular: c.celular || "", email: c.email || "", rfcIne: c.rfcIne || "", direccion: c.direccion || "",
+    identificacionTipo: c.identificacionTipo || "", vehiculo: c.articulo, vin: c.vin || "",
+    // Identificador único de este cobro: si se reenvía (doble clic, error de red) el servidor no lo registra dos veces
+    clave: (window.crypto?.randomUUID ? crypto.randomUUID() : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, d => (d ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> d / 4).toString(16)))
+  });
+  modoEliminarTicket = false;
+  cerrarModales();
+  setActiveView("venta");
+}
+
+// ¿El ticket actual es el cobro de un abono mensual?
+function ticketEsAbono(){
+  return ticketItems.some(it => it.esAbono);
 }
 
 // Ficha de detalle de un cliente, incluye "Total de abonos" (pagados de totales)
@@ -1883,10 +2008,12 @@ function abrirDetalleCliente(id){
       ${campo("Celular", c.celular)}
       ${campo("Email", c.email)}
       ${campo("Artículo", c.articulo)}
-      ${campo("Total adeudo", formatoMoneda(c.totalAdeudo))}
-      ${campo("Monto de abono", formatoMoneda(c.montoAbono))}
+      ${campo("Saldo pendiente", formatoMonedaCentavos(c.totalAdeudo))}
+      ${campo("Monto de abono", formatoMonedaCentavos(c.montoAbono))}
       ${campo("Enganche", c.enganche ? formatoMoneda(c.enganche) : "—")}
       ${campo("Total de abonos", `${c.abonosPagados} de ${c.abonosTotales}`)}
+      ${campo("Próximo abono", `${c.siguienteAbono} de ${c.abonosTotales}${c.venceSiguiente ? ` · vence ${escapeHTML(c.venceSiguiente)}` : ""}`)}
+      ${campo("Contrato", escapeHTML(c.contratoFolio || "—"))}
       ${campo("RFC / CURP", escapeHTML(c.rfcIne || "—"))}
       ${campo("Identificación", escapeHTML([c.identificacionTipo, c.identificacionNumero].filter(Boolean).join(" · ") || "—"))}
       <div class="form-field span-2"><label>Domicilio</label>
@@ -1895,10 +2022,12 @@ function abrirDetalleCliente(id){
     </div>
     ${contratosClienteHTML(c)}
     <div class="venta-actions">
+      <button class="btn btn-primary" type="button" id="btnCobrarAbonoDetalle">Cobrar abono</button>
       <button class="btn btn-ghost" data-close-modal>Cerrar</button>
     </div>
   `;
   abrirModal("#modalCliente");
+  $("#btnCobrarAbonoDetalle").addEventListener("click", () => iniciarCobroAbono(c.id));
   $$("[data-ver-contrato]", $("#modalClienteContent")).forEach(btn => btn.addEventListener("click", () => abrirVisorContrato(Number(btn.dataset.verContrato), btn.dataset.folio)));
 }
 
@@ -1916,7 +2045,7 @@ function contratosClienteHTML(c){
         <div class="contrato-fila">
           <div>
             <strong>${escapeHTML(k.folio)}</strong> · ${escapeHTML(k.vehiculo)}<br>
-            <span>Firmado el ${escapeHTML(k.fecha || "—")} en ${escapeHTML(k.sucursal)} · ${k.plazo} meses de ${formatoMoneda(k.mensualidad)} · VIN ${escapeHTML(k.vin || "—")}</span>
+            <span>Firmado el ${escapeHTML(k.fecha || "—")} en ${escapeHTML(k.sucursal)} · ${k.plazo} meses de ${formatoMoneda(k.mensualidad)} · VIN ${escapeHTML(k.vin || "—")} · ${k.estadoCredito === "liquidado" ? "Liquidado" : `${k.abonosPagados ?? 0} de ${k.plazo} abonos`}</span>
           </div>
           <button class="btn btn-outline" type="button" data-ver-contrato="${k.id}" data-folio="${escapeHTML(k.folio)}">Ver contrato</button>
         </div>`).join("")}
