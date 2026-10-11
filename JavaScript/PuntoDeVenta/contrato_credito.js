@@ -48,12 +48,23 @@ async function iniciarContratoCredito(itemCredito, boton){
           nombre: itemCredito.cliente, rfc_curp: itemCredito.rfcIne, email: itemCredito.email, celular: itemCredito.celular,
           direccion: itemCredito.direccion, identificacion_tipo: itemCredito.identificacionTipo, identificacion_numero: itemCredito.identificacionNumero
         },
+        
         credito: {
-          producto_id: itemCredito.productoId, enganche_tipo: itemCredito.engancheTipo, enganche_valor: itemCredito.engancheValor,
-          plazo_meses: itemCredito.plazoMeses, tasa_anual: itemCredito.tasaAnual,
-          // Lo que vio el cliente: el servidor recalcula y rechaza si no coincide
-          esperado: { enganche: itemCredito.enganche, mensualidad: itemCredito.montoAbono }
+          producto_id: itemCredito.productoId,
+          enganche_tipo: itemCredito.engancheTipo,
+          enganche_valor: itemCredito.engancheValor,
+          plazo_meses: itemCredito.plazoMeses,
+          tasa_anual: itemCredito.tasaAnual,
+
+        // Se envía la elección, no el precio del seguro.
+          contratar_seguro: itemCredito.contratarSeguro === true,
+
+          esperado: {
+            enganche: itemCredito.enganche,
+            mensualidad: itemCredito.montoAbono
+          }
         }
+
       })
     });
 

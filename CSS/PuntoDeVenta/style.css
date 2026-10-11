@@ -533,6 +533,7 @@ body.dark .btn-ghost:hover{ background:rgba(158,27,46,.16); }
 .ticket-list{
   display:flex;
   flex-direction:column;
+  flex-shrink:0;          /* no se encoge dentro de .panel-lateral: el panel hace scroll y se ven todos los artículos */
   gap:0;
   margin-bottom:20px;
   background:var(--surface-2);
@@ -604,6 +605,8 @@ body.dark .btn-ghost:hover{ background:rgba(158,27,46,.16); }
 /* Cuadro de total con IVA — azul en claro / rojo en oscuro (pedido explícito) */
 .ticket-total{
   display:flex; align-items:center; justify-content:space-between;
+  flex-shrink:0;
+  position:sticky; bottom:0; z-index:1;   /* el total queda visible al bajar por un ticket largo */
   padding:16px 18px;
   border-radius:6px;
   background:rgba(16,33,63,.94);

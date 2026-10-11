@@ -124,25 +124,60 @@ function contratoRfcCurpValido(string $v): bool {
 }
 
 // Parámetros del crédito elegidos en el formulario (enganche, plazo y tasa) + lo que calculó el navegador para comparar
+
 function contratoNormalizarParametros(array $p): array {
     $tipo = ($p['enganche_tipo'] ?? '') === 'pct' ? 'pct' : 'monto';
+
     $bruto = $p['enganche_valor'] ?? 0;
-    if ($bruto === '' || $bruto === null) $bruto = 0;   // enganche vacío = $0
-    if (!is_numeric($bruto)) fail('El enganche no es un número válido.');
+
+    if ($bruto === '' || $bruto === null) {
+        $bruto = 0;
+    }
+
+    if (!is_numeric($bruto)) {
+        fail('El enganche no es un número válido.');
+    }
+
     $valor = (float)$bruto;
     $plazo = (int)($p['plazo_meses'] ?? 0);
-    $tasa = is_numeric($p['tasa_anual'] ?? null) ? (float)$p['tasa_anual'] : -1.0;
-    if ($valor < 0) fail('El enganche no puede ser negativo.');
-    if ($tipo === 'pct' && $valor >= 100) fail('El porcentaje de enganche debe ser menor a 100%.');
-    if (!in_array($plazo, KARMA_CREDITO_PLAZOS, true)) fail('Elige un plazo válido para el crédito.');
-    if ($tasa < 0 || $tasa > 100) fail('La tasa de interés anual no es válida.');
+    $tasa = is_numeric($p['tasa_anual'] ?? null)
+        ? (float)$p['tasa_anual']
+        : -1.0;
+
+    if ($valor < 0) {
+        fail('El enganche no puede ser negativo.');
+    }
+
+    if ($tipo === 'pct' && $valor >= 100) {
+        fail('El porcentaje de enganche debe ser menor a 100%.');
+    }
+
+    if (!in_array($plazo, KARMA_CREDITO_PLAZOS, true)) {
+        fail('Elige un plazo válido para el crédito.');
+    }
+
+    if ($tasa < 0 || $tasa > 100) {
+        fail('La tasa de interés anual no es válida.');
+    }
+
+    // Solo se acepta la selección booleana enviada por el formulario.
+    $contratarSeguro = ($p['contratar_seguro'] ?? false) === true;
+
     return [
-        'producto_id' => (int)($p['producto_id'] ?? 0), 'enganche_tipo' => $tipo, 'enganche_valor' => $valor,
-        'plazo' => $plazo, 'tasa' => round($tasa, 3),
+        'producto_id' => (int)($p['producto_id'] ?? 0),
+        'enganche_tipo' => $tipo,
+        'enganche_valor' => $valor,
+        'plazo' => $plazo,
+        'tasa' => round($tasa, 3),
+
+        // Nueva opción del seguro automotriz.
+        'contratar_seguro' => $contratarSeguro,
+
         'esperado_enganche' => (float)($p['esperado']['enganche'] ?? -1),
         'esperado_mensualidad' => (float)($p['esperado']['mensualidad'] ?? -1)
     ];
 }
+
 
 // Artículos del ticket: solo los campos que usa la venta
 function contratoNormalizarItems($items): array {
@@ -183,6 +218,7 @@ function contratoDatosVehiculo(PDO $pdo, int $idProducto): array {
 }
 
 // Arma la copia completa de la operación que se guarda en contratos_credito.datos_json y con la que se dibuja el contrato
+
 function contratoArmarDatos(PDO $pdo, array $cajero, int $idCaja, int $ticketNumero, array $op, DateTimeImmutable $ahora): array {
     $suc = $pdo->prepare("SELECT nombre, direccion, telefono, ciudad, email FROM sucursales WHERE id_sucursal = ?");
     $suc->execute([(int)$cajero['id_sucursal']]);
@@ -203,100 +239,245 @@ function contratoArmarDatos(PDO $pdo, array $cajero, int $idCaja, int $ticketNum
     $version = implode(' · ', array_filter([$v['motor'] ?? '', $v['transmision'] ?? '', $v['potencia'] ?? '']));
     $amortizacion = contratoTablaAmortizacion($c, $ahora);
 
+    // Datos del seguro calculados por el servidor.
+    $seguroContratado = ($op['seguro_contratado'] ?? false) === true;
+    $seguroImporte = $seguroContratado
+        ? round((float)($op['seguro_importe'] ?? 0), 2)
+        : 0.0;
+
     return [
         'folio' => null,
+
         'operacion' => [
-            'fecha' => $ahora->format('d/m/Y'), 'fecha_larga' => contratoFechaLarga($ahora), 'hora' => $ahora->format('H:i:s'),
+            'fecha' => $ahora->format('d/m/Y'),
+            'fecha_larga' => contratoFechaLarga($ahora),
+            'hora' => $ahora->format('H:i:s'),
             'fecha_iso' => $ahora->format('Y-m-d H:i:s'),
-            'sucursal' => $sucursal['nombre'] ?? '', 'sucursal_ciudad' => ($sucursal['ciudad'] ?? '') ?: ($sucursal['nombre'] ?? ''),
-            'caja' => $numeroCaja, 'ticket' => $ticketNumero, 'folio_venta' => null, 'id_venta' => null,
-            'cajero' => $nombreRepresentante, 'codigo_empleado' => $empleado['codigo_empleado'] ?? '',
-            'metodo_pago' => $op['metodo'], 'importe_cobrado' => $op['importe'], 'recibido' => $op['recibido'], 'cambio' => $op['cambio']
+            'sucursal' => $sucursal['nombre'] ?? '',
+            'sucursal_ciudad' => ($sucursal['ciudad'] ?? '') ?: ($sucursal['nombre'] ?? ''),
+            'caja' => $numeroCaja,
+            'ticket' => $ticketNumero,
+            'folio_venta' => null,
+            'id_venta' => null,
+            'cajero' => $nombreRepresentante,
+            'codigo_empleado' => $empleado['codigo_empleado'] ?? '',
+            'metodo_pago' => $op['metodo'],
+            'importe_cobrado' => $op['importe'],
+            'recibido' => $op['recibido'],
+            'cambio' => $op['cambio']
         ],
+
         'vendedor' => [
-            'razon_social' => KARMA_RAZON_SOCIAL, 'rfc' => KARMA_RFC_DEMO,
-            'domicilio' => $sucursal['direccion'] ?? '', 'telefono' => $sucursal['telefono'] ?? '', 'email' => $sucursal['email'] ?? '',
+            'razon_social' => KARMA_RAZON_SOCIAL,
+            'rfc' => KARMA_RFC_DEMO,
+            'domicilio' => $sucursal['direccion'] ?? '',
+            'telefono' => $sucursal['telefono'] ?? '',
+            'email' => $sucursal['email'] ?? '',
             'sucursal' => $sucursal['nombre'] ?? ''
         ],
+
         'representante' => [
-            'nombre' => $nombreRepresentante, 'rol' => $empleado['nombre_rol'] ?? 'Cajero', 'codigo' => $empleado['codigo_empleado'] ?? ''
+            'nombre' => $nombreRepresentante,
+            'rol' => $empleado['nombre_rol'] ?? 'Cajero',
+            'codigo' => $empleado['codigo_empleado'] ?? ''
         ],
+
         'acreditado' => $op['cliente'],
+
         'vehiculo' => [
-            'id_producto' => (int)$v['id_producto'], 'tipo' => $v['tipo'], 'marca' => $v['marca'], 'modelo' => $v['modelo'],
-            'anio' => $v['anio'] !== null ? (int)$v['anio'] : null, 'version' => $version, 'cilindraje' => $v['cilindraje'],
-            'vin' => $op['vin'], 'numero_motor' => $v['numero_motor'], 'color' => $v['color'], 'color_interior' => $v['color_interior'],
-            'condicion' => $v['condicion'], 'nuevo' => $esNuevo, 'codigo' => $v['codigo_barras']
+            'id_producto' => (int)$v['id_producto'],
+            'tipo' => $v['tipo'],
+            'marca' => $v['marca'],
+            'modelo' => $v['modelo'],
+            'anio' => $v['anio'] !== null ? (int)$v['anio'] : null,
+            'version' => $version,
+            'cilindraje' => $v['cilindraje'],
+            'vin' => $op['vin'],
+            'numero_motor' => $v['numero_motor'],
+            'color' => $v['color'],
+            'color_interior' => $v['color_interior'],
+            'condicion' => $v['condicion'],
+            'nuevo' => $esNuevo,
+            'codigo' => $v['codigo_barras']
         ],
+
         'credito' => [
-            'precio_contado' => $op['precio'], 'enganche' => $op['enganche'], 'enganche_tipo' => $op['parametros']['enganche_tipo'],
-            'enganche_pct' => $op['precio'] > 0 ? round($op['enganche'] / $op['precio'] * 100, 2) : 0,
-            'saldo_financiar' => round($c['baseFinanciar'], 2), 'comision_apertura_pct' => KARMA_CREDITO_COMISION_APERTURA * 100,
-            'comision_apertura' => round($c['comisionApertura'], 2), 'monto_financiado' => round($c['montoFinanciado'], 2),
-            'tasa_anual' => $op['parametros']['tasa'], 'tasa_mensual' => round($op['parametros']['tasa'] / 12, 4),
+            'precio_contado' => $op['precio'],
+
+            // Seguro opcional de cobertura amplia.
+            'seguro_contratado' => $seguroContratado,
+            'seguro_descripcion' => $seguroContratado
+                ? 'Seguro automotriz de cobertura amplia'
+                : null,
+            'seguro_porcentaje' => $seguroContratado ? 3.0 : 0.0,
+            'seguro_importe' => $seguroImporte,
+            'precio_con_seguro' => round(
+                (float)$op['precio'] + $seguroImporte,
+                2
+            ),
+
+            'enganche' => $op['enganche'],
+            'enganche_tipo' => $op['parametros']['enganche_tipo'],
+            'enganche_pct' => $op['precio'] > 0
+                ? round($op['enganche'] / $op['precio'] * 100, 2)
+                : 0,
+
+            'saldo_financiar' => round($c['baseFinanciar'], 2),
+            'comision_apertura_pct' => KARMA_CREDITO_COMISION_APERTURA * 100,
+            'comision_apertura' => round($c['comisionApertura'], 2),
+            'monto_financiado' => round($c['montoFinanciado'], 2),
+
+            'tasa_anual' => $op['parametros']['tasa'],
+            'tasa_mensual' => round($op['parametros']['tasa'] / 12, 4),
             'tasa_moratoria' => KARMA_CREDITO_TASA_MORATORIA,
-            'cat' => contratoCalcularCAT($c['baseFinanciar'], $c['mensualidad'], $c['n']),
-            'plazo_meses' => $c['n'], 'mensualidad' => round($c['mensualidad'], 2), 'monto_interes' => round($c['montoInteres'], 2),
-            'monto_total' => round($c['montoFinal'], 2), 'dia_pago' => (int)$ahora->format('j'),
-            'primer_vencimiento' => $amortizacion[0]['fecha'], 'ultimo_vencimiento' => end($amortizacion)['fecha']
+            'cat' => contratoCalcularCAT(
+                $c['baseFinanciar'],
+                $c['mensualidad'],
+                $c['n']
+            ),
+
+            'plazo_meses' => $c['n'],
+            'mensualidad' => round($c['mensualidad'], 2),
+            'monto_interes' => round($c['montoInteres'], 2),
+            'monto_total' => round($c['montoFinal'], 2),
+            'dia_pago' => (int)$ahora->format('j'),
+            'primer_vencimiento' => $amortizacion[0]['fecha'],
+            'ultimo_vencimiento' => end($amortizacion)['fecha']
         ],
+
         'amortizacion' => $amortizacion,
         'otros_articulos' => $op['otros'],
         'solicitud' => $op['solicitud']
     ];
 }
 
+
 // Valida y calcula la operación completa (precio de la BD, enganche, crédito, importe a cobrar y pago). Lanza fail() si algo no cuadra
+
 function contratoCalcularOperacion(PDO $pdo, array $items, array $lineas, array $parametros, array $pago): array {
     $idx = array_key_first(array_filter($items, fn($it) => $it['es_credito']));
+
+    if ($idx === null || !isset($lineas[$idx])) {
+        fail('No se encontró el vehículo asociado al crédito.');
+    }
+
     $lineaCredito = $lineas[$idx];
-    if ($parametros['producto_id'] !== $lineaCredito['id']) fail('Los datos del crédito no corresponden al vehículo del ticket.');
+
+    if ($parametros['producto_id'] !== $lineaCredito['id']) {
+        fail('Los datos del crédito no corresponden al vehículo del ticket.');
+    }
+
     $vehiculo = contratoDatosVehiculo($pdo, $lineaCredito['id']);
 
+    // Precio real del vehículo consultado y validado por el servidor.
     $precio = (float)$lineaCredito['precio'];
+
+    // El servidor determina si se contrató el seguro.
+    $contratarSeguro = ($parametros['contratar_seguro'] ?? false) === true;
+
+    // Seguro de cobertura amplia: 3 % del precio del vehículo.
+    $seguroImporte = $contratarSeguro
+        ? money($precio * 0.03)
+        : 0.0;
+
+    // El enganche se calcula únicamente sobre el precio del vehículo.
     $enganche = $parametros['enganche_tipo'] === 'pct'
         ? money($precio * $parametros['enganche_valor'] / 100)
         : money($parametros['enganche_valor']);
-    if ($enganche >= $precio) fail('El enganche debe ser menor que el precio de contado del vehículo.');
 
-    $calculo = contratoCalcularCredito($precio, $enganche, $parametros['plazo'], $parametros['tasa']);
-    // Debe coincidir con lo que vio el cliente en pantalla: así no hay diferencias entre el ticket, el contrato y lo registrado
-    if (abs($enganche - $parametros['esperado_enganche']) > 0.01 || abs($calculo['mensualidad'] - $parametros['esperado_mensualidad']) > 0.01) {
-        fail('Los importes del crédito no coinciden con el cálculo del sistema. Quita el crédito del ticket y vuelve a capturarlo.', 409);
+    if ($enganche < 0 || $enganche >= $precio) {
+        fail('El enganche debe ser mayor o igual a cero y menor que el precio de contado del vehículo.');
     }
 
-    // Otros artículos del mismo ticket (de contado): se cobran completos junto con el enganche
+    // El seguro se suma al precio para calcular el monto financiado.
+    $precioConSeguro = money($precio + $seguroImporte);
+
+    $calculo = contratoCalcularCredito(
+        $precioConSeguro,
+        $enganche,
+        $parametros['plazo'],
+        $parametros['tasa']
+    );
+
+    // Debe coincidir con lo que vio el cliente en pantalla.
+    if (
+        abs($enganche - $parametros['esperado_enganche']) > 0.01 ||
+        abs($calculo['mensualidad'] - $parametros['esperado_mensualidad']) > 0.01
+    ) {
+        fail(
+            'Los importes del crédito no coinciden con el cálculo del sistema. Quita el crédito del ticket y vuelve a capturarlo.',
+            409
+        );
+    }
+
+    // Otros artículos del ticket: se cobran junto con el enganche.
     $otros = [];
     $contado = 0.0;
+
     foreach ($lineas as $k => $l) {
-        if ($k === $idx) continue;
+        if ($k === $idx) {
+            continue;
+        }
+
         $contado += $l['subtotal'];
-        $nombre = $pdo->prepare("SELECT nombre FROM productos WHERE id_producto = ?");
+
+        $nombre = $pdo->prepare(
+            "SELECT nombre FROM productos WHERE id_producto = ?"
+        );
         $nombre->execute([$l['id']]);
-        $otros[] = ['descripcion' => (string)$nombre->fetchColumn(), 'cantidad' => $l['cantidad'], 'precio' => $l['precio'], 'subtotal' => $l['subtotal']];
+
+        $otros[] = [
+            'descripcion' => (string)$nombre->fetchColumn(),
+            'cantidad' => $l['cantidad'],
+            'precio' => $l['precio'],
+            'subtotal' => $l['subtotal']
+        ];
     }
+
+    // El seguro NO se cobra hoy: se financia junto con el vehículo.
     $importe = money($enganche + $contado);
 
     if ($importe > 0) {
-        // Mismo cobro que una venta normal: hoy solo está habilitado el efectivo (la terminal de tarjeta aún no está conectada)
-        if ($pago['metodo'] !== 'Efectivo') fail('Selecciona un método de pago disponible para cobrar el enganche.');
-        if ($pago['recibido'] < $importe) fail('El dinero recibido es menor al importe a cobrar.');
+        if ($pago['metodo'] !== 'Efectivo') {
+            fail('Selecciona un método de pago disponible para cobrar el enganche.');
+        }
+
+        if ($pago['recibido'] < $importe) {
+            fail('El dinero recibido es menor al importe a cobrar.');
+        }
+
         $metodo = 'Efectivo';
         $recibido = $pago['recibido'];
         $cambio = money($recibido - $importe);
     } else {
-        // Enganche de $0 y nada más que cobrar: no hay pago, solo la verificación del empleado
         $metodo = KARMA_METODO_SIN_COBRO;
         $recibido = 0.0;
         $cambio = 0.0;
     }
 
     return [
-        'vehiculo' => $vehiculo, 'vin' => $lineaCredito['vin'], 'precio' => $precio, 'enganche' => $enganche, 'calculo' => $calculo,
-        'parametros' => $parametros, 'otros' => $otros, 'importe' => $importe, 'metodo' => $metodo, 'recibido' => $recibido, 'cambio' => $cambio,
-        'articulo' => trim("{$vehiculo['marca']} {$vehiculo['modelo']}") . ($vehiculo['anio'] ? " ({$vehiculo['anio']})" : '')
+        'vehiculo' => $vehiculo,
+        'vin' => $lineaCredito['vin'],
+        'precio' => $precio,
+
+        // Información del seguro para guardar e imprimir en el contrato.
+        'seguro_contratado' => $contratarSeguro,
+        'seguro_importe' => $seguroImporte,
+        'precio_con_seguro' => $precioConSeguro,
+
+        'enganche' => $enganche,
+        'calculo' => $calculo,
+        'parametros' => $parametros,
+        'otros' => $otros,
+        'importe' => $importe,
+        'metodo' => $metodo,
+        'recibido' => $recibido,
+        'cambio' => $cambio,
+        'articulo' => trim("{$vehiculo['marca']} {$vehiculo['modelo']}")
+            . ($vehiculo['anio'] ? " ({$vehiculo['anio']})" : '')
     ];
 }
+
 
 /* ===================== Firma del cliente, sello y logo (SVG: dompdf los dibuja sin la extensión GD) ===================== */
 
@@ -393,6 +574,13 @@ function construirContratoHTML(array $d, ?string $firmaSvg, bool $paraPantalla =
     $cr = $d['credito'];
     $folio = $d['folio'] ?? 'Por asignar';
     $esMoto = $vh['tipo'] === 'moto';
+
+    
+    $seguroContratado = ($cr['seguro_contratado'] ?? false) === true;
+    $seguroImporte = $seguroContratado
+        ? (float)($cr['seguro_importe'] ?? 0)
+        : 0.0;
+
 
     $logo = karmaAssetSvg('logo-karma-vector.svg');
     $sello = karmaAssetSvg('sello-karma.svg');
@@ -567,6 +755,15 @@ function construirContratoHTML(array $d, ?string $firmaSvg, bool $paraPantalla =
       <h2>IV. Condiciones financieras</h2>
       <table class="datos">
         ' . $fila('Precio de contado del vehículo', contratoDinero($cr['precio_contado']))
+        
+          . ($seguroContratado
+              ? $fila(
+                  'Seguro automotriz de cobertura amplia (3 %)',
+                  contratoDinero($seguroImporte)
+                    . ' — incluido en el monto financiado; no se cobra con el enganche'
+                )
+              : '')
+
           . $fila('Enganche entregado', contratoDinero($cr['enganche']) . ' (' . contratoPct($cr['enganche_pct']) . ' del precio' . ($cr['enganche_tipo'] === 'pct' ? ', capturado por porcentaje' : ', capturado por monto') . ')')
           . $fila('Saldo neto pendiente de financiamiento', '<b>' . contratoDinero($cr['saldo_financiar']) . '</b>')
           . $fila('Comisión por apertura', contratoDinero($cr['comision_apertura']) . ' (' . contratoPct($cr['comision_apertura_pct'], 0) . ' del saldo, incluida en el financiamiento)')
@@ -708,6 +905,9 @@ function prepararCredito(): never {
         'resumen' => [
             'cliente' => $cliente['nombre'], 'vehiculo' => $op['articulo'], 'vin' => $datos['vehiculo']['vin'],
             'precio' => $cr['precio_contado'], 'enganche' => $cr['enganche'], 'saldo' => $cr['saldo_financiar'],
+            'seguro_contratado' => $cr['seguro_contratado'] ?? false,
+            'seguro_importe' => $cr['seguro_importe'] ?? 0,
+            'precio_con_seguro' => $cr['precio_con_seguro'] ?? $cr['precio_contado'],
             'plazo' => $cr['plazo_meses'], 'mensualidad' => $cr['mensualidad'], 'cat' => $cr['cat'], 'tasa' => $cr['tasa_anual'],
             'importe' => $op['importe'], 'metodo' => $op['metodo'], 'recibido' => $op['recibido'], 'cambio' => $op['cambio'],
             'representante' => $datos['representante']['nombre']
@@ -782,9 +982,42 @@ function concretarCredito(): never {
         posRegistrarGarantias($pdo, $ventaId, $idSucursal, $lineas, $sol['cliente'], $idCliente);
 
         // Fecha definitiva = momento de la firma (las mensualidades se cuentan desde aquí)
+        
+        // Fecha definitiva = momento de la firma (las mensualidades se cuentan desde aquí)
         $ahora = contratoAhora($pdo);
-        $calculo = contratoCalcularCredito((float)$cr['precio_contado'], (float)$cr['enganche'], (int)$cr['plazo_meses'], (float)$cr['tasa_anual']);
+
+        // Recalcular el seguro en el servidor usando el precio real del vehículo.
+        $seguroContratado = ($cr['seguro_contratado'] ?? false) === true;
+        $seguroImporte = $seguroContratado
+            ? money((float)$cr['precio_contado'] * 0.03)
+            : 0.0;
+
+        $precioConSeguro = money((float)$cr['precio_contado'] + $seguroImporte);
+
+        // El crédito se calcula con el vehículo más el seguro, si fue contratado.
+        $calculo = contratoCalcularCredito(
+            $precioConSeguro,
+            (float)$cr['enganche'],
+            (int)$cr['plazo_meses'],
+            (float)$cr['tasa_anual']
+        );
+
+        // Comprobar que la mensualidad coincide con la calculada al preparar el contrato.
+        if (abs((float)$calculo['mensualidad'] - (float)$cr['mensualidad']) > 0.01) {
+            throw new RuntimeException(
+                'El cálculo del crédito cambió. Cancela la operación e inicia nuevamente el crédito.'
+            );
+        }
+
+        // Guardar los valores recalculados del seguro en los datos definitivos del contrato.
+        $datos['credito']['seguro_contratado'] = $seguroContratado;
+        $datos['credito']['seguro_porcentaje'] = $seguroContratado ? 3.0 : 0.0;
+        $datos['credito']['seguro_importe'] = $seguroImporte;
+        $datos['credito']['precio_con_seguro'] = $precioConSeguro;
+
+        // Generar la tabla de amortización con el importe correcto.
         $datos['amortizacion'] = contratoTablaAmortizacion($calculo, $ahora);
+
         $datos['credito']['dia_pago'] = (int)$ahora->format('j');
         $datos['credito']['primer_vencimiento'] = $datos['amortizacion'][0]['fecha'];
         $datos['credito']['ultimo_vencimiento'] = end($datos['amortizacion'])['fecha'];

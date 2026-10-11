@@ -36,6 +36,8 @@ require_once dirname(__DIR__) . '/Login/sesion_pos.php';
 $GLOBALS['cajeroSesion'] = ($_GET['action'] ?? '') === 'logout' ? null : posRequerirApi(db());
 // Autorización de empleado (gafete QR o código) para las acciones sensibles: lógica central en autorizacion_empleado.php
 require_once __DIR__ . '/autorizacion_empleado.php';
+// Conceptos de caja (seguros, financiamiento, trámites, impuestos y posventa): cálculo, cobro y desglose en conceptos_caja.php
+require_once __DIR__ . '/conceptos_caja.php';
 
 // Enrutador: ejecuta la acción pedida en ?action=
 try {
@@ -59,6 +61,10 @@ try {
             break;
         case 'crear_venta':
             crearVenta();
+            break;
+        // Vista previa del cálculo de un concepto de caja (el cobro real ocurre dentro de crear_venta)
+        case 'calcular_concepto':
+            calcularConcepto();
             break;
         case 'enviar_ticket':
             enviarTicket();
@@ -163,7 +169,8 @@ function bootstrap(): never {
     $siguienteTicketStmt->execute([$caja['id_caja'], $caja['id_caja']]);
     $siguienteTicket = (int)$siguienteTicketStmt->fetchColumn() + 1;
 
-    // Inventario completo de la sucursal (incluye productos con 0 unidades, su VIN, color y modelo 3D)
+    // Inventario completo de la sucursal (incluye productos con 0 unidades, su VIN, color y modelo 3D).
+    // Los productos tipo 'servicio' (conceptos de caja) no son artículos físicos: no se listan en Inventario
     $inventario = $pdo->prepare("
         SELECT
             p.id_producto AS id,
@@ -190,6 +197,7 @@ function bootstrap(): never {
         FROM productos p
         JOIN categorias c ON c.id_categoria = p.id_categoria
         LEFT JOIN inventarios i ON i.id_producto = p.id_producto AND i.id_sucursal = ?
+        WHERE p.tipo <> 'servicio'
         ORDER BY p.marca, p.modelo, p.anio, p.nombre
     ");
     $inventario->execute([$sucursal['id_sucursal']]);
@@ -408,7 +416,9 @@ function bootstrap(): never {
             $r['unidades'] = (int)$r['unidades'];
             $r['modelo3d'] = rutaModelo3D($r['id'], $r['modelo3d']);
             return $r;
-        }, $refacciones)
+        }, $refacciones),
+        // Catálogo de conceptos de caja con planes, unidades vendidas y accesorios (pestaña «Servicios»)
+        'conceptos' => posCatalogoConceptosCaja($pdo, (int)$sucursal['id_sucursal'])
     ]);
 }
 
@@ -458,11 +468,13 @@ function validarVin(): never {
 }
 
 
-/* Registra una venta y descuenta existencias dentro de una transacción */
+/* Registra una venta y descuenta existencias dentro de una transacción.
+   El ticket puede traer artículos (items), conceptos de caja (conceptos) o ambos: todo se cobra en la misma venta */
 function crearVenta(): never {
     $data = jsonInput();
-    $items = $data['items'] ?? [];
-    if (!$items || !is_array($items)) {
+    $items = is_array($data['items'] ?? null) ? $data['items'] : [];
+    $conceptos = is_array($data['conceptos'] ?? null) ? $data['conceptos'] : [];
+    if (!$items && !$conceptos) {
         fail('El ticket está vacío.');
     }
 
@@ -490,6 +502,10 @@ function crearVenta(): never {
         // Revisa cada artículo: existe, VIN correcto y stock suficiente
         [$productosVenta, $total] = posValidarArticulosVenta($pdo, $items, $idSucursal);
 
+        // Conceptos de caja: el servidor recalcula cada importe con la parametrización de la BD y lo suma al total
+        [$conceptosVenta, $totalConceptos] = posValidarConceptosCaja($pdo, $conceptos, $idSucursal, $productosVenta);
+        $total = money($total + $totalConceptos);
+
         if ($recibido < $total) {
             throw new RuntimeException('El dinero recibido es menor al total de la venta.');
         }
@@ -512,6 +528,11 @@ function crearVenta(): never {
             'id_cliente' => $clienteId, 'total' => $total, 'recibido' => $recibido, 'cambio' => $cambio, 'ticket_numero' => $ticketNumero
         ], $productosVenta);
 
+        // Desglose e historial de los conceptos cobrados (ventas_conceptos) con sus líneas en detalle_ventas
+        $foliosConceptos = posRegistrarConceptosVenta($pdo, $ventaId, $conceptosVenta, [
+            'id_sucursal' => $idSucursal, 'id_usuario' => $idUsuario, 'id_caja' => $idCaja
+        ]);
+
         // Órdenes web que se atendieron con esta venta (botón "Continuar" de Web orders)
         posMarcarOrdenesWeb($pdo, (array)($data['ordenes_web'] ?? []), $ventaId, $idSucursal);
 
@@ -533,7 +554,8 @@ function crearVenta(): never {
             'fecha' => $fechaVenta,
             'total' => $total,
             'cambio' => $cambio,
-            'folio' => sprintf('KRM-%02d-%06d', $idSucursal, $ventaId)
+            'folio' => sprintf('KRM-%02d-%06d', $idSucursal, $ventaId),
+            'conceptos' => $foliosConceptos
         ]);
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
@@ -545,6 +567,7 @@ function crearVenta(): never {
 
 /* Revisa cada artículo dentro de la transacción (bloquea producto e inventario): existe, VIN correcto y stock suficiente.
    Regresa [líneas de la venta con el precio de la BD, total de esas líneas] */
+
 function posValidarArticulosVenta(PDO $pdo, array $items, int $idSucursal): array {
     $total = 0.0;
     $productosVenta = [];
@@ -556,30 +579,64 @@ function posValidarArticulosVenta(PDO $pdo, array $items, int $idSucursal): arra
         $motorSerie = trim((string)($item['motor_serie'] ?? ''));
         $colorInterior = trim((string)($item['color_interior'] ?? ''));
 
-        if (!$productoId) throw new RuntimeException('Hay un artículo sin producto asociado.');
-
-        $prodStmt = $pdo->prepare("SELECT id_producto, precio_base, nombre, tipo, vin FROM productos WHERE id_producto=? FOR UPDATE");
-        $prodStmt->execute([$productoId]);
-        $producto = $prodStmt->fetch();
-        if (!$producto) throw new RuntimeException('Uno de los productos ya no está disponible.');
-
-        // Vehículos: el VIN se vuelve a revisar aquí por seguridad (las refacciones no llevan VIN)
-        $vinOficial = verificarVinProducto($producto, $vin);
-        if ($vinOficial !== '') $vin = $vinOficial;
-
-        $stockStmt = $pdo->prepare("SELECT stock_actual FROM inventarios WHERE id_producto=? AND id_sucursal=? FOR UPDATE");
-        $stockStmt->execute([$productoId, $idSucursal]);
-        $stockActual = $stockStmt->fetchColumn();
-        if ($stockActual === false || (int)$stockActual < $cantidad) {
-            throw new RuntimeException("Stock insuficiente para {$producto['nombre']}.");
+        if (!$productoId) {
+            throw new RuntimeException('Hay un artículo sin producto asociado.');
         }
 
+        $prodStmt = $pdo->prepare("
+            SELECT id_producto, precio_base, nombre, tipo, vin
+            FROM productos
+            WHERE id_producto = ?
+            FOR UPDATE
+        ");
+        $prodStmt->execute([$productoId]);
+        $producto = $prodStmt->fetch();
+
+        if (!$producto) {
+            throw new RuntimeException('Uno de los productos ya no está disponible.');
+        }
+
+        $tipo = strtolower(trim((string)$producto['tipo']));
+        $esServicio = ($tipo === 'servicio');
+
+        // Los servicios no representan artículos físicos del inventario.
+        if (!$esServicio) {
+            $vinOficial = verificarVinProducto($producto, $vin);
+
+            if ($vinOficial !== '') {
+                $vin = $vinOficial;
+            }
+
+            $stockStmt = $pdo->prepare("
+                SELECT stock_actual
+                FROM inventarios
+                WHERE id_producto = ? AND id_sucursal = ?
+                FOR UPDATE
+            ");
+            $stockStmt->execute([$productoId, $idSucursal]);
+            $stockActual = $stockStmt->fetchColumn();
+
+            if ($stockActual === false || (int)$stockActual < $cantidad) {
+                throw new RuntimeException(
+                    "Stock insuficiente para {$producto['nombre']}."
+                );
+            }
+        } else {
+            // Un servicio no debe llevar datos propios de un vehículo.
+            $vin = '';
+            $motorSerie = '';
+            $colorInterior = '';
+        }
+
+        // El precio proviene de la base de datos, no del navegador.
         $precio = money((float)$producto['precio_base']);
         $linea = money($precio * $cantidad);
         $total += $linea;
 
         $productosVenta[] = [
             'id' => $productoId,
+            'tipo' => $tipo,
+            'descontar_stock' => !$esServicio,
             'cantidad' => $cantidad,
             'precio' => $precio,
             'subtotal' => $linea,
@@ -592,36 +649,73 @@ function posValidarArticulosVenta(PDO $pdo, array $items, int $idSucursal): arra
     return [$productosVenta, money($total)];
 }
 
+
 /* Inserta el encabezado de la venta, el detalle de cada artículo y descuenta las existencias. Regresa el id de la venta */
+
 function posInsertarVenta(PDO $pdo, array $v, array $productosVenta): int {
     $venta = $pdo->prepare("
         INSERT INTO ventas
-        (id_sucursal,id_usuario,id_caja,id_metodo_pago,id_cliente,subtotal,total,efectivo_recibido,cambio,ticket_numero)
-        VALUES(?,?,?,?,?,?,?,?,?,?)
+        (id_sucursal, id_usuario, id_caja, id_metodo_pago, id_cliente,
+         subtotal, total, efectivo_recibido, cambio, ticket_numero)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ");
+
     $venta->execute([
-        $v['id_sucursal'], $v['id_usuario'], $v['id_caja'], $v['id_metodo_pago'], $v['id_cliente'],
-        $v['total'], $v['total'], $v['recibido'], $v['cambio'], $v['ticket_numero']
+        $v['id_sucursal'],
+        $v['id_usuario'],
+        $v['id_caja'],
+        $v['id_metodo_pago'],
+        $v['id_cliente'],
+        $v['total'],
+        $v['total'],
+        $v['recibido'],
+        $v['cambio'],
+        $v['ticket_numero']
     ]);
+
     $ventaId = (int)$pdo->lastInsertId();
 
     $detalle = $pdo->prepare("
         INSERT INTO detalle_ventas
-        (id_venta,id_producto,cantidad,precio_unitario,subtotal_linea,vin,motor_serie,color_interior)
-        VALUES(?,?,?,?,?,?,?,?)
+        (id_venta, id_producto, cantidad, precio_unitario,
+         subtotal_linea, vin, motor_serie, color_interior)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ");
+
     $stock = $pdo->prepare("
         UPDATE inventarios
-        SET stock_actual=stock_actual-?
-        WHERE id_producto=? AND id_sucursal=?
+        SET stock_actual = stock_actual - ?
+        WHERE id_producto = ? AND id_sucursal = ?
+          AND stock_actual >= ?
     ");
 
     foreach ($productosVenta as $p) {
         $detalle->execute([
-            $ventaId, $p['id'], $p['cantidad'], $p['precio'], $p['subtotal'],
-            $p['vin'] ?: null, $p['motor_serie'] ?: null, $p['color_interior'] ?: null
+            $ventaId,
+            $p['id'],
+            $p['cantidad'],
+            $p['precio'],
+            $p['subtotal'],
+            $p['vin'] ?: null,
+            $p['motor_serie'] ?: null,
+            $p['color_interior'] ?: null
         ]);
-        $stock->execute([$p['cantidad'], $p['id'], $v['id_sucursal']]);
+
+        // Los servicios se registran en el detalle, pero no consumen stock.
+        if (!empty($p['descontar_stock'])) {
+            $stock->execute([
+                $p['cantidad'],
+                $p['id'],
+                $v['id_sucursal'],
+                $p['cantidad']
+            ]);
+
+            if ($stock->rowCount() !== 1) {
+                throw new RuntimeException(
+                    'El inventario cambió durante la venta. Verifica las existencias e inténtalo nuevamente.'
+                );
+            }
+        }
     }
 
     return $ventaId;

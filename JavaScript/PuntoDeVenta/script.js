@@ -824,29 +824,91 @@ function camposRefaccionHTML(){
 }
 
 // Simulación del crédito con lo capturado: precio del inventario, enganche (por % o monto, redondeado a centavos), plazo y tasa
-function simulacionCredito(b){
+
+function simulacionCredito(b) {
   const tasa = b.tasaAnual ?? TASA_INTERES_ANUAL_DEFAULT;
   const plazo = Number(b.plazoMeses) || null;
   const engancheTipo = b.engancheTipo || "monto";
   const itemInventario = articuloDeBorrador(b);
   const precio = Number(itemInventario?.precio || 0);
+
+  // El seguro es opcional y equivale al 3 % del precio del vehículo.
+  const contratarSeguro = b.contratarSeguro === true;
+  const seguro = contratarSeguro
+    ? Math.round(precio * 0.03 * 100) / 100
+    : 0;
+
+  // El enganche se calcula únicamente sobre el vehículo.
   const engancheBruto = engancheTipo === "pct"
     ? precio * (Number(b.engancheValor || 0) / 100)
     : Number(b.engancheValor || 0);
-  // Mismo redondeo que el servidor (contrato_credito.php) para que ticket, contrato y crédito registrado coincidan
+
   const engancheMonto = Math.round(engancheBruto * 100) / 100;
-  const calculo = (precio > 0 && plazo) ? calcularCredito({ precio, engancheMonto, plazoMeses: plazo, tasaAnualPct: Number(tasa) }) : null;
-  return { tasa, plazo, engancheTipo, itemInventario, precio, engancheMonto, calculo };
+
+  // Se financia el vehículo más el seguro, menos el enganche del vehículo.
+  const calculo = (precio > 0 && plazo)
+    ? calcularCredito({
+        precio: precio + seguro,
+        engancheMonto,
+        plazoMeses: plazo,
+        tasaAnualPct: Number(tasa)
+      })
+    : null;
+
+  return {
+    tasa,
+    plazo,
+    engancheTipo,
+    itemInventario,
+    precio,
+    engancheMonto,
+    contratarSeguro,
+    seguro,
+    calculo
+  };
 }
 
+
 // Cuadros con el resultado de la simulación (se reemplazan solos al escribir, sin redibujar el formulario)
-function resultadoCreditoHTML(calculo){
+
+function resultadoCreditoHTML(calculo, simulacion = null) {
+  const seguro = simulacion?.seguro || 0;
+  const contratarSeguro = simulacion?.contratarSeguro === true;
+
   return `
-      <div class="credito-info-box"><span>Comisión por apertura (2%)</span><strong>${calculo ? formatoMoneda(calculo.comisionApertura) : "—"}</strong></div>
-      <div class="credito-info-box"><span>Monto de interés</span><strong>${calculo ? formatoMoneda(calculo.montoInteres) : "—"}</strong></div>
-      <div class="credito-info-box"><span>Monto final (con interés)</span><strong>${calculo ? formatoMoneda(calculo.montoFinal) : "—"}</strong></div>
-      <div class="credito-info-box"><span>Mensualidad estimada</span><strong>${calculo ? formatoMoneda(calculo.mensualidad) : "—"}</strong></div>`;
+      ${contratarSeguro ? `
+        <div class="credito-info-box">
+          <span>Seguro de cobertura amplia (3%)</span>
+          <strong>${formatoMoneda(seguro)}</strong>
+        </div>
+      ` : ""}
+
+      <div class="credito-info-box">
+        <span>Saldo base a financiar</span>
+        <strong>${calculo ? formatoMoneda(calculo.baseFinanciar) : "—"}</strong>
+      </div>
+
+      <div class="credito-info-box">
+        <span>Comisión por apertura (2%)</span>
+        <strong>${calculo ? formatoMoneda(calculo.comisionApertura) : "—"}</strong>
+      </div>
+
+      <div class="credito-info-box">
+        <span>Monto de interés</span>
+        <strong>${calculo ? formatoMoneda(calculo.montoInteres) : "—"}</strong>
+      </div>
+
+      <div class="credito-info-box">
+        <span>Monto final (con interés)</span>
+        <strong>${calculo ? formatoMoneda(calculo.montoFinal) : "—"}</strong>
+      </div>
+
+      <div class="credito-info-box">
+        <span>Mensualidad estimada</span>
+        <strong>${calculo ? formatoMoneda(calculo.mensualidad) : "—"}</strong>
+      </div>`;
 }
+
 
 // Texto bajo el enganche: su equivalente en dinero (si se captura por %) o en porcentaje (si se captura por monto)
 function equivalenciaEngancheTexto(sim){
@@ -859,19 +921,50 @@ function equivalenciaEngancheTexto(sim){
 }
 
 // Campos del módulo de Crédito (solo vehículos): enganche, plazo, tasa y simulación de intereses
-function camposCreditoHTML(){
+
+function camposCreditoHTML() {
   const b = borrador;
   const sim = simulacionCredito(b);
   const { tasa, plazo, engancheTipo, calculo } = sim;
 
   return `
     <div class="form-grid">
-      <div class="form-field"><label>Cliente</label><input type="text" id="inpClienteC" value="${escapeHTML(b.cliente || "")}" placeholder="Nombre completo"></div>
-      <div class="form-field"><label>RFC / CURP</label><input type="text" id="inpRfcIneC" value="${escapeHTML(b.rfcIne || "")}" placeholder="RFC (13) o CURP (18)" autocapitalize="characters"></div>
-      <div class="form-field"><label>Email</label><input type="email" id="inpEmailC" value="${escapeHTML(b.email || "")}" placeholder="correo@ejemplo.com"></div>
-      <div class="form-field"><label>Celular</label><input type="tel" id="inpCelularC" value="${escapeHTML(b.celular || "")}" placeholder="10 dígitos"></div>
+      <div class="form-field">
+        <label>Cliente</label>
+        <input type="text" id="inpClienteC"
+          value="${escapeHTML(b.cliente || "")}"
+          placeholder="Nombre completo">
+      </div>
 
-      <div class="form-field span-2"><p class="form-field-info" style="margin:0;">El crédito solo aplica para vehículos — las refacciones se venden de contado. Para el contrato se necesitan RFC o CURP, domicilio, identificación oficial y su número.</p></div>
+      <div class="form-field">
+        <label>RFC / CURP</label>
+        <input type="text" id="inpRfcIneC"
+          value="${escapeHTML(b.rfcIne || "")}"
+          placeholder="RFC (13) o CURP (18)"
+          autocapitalize="characters">
+      </div>
+
+      <div class="form-field">
+        <label>Email</label>
+        <input type="email" id="inpEmailC"
+          value="${escapeHTML(b.email || "")}"
+          placeholder="correo@ejemplo.com">
+      </div>
+
+      <div class="form-field">
+        <label>Celular</label>
+        <input type="tel" id="inpCelularC"
+          value="${escapeHTML(b.celular || "")}"
+          placeholder="10 dígitos">
+      </div>
+
+      <div class="form-field span-2">
+        <p class="form-field-info" style="margin:0;">
+          El crédito solo aplica para vehículos — las refacciones se venden
+          de contado. Para el contrato se necesitan RFC o CURP, domicilio,
+          identificación oficial y su número.
+        </p>
+      </div>
 
       ${selectoresArticuloHTML("Credito", b)}
 
@@ -880,49 +973,140 @@ function camposCreditoHTML(){
       <!-- Enganche: por porcentaje o por monto en dinero -->
       <div class="form-field">
         <label>Enganche</label>
+
         <div class="segmented">
-          <button type="button" class="segmented-btn ${engancheTipo === "pct" ? "is-active" : ""}" data-eng-tipo="pct">Porcentaje</button>
-          <button type="button" class="segmented-btn ${engancheTipo === "monto" ? "is-active" : ""}" data-eng-tipo="monto">Monto: $</button>
+          <button type="button"
+            class="segmented-btn ${engancheTipo === "pct" ? "is-active" : ""}"
+            data-eng-tipo="pct">
+            Porcentaje
+          </button>
+
+          <button type="button"
+            class="segmented-btn ${engancheTipo === "monto" ? "is-active" : ""}"
+            data-eng-tipo="monto">
+            Monto: $
+          </button>
         </div>
-        <input type="number" id="inpEngancheValor" style="margin-top:8px;" min="0" step="any" value="${escapeHTML(b.engancheValor ?? "")}" placeholder="${engancheTipo === "pct" ? "Ej. 20" : "$ 0.00"}">
-        <div class="form-field-info" id="engancheEquivalente">${escapeHTML(equivalenciaEngancheTexto(sim))}</div>
+
+        <input type="number"
+          id="inpEngancheValor"
+          style="margin-top:8px;"
+          min="0"
+          step="any"
+          value="${escapeHTML(b.engancheValor ?? "")}"
+          placeholder="${engancheTipo === "pct" ? "Ej. 20" : "$ 0.00"}">
+
+        <div class="form-field-info" id="engancheEquivalente">
+          ${escapeHTML(equivalenciaEngancheTexto(sim))}
+        </div>
       </div>
 
       <!-- Plazo del crédito en meses -->
       <div class="form-field">
         <label>Plazo</label>
+
         <div class="plazo-group" id="plazoGroup">
-          ${PLAZOS_CREDITO.map(m => `<button type="button" class="plazo-btn ${plazo === m ? "is-active" : ""}" data-plazo="${m}">${m} meses</button>`).join("")}
+          ${PLAZOS_CREDITO.map(m => `
+            <button type="button"
+              class="plazo-btn ${plazo === m ? "is-active" : ""}"
+              data-plazo="${m}">
+              ${m} meses
+            </button>
+          `).join("")}
         </div>
       </div>
 
-      <div class="form-field"><label>Tasa de interés anual (%)</label><input type="number" id="inpTasaAnual" value="${escapeHTML(tasa)}" step="0.1"></div>
+      <div class="form-field">
+        <label>Tasa de interés anual (%)</label>
+        <input type="number"
+          id="inpTasaAnual"
+          value="${escapeHTML(tasa)}"
+          step="0.1">
+      </div>
     </div>
 
-    <!-- Resultado de la simulación: se recalcula en vivo con cada cambio -->
-    <div class="credito-info-grid" id="creditoResultado">${resultadoCreditoHTML(calculo)}</div>
+    <!-- Seguro automotriz opcional -->
+    <div class="form-field" style="margin-top:16px;">
+      <label>
+        <input
+          type="checkbox"
+          id="chkSeguroCoberturaAmplia"
+          ${b.contratarSeguro === true ? "checked" : ""}
+        >
+        Contratar seguro automotriz de cobertura amplia (3 %)
+      </label>
+
+      <div class="form-field-info">
+        El costo corresponde al 3 % del precio del vehículo.
+        Si eliges contratarlo, se incluirá en el monto financiado.
+      </div>
+    </div>
+
+    <!-- Resultado de la simulación -->
+    <div class="credito-info-grid" id="creditoResultado">
+      ${resultadoCreditoHTML(calculo, sim)}
+    </div>
 
     <div class="venta-actions" style="margin-top:16px;">
-      <button type="button" class="btn btn-outline" id="btnTablaAmortizacion" ${calculo ? "" : "disabled"}>
-        ${mostrarTablaAmortizacion ? "Ocultar" : "Generar"} tabla de amortización
+      <button type="button"
+        class="btn btn-outline"
+        id="btnTablaAmortizacion"
+        ${calculo ? "" : "disabled"}>
+        ${mostrarTablaAmortizacion
+          ? "Ocultar"
+          : "Generar"} tabla de amortización
       </button>
     </div>
-    <div id="tablaAmortizacionWrap">${mostrarTablaAmortizacion && calculo ? tablaAmortizacionHTML(calculo) : ""}</div>
+
+    <div id="tablaAmortizacionWrap">
+      ${mostrarTablaAmortizacion && calculo
+        ? tablaAmortizacionHTML(calculo)
+        : ""}
+    </div>
   `;
 }
 
+
 // Al escribir el enganche o la tasa solo se actualizan los resultados: el campo conserva el foco y la página no se mueve
-function actualizarSimulacionCredito(panel){
+
+function actualizarSimulacionCredito(panel) {
   const sim = simulacionCredito(borrador);
+
+  // Actualizar los importes, incluido el seguro si está seleccionado.
   const resultado = $("#creditoResultado", panel);
-  if (resultado) resultado.innerHTML = resultadoCreditoHTML(sim.calculo);
+
+  if (resultado) {
+    resultado.innerHTML = resultadoCreditoHTML(
+      sim.calculo,
+      sim
+    );
+  }
+
+  // Actualizar el equivalente del enganche.
   const equivalente = $("#engancheEquivalente", panel);
-  if (equivalente) equivalente.textContent = equivalenciaEngancheTexto(sim);
+
+  if (equivalente) {
+    equivalente.textContent = equivalenciaEngancheTexto(sim);
+  }
+
+  // Habilitar o deshabilitar la tabla de amortización.
   const btnTabla = $("#btnTablaAmortizacion", panel);
-  if (btnTabla) btnTabla.disabled = !sim.calculo;
+
+  if (btnTabla) {
+    btnTabla.disabled = !sim.calculo;
+  }
+
+  // Actualizar la tabla si está visible.
   const tabla = $("#tablaAmortizacionWrap", panel);
-  if (tabla) tabla.innerHTML = mostrarTablaAmortizacion && sim.calculo ? tablaAmortizacionHTML(sim.calculo) : "";
+
+  if (tabla) {
+    tabla.innerHTML =
+      mostrarTablaAmortizacion && sim.calculo
+        ? tablaAmortizacionHTML(sim.calculo)
+        : "";
+  }
 }
+
 
 // Fórmula de anualidades vencidas (tasa fija): calcula comisión, mensualidad, interés total y monto final
 function calcularCredito({ precio, engancheMonto, plazoMeses, tasaAnualPct }){
@@ -1042,6 +1226,12 @@ function bindFormularioVenta(){
     }));
     $("#inpTasaAnual", panel)?.addEventListener("input", (e) => { borrador.tasaAnual = e.target.value; actualizarSimulacionCredito(panel); });
 
+     // Seguro automotriz de cobertura amplia (3 %)
+    $("#chkSeguroCoberturaAmplia", panel)?.addEventListener("change", (e) => {
+      borrador.contratarSeguro = e.target.checked;
+      actualizarSimulacionCredito(panel);
+    });
+
     $("#btnTablaAmortizacion", panel)?.addEventListener("click", () => {
       mostrarTablaAmortizacion = !mostrarTablaAmortizacion;
       renderPanelVenta();
@@ -1157,8 +1347,17 @@ async function guardarArticulo(){
         vin, motorTipo: item.motor,
         direccion, identificacionTipo: borrador.identificacionTipo || "INE", identificacionNumero,
         abonos: `${plazo} meses`, plazoMeses: plazo, enganche: engancheMonto, montoAbono: calculo.mensualidad,
-        engancheTipo: sim.engancheTipo, engancheValor: Number(borrador.engancheValor || 0),
-        tasaAnual: tasa, comisionApertura: calculo.comisionApertura, montoInteres: calculo.montoInteres,
+       
+        engancheTipo: sim.engancheTipo,
+        engancheValor: Number(borrador.engancheValor || 0),
+
+        // Selección del seguro automotriz
+        contratarSeguro: sim.contratarSeguro === true,
+
+        tasaAnual: tasa,
+        comisionApertura: calculo.comisionApertura,
+        montoInteres: calculo.montoInteres,
+
         montoFinal: calculo.montoFinal, precioContado: precio, saldoFinanciar: calculo.baseFinanciar,
         // En un crédito solo se cobra el enganche: es el importe de este artículo en el ticket
         precioTotal: engancheMonto,

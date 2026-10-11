@@ -195,6 +195,8 @@ $csrfPos = posTokenCsrf();
 <script src="../../JavaScript/PuntoDeVenta/autorizacion_empleado.js"></script>
 <!-- Crédito automotriz: contrato, firma con el touchpad y visor del PDF -->
 <script src="../../JavaScript/PuntoDeVenta/contrato_credito.js"></script>
+<!-- Conceptos de caja: seguros, financiamiento, trámites, impuestos y posventa (pestaña «Servicios» del formulario de Venta) -->
+<script src="../../JavaScript/PuntoDeVenta/conceptos_caja.js"></script>
 <!-- Vista previa 3D (módulo de Three.js); si no carga, script.js muestra un aviso -->
 <script type="module" src="../../JavaScript/PuntoDeVenta/vista_previa_3d.js" onerror="window.KARMA_VISTA3D_FALLO = true; window.dispatchEvent(new Event('karma:vista3d-fallo'));"></script>
 </body>

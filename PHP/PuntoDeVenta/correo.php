@@ -104,7 +104,8 @@ function karmaConvertirDecenas(int $n): string {
 function construirTicketHTML(string $nombreCliente, string $emailCliente, array $ticket): string {
     $items = is_array($ticket['items'] ?? null) ? $ticket['items'] : [];
     $vehiculos = array_values(array_filter($items, fn($it) => !empty($it['esVehiculo'])));
-    $refacciones = array_values(array_filter($items, fn($it) => empty($it['esVehiculo']) && empty($it['esAbono'])));
+    // Los conceptos de caja (seguros, trámites, posventa) tienen su propia sección leída de la BD: no son refacciones
+    $refacciones = array_values(array_filter($items, fn($it) => empty($it['esVehiculo']) && empty($it['esAbono']) && empty($it['esConcepto'])));
     $primerVehiculo = $vehiculos[0] ?? null;
     $esCredito = $primerVehiculo && !empty($primerVehiculo['esCredito']);
     // Comprobante de un abono mensual (botón «Cobrar abono» de Clientes): no es una venta de vehículo ni de refacciones
@@ -158,6 +159,9 @@ function construirTicketHTML(string $nombreCliente, string $emailCliente, array 
     foreach ($refacciones as $r) {
         $filasRefacciones .= '<tr><td>' . h($r['articulo'] ?? '') . '</td><td class="der">' . karmaMoneyFmt($r['precioTotal'] ?? 0) . '</td></tr>';
     }
+
+    // Servicios, seguros y trámites cobrados en la venta (ventas_conceptos, módulo conceptos_caja.php)
+    $bloqueConceptos = function_exists('posConceptosTicketHTML') ? posConceptosTicketHTML(db(), (int)($ticket['ventaId'] ?? 0)) : '';
 
     // Condiciones del crédito, solo cuando el vehículo se vendió a crédito
     $bloqueCredito = '';
@@ -232,6 +236,8 @@ function construirTicketHTML(string $nombreCliente, string $emailCliente, array 
       ' . ($vehiculos ? '<h2>2. Identificación del vehículo</h2>' . $bloquesVehiculo : '') . '
 
       ' . ($refacciones ? '<h2>2b. Refacciones incluidas</h2><table>' . $filasRefacciones . '</table>' : '') . '
+
+      ' . $bloqueConceptos . '
 
       ' . $bloqueAbono . '
 

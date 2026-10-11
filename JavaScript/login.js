@@ -8,22 +8,35 @@ if (new URLSearchParams(window.location.search).get("destino") === "pos") {
 
 // Autenticación: en XAMPP usa PHP/Login/login.php (misma lógica que /api/login y además abre la sesión PHP del POS);
 // si el proyecto corre con el servidor Node.js (puerto 3000), PHP no se ejecuta y se usa /api/login como antes.
+
 async function autenticar(correo, password) {
-    const opciones = {
+    const respuesta = await fetch("/KARMA/PHP/Login/login.php", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ correo: correo, password: password })
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            correo: correo,
+            password: password
+        })
+    });
+
+    const tipo = respuesta.headers.get("content-type") || "";
+
+    if (!tipo.includes("application/json")) {
+        throw new Error(
+            "PHP no devolvió JSON. Revisa login.php y la ruta solicitada."
+        );
+    }
+
+    const datos = await respuesta.json();
+
+    return {
+        respuesta: respuesta,
+        datos: datos
     };
-    try {
-        const respuestaPhp = await fetch("PHP/Login/login.php", opciones);
-        const tipo = respuestaPhp.headers.get("content-type") || "";
-        if (tipo.includes("application/json")) {
-            return { respuesta: respuestaPhp, datos: await respuestaPhp.json() };
-        }
-    } catch (_) { /* sin PHP disponible: se intenta con Node */ }
-    const respuestaNode = await fetch("/api/login", opciones);
-    return { respuesta: respuestaNode, datos: await respuestaNode.json() };
 }
+
 
 formulario.addEventListener("submit", async (event) => {
     event.preventDefault();

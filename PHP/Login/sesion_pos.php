@@ -8,8 +8,11 @@ declare(strict_types=1);
 // Nombre de la cookie de sesión del POS
 const POS_SESION = 'KARMAPOS';
 // Roles que pueden abrir el Punto de Venta (agregar 'Gerente' aquí si en el futuro también deben entrar)
-const POS_ROLES_PERMITIDOS = ['Cajero'];
-
+const POS_ROLES_PERMITIDOS = [
+    'Cajero',
+    'Gerente',
+    'Administrador General'
+];
 // Abre la sesión del POS con cookie solo-HTTP y SameSite=Lax (protege contra robo de cookie y CSRF)
 function posIniciarSesion(): void {
     if (session_status() === PHP_SESSION_ACTIVE) return;
