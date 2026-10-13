@@ -10,6 +10,7 @@ USE pos_multisede;
 ALTER TABLE productos
     ADD COLUMN IF NOT EXISTS color_interior VARCHAR(80) NULL,
     ADD COLUMN IF NOT EXISTS vin VARCHAR(17) NULL;
+    ADD COLUMN imagen_path VARCHAR(255) NULL;
 
 -- Garantiza que no se repita ningún VIN
 CREATE UNIQUE INDEX IF NOT EXISTS uq_productos_vin ON productos(vin);

@@ -102,6 +102,25 @@ app.post("/api/login", async (req, res) => {
     }
 });
 
+app.get("/api/productos", async (req, res) => {
+    try {
+        // Hacemos la consulta a la base de datos pidiendo los datos necesarios
+        // Nota: Asegúrate de incluir 'imagen_path' que recién añadiste
+        const [productos] = await pool.query(
+            "SELECT id_producto, marca, modelo, motor, cilindraje, detalle, imagen_path FROM productos"
+        );
+
+        res.json(productos);
+
+    } catch (error) {
+        console.error(error);
+
+        res.status(500).json({
+            mensaje: "Error al consultar los productos"
+        });
+    }
+});
+
 const PORT = 3000;
 
 app.listen(PORT, () => {
