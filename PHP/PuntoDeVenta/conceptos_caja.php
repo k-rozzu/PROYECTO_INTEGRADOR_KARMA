@@ -5,7 +5,7 @@ declare(strict_types=1);
    Lo carga api.php. El servidor es la única fuente de verdad de los importes: el navegador manda QUÉ se cobra
    (concepto, plan, vehículo o crédito de referencia y campos capturados) y aquí se recalcula todo con la
    parametrización de la BD (Database/modificaciones.sql):
-     1) bootstrap          -> posCatalogoConceptosCaja(): catálogo, planes, vehículos vendidos y accesorios.
+     1) bootstrap          -> posCatalogoConceptosCaja(): catálogo, planes y vehículos vendidos.
      2) calcular_concepto  -> calcularConcepto(): vista previa del cálculo mientras el cajero captura.
      3) crear_venta        -> posValidarConceptosCaja() + posRegistrarConceptosVenta(): dentro de la MISMA transacción
                               de la venta (y con el mismo gafete de VENTA) se valida, se cobra y se guarda el desglose.
@@ -45,6 +45,16 @@ function conceptoNumero($valor, string $etiqueta, float $min, float $max, bool $
 // Pesos con 2 decimales para mensajes y desglose
 function conceptoPesos(float $n): string {
     return '$' . number_format($n, 2, '.', ',');
+}
+
+// Escapa texto para el HTML del ticket en PDF (equivalente a h() de correo.php, sin depender de ese archivo)
+function conceptoHtml($valor): string {
+    return htmlspecialchars((string)($valor ?? ''), ENT_QUOTES, 'UTF-8');
+}
+
+// Monto con el mismo formato del ticket en PDF: "$ 1,234.00" (equivalente a karmaMoneyFmt() de correo.php)
+function conceptoMonedaPdf($n): string {
+    return '$ ' . number_format((float)($n ?? 0), 2);
 }
 
 // Definición de los campos extra del concepto (campos_json)
@@ -98,23 +108,6 @@ function posCatalogoConceptosCaja(PDO $pdo, int $idSucursal): array {
             LIMIT 500
         ")->fetchAll();
 
-        // Accesorios originales con existencia de esta sucursal (sección «accesorios» del Catálogo)
-        $accesorios = [];
-        try {
-            $acc = $pdo->prepare("
-                SELECT p.id_producto, p.nombre, p.marca, p.precio_base, COALESCE(i.stock_actual, 0) AS unidades
-                FROM productos p
-                JOIN productos_web pw ON pw.id_producto = p.id_producto AND pw.seccion = 'accesorios'
-                LEFT JOIN inventarios i ON i.id_producto = p.id_producto AND i.id_sucursal = ?
-                WHERE p.tipo = 'refaccion'
-                ORDER BY p.marca, p.nombre
-            ");
-            $acc->execute([$idSucursal]);
-            $accesorios = $acc->fetchAll();
-        } catch (PDOException $e) {
-            $accesorios = [];   // sin el módulo del Catálogo no hay accesorios identificados
-        }
-
         return [
             'disponible' => true,
             'conceptos' => $conceptos,
@@ -122,14 +115,10 @@ function posCatalogoConceptosCaja(PDO $pdo, int $idSucursal): array {
                 'idDetalle' => (int)$v['id_detalle'], 'productoId' => (int)$v['id_producto'], 'vin' => $v['vin'],
                 'precio' => (float)$v['precio_unitario'], 'marca' => $v['marca'], 'modelo' => $v['modelo'],
                 'anio' => $v['anio'] !== null ? (int)$v['anio'] : null, 'tipo' => $v['tipo'], 'fecha' => $v['fecha']
-            ], $vendidos),
-            'accesorios' => array_map(fn(array $a) => [
-                'id' => (int)$a['id_producto'], 'nombre' => $a['nombre'], 'marca' => $a['marca'],
-                'precio' => (float)$a['precio_base'], 'unidades' => (int)$a['unidades']
-            ], $accesorios)
+            ], $vendidos)
         ];
     } catch (PDOException $e) {
-        return ['disponible' => false, 'conceptos' => [], 'vehiculosVendidos' => [], 'accesorios' => [],
+        return ['disponible' => false, 'conceptos' => [], 'vehiculosVendidos' => [],
                 'aviso' => 'Importa Database/modificaciones.sql para habilitar los conceptos de caja.'];
     }
 }
@@ -227,22 +216,6 @@ function conceptoResolverCredito(PDO $pdo, array $c, $entrada): ?array {
     return ['origen' => 'externo', 'id_contrato' => null, 'folio' => null, 'institucion' => $institucion, 'monto' => $monto, 'plazo' => $plazo, 'vin' => null];
 }
 
-// Accesorio original que se instala (descuenta inventario de la sucursal)
-function conceptoResolverAccesorio(PDO $pdo, array $c, $productoId, int $idSucursal, bool $enVenta): ?array {
-    if ($c['base_calculo'] !== 'accesorio') return null;
-    $stmt = $pdo->prepare("
-        SELECT p.id_producto, p.nombre, p.marca, p.precio_base, p.tipo, COALESCE(i.stock_actual, 0) AS unidades
-        FROM productos p
-        LEFT JOIN inventarios i ON i.id_producto = p.id_producto AND i.id_sucursal = ?
-        WHERE p.id_producto = ?" . ($enVenta ? ' FOR UPDATE' : '')
-    );
-    $stmt->execute([$idSucursal, (int)$productoId]);
-    $a = $stmt->fetch();
-    if (!$a || $a['tipo'] !== 'refaccion') throw new RuntimeException('Elige el accesorio original que se va a instalar.');
-    if ((int)$a['unidades'] < 1) throw new RuntimeException("0 unidades disponibles de {$a['nombre']} en esta sucursal.");
-    return ['id_producto' => (int)$a['id_producto'], 'nombre' => $a['nombre'], 'precio' => round((float)$a['precio_base'], 2), 'unidades' => (int)$a['unidades']];
-}
-
 // Valida los campos extra con su definición (requeridos, tipo, opciones y longitud)
 function conceptoValidarCampos(array $c, $entrada): array {
     $entrada = is_array($entrada) ? $entrada : [];
@@ -304,7 +277,6 @@ function posCalcularConcepto(PDO $pdo, $entrada, int $idSucursal, array $lineasT
     $tasaIva = (float)$c['tasa_iva'];
     $veh = conceptoResolverVehiculo($pdo, $c, $entrada['vehiculo'] ?? null, $lineasTicket, $enVenta);
     $cred = conceptoResolverCredito($pdo, $c, $entrada['credito'] ?? null);
-    $acc = conceptoResolverAccesorio($pdo, $c, $entrada['accesorio_id'] ?? 0, $idSucursal, $enVenta);
     $campos = conceptoValidarCampos($c, $entrada['campos'] ?? []);
 
     // Un solo cobro por VIN (ISAN, alta de placas, holograma 00)
@@ -338,7 +310,6 @@ function posCalcularConcepto(PDO $pdo, $entrada, int $idSucursal, array $lineasT
         case 'vehiculo': $base = (float)($veh['valor'] ?? 0); break;
         case 'vehiculo_sin_iva': $base = (float)($veh['valor'] ?? 0) / (1 + $tasaIva / 100); break;
         case 'credito': $base = (float)($cred['monto'] ?? 0); break;
-        case 'accesorio': $base = (float)($acc['precio'] ?? 0); break;
     }
     $base = round($base, 2);
     $necesitaBase = $modo === 'TARIFA' || (in_array($modo, ['PORCENTAJE', 'PORCENTAJE_MENSUAL', 'FIJO'], true) && $pct > 0);
@@ -405,14 +376,11 @@ function posCalcularConcepto(PDO $pdo, $entrada, int $idSucursal, array $lineasT
     if ($gravado > 0) $gravado = round($servicioTotal - $exento, 2);
     else $exento = $servicioTotal;
 
-    $accesorioImporte = $acc ? $acc['precio'] : 0.0;
-    if ($acc) $desglose[] = ['Accesorio', $acc['nombre'] . ' · ' . conceptoPesos($accesorioImporte)];
-    $total = round($servicioTotal + $accesorioImporte, 2);
+    $total = $servicioTotal;
     if ($total <= 0) throw new RuntimeException("{$c['nombre']} no tiene importe a cobrar con los datos capturados.");
 
     $factor = 1 + $tasaIva / 100;
-    $gravadoTotal = $gravado + $accesorioImporte;
-    $subtotal = round($exento + $gravadoTotal / $factor, 2);
+    $subtotal = round($exento + $gravado / $factor, 2);
     $iva = round($total - $subtotal, 2);
 
     // Referencia (póliza, folio de OS, placas…) y su unicidad
@@ -444,9 +412,9 @@ function posCalcularConcepto(PDO $pdo, $entrada, int $idSucursal, array $lineasT
         'id_concepto' => $idConcepto, 'clave' => $c['clave'], 'nombre' => $c['nombre'], 'id_producto_servicio' => (int)$c['id_producto'],
         'unico_por_vin' => (int)$c['unico_por_vin'] === 1, 'referencia_unica' => (int)$c['referencia_unica'] === 1,
         'id_opcion' => $opcion ? (int)$opcion['id_opcion'] : null, 'opcion' => $opcion['descripcion'] ?? null,
-        'vehiculo' => $veh, 'credito' => $cred, 'accesorio' => $acc, 'campos' => $campos, 'referencia' => $referencia,
+        'vehiculo' => $veh, 'credito' => $cred, 'campos' => $campos, 'referencia' => $referencia,
         'base' => $base, 'porcentaje' => $pct > 0 ? $pct : null, 'tramo' => $tramo, 'desglose' => $desglose,
-        'gravado' => $gravado, 'exento' => $exento, 'servicio_total' => $servicioTotal, 'accesorio_importe' => $accesorioImporte,
+        'gravado' => $gravado, 'exento' => $exento, 'servicio_total' => $servicioTotal,
         'subtotal' => $subtotal, 'iva' => $iva, 'total' => $total, 'vigencia_inicio' => $inicio, 'vigencia_fin' => $fin,
         'descripcion_ticket' => $c['nombre'] . ($opcion ? ' · ' . $opcion['descripcion'] : '')
     ];
@@ -460,7 +428,6 @@ function conceptoRespuesta(array $r): array {
         'descripcion' => $r['descripcion_ticket'], 'referencia' => $r['referencia'],
         'vehiculo' => $r['vehiculo'] ? ['vin' => $r['vehiculo']['vin'], 'descripcion' => $r['vehiculo']['descripcion'], 'tipo' => $r['vehiculo']['tipo']] : null,
         'credito' => $r['credito'] ? ['origen' => $r['credito']['origen'], 'folio' => $r['credito']['folio'], 'institucion' => $r['credito']['institucion'], 'plazo' => $r['credito']['plazo']] : null,
-        'accesorio' => $r['accesorio'] ? ['id' => $r['accesorio']['id_producto'], 'nombre' => $r['accesorio']['nombre'], 'precio' => $r['accesorio']['precio']] : null,
         'base' => $r['base'], 'porcentaje' => $r['porcentaje'], 'desglose' => $r['desglose'],
         'gravado' => $r['gravado'], 'exento' => $r['exento'], 'subtotal' => $r['subtotal'], 'iva' => $r['iva'], 'total' => $r['total'],
         'vigenciaInicio' => $fecha($r['vigencia_inicio']), 'vigenciaFin' => $fecha($r['vigencia_fin'])
@@ -479,8 +446,6 @@ function posValidarConceptosCaja(PDO $pdo, $conceptos, int $idSucursal, array $p
     $total = 0.0;
     $vinesUnicos = [];
     $referenciasUnicas = [];
-    $accesoriosRequeridos = [];
-    foreach ($productosVenta as $p) $accesoriosRequeridos[(int)$p['id']] = (int)$p['cantidad'];
 
     foreach (array_values($conceptos) as $entrada) {
         $r = posCalcularConcepto($pdo, $entrada, $idSucursal, $productosVenta, true);
@@ -495,37 +460,28 @@ function posValidarConceptosCaja(PDO $pdo, $conceptos, int $idSucursal, array $p
             if (isset($referenciasUnicas[$k])) throw new RuntimeException("La referencia {$r['referencia']} está repetida en el ticket.");
             $referenciasUnicas[$k] = true;
         }
-        // Existencia de los accesorios contando lo que ya lleva el ticket
-        if ($r['accesorio']) {
-            $id = $r['accesorio']['id_producto'];
-            $accesoriosRequeridos[$id] = ($accesoriosRequeridos[$id] ?? 0) + 1;
-            if ($accesoriosRequeridos[$id] > $r['accesorio']['unidades']) {
-                throw new RuntimeException("Stock insuficiente para {$r['accesorio']['nombre']}.");
-            }
-        }
         $lista[] = $r;
         $total += $r['total'];
     }
     return [$lista, round($total, 2)];
 }
 
-// Guarda el desglose (ventas_conceptos), sus líneas en detalle_ventas y descuenta los accesorios instalados.
+// Guarda el desglose (ventas_conceptos) y la línea de cada concepto en detalle_ventas.
 // Regresa los folios para el ticket.
 function posRegistrarConceptosVenta(PDO $pdo, int $ventaId, array $lista, array $ctx): array {
     if (!$lista) return [];
     $ins = $pdo->prepare("
         INSERT INTO ventas_conceptos
         (id_venta, id_concepto, id_opcion, id_sucursal, id_caja, id_usuario, id_producto_vehiculo, vin, vehiculo_origen, vehiculo_descripcion,
-         id_contrato, credito_origen, id_producto_accesorio, referencia, base_calculo, porcentaje, importe_gravado, importe_exento,
-         importe_accesorio, subtotal, iva, total, vigencia_inicio, vigencia_fin, datos_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         id_contrato, credito_origen, referencia, base_calculo, porcentaje, importe_gravado, importe_exento,
+         subtotal, iva, total, vigencia_inicio, vigencia_fin, datos_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ");
     $folioStmt = $pdo->prepare("UPDATE ventas_conceptos SET folio = ? WHERE id_venta_concepto = ?");
     $detalle = $pdo->prepare("
         INSERT INTO detalle_ventas (id_venta, id_producto, cantidad, precio_unitario, subtotal_linea, vin, motor_serie, color_interior, id_venta_concepto)
         VALUES (?, ?, 1, ?, ?, NULL, NULL, NULL, ?)
     ");
-    $stock = $pdo->prepare("UPDATE inventarios SET stock_actual = stock_actual - 1 WHERE id_producto = ? AND id_sucursal = ? AND stock_actual >= 1");
 
     $folios = [];
     $totalConceptos = 0.0;
@@ -534,14 +490,13 @@ function posRegistrarConceptosVenta(PDO $pdo, int $ventaId, array $lista, array 
         $cred = $r['credito'];
         $datos = [
             'plan' => $r['opcion'], 'campos' => $r['campos'], 'desglose' => $r['desglose'], 'tramo' => $r['tramo'],
-            'credito' => $cred ? ['origen' => $cred['origen'], 'folio' => $cred['folio'], 'institucion' => $cred['institucion'], 'monto' => $cred['monto'], 'plazo' => $cred['plazo']] : null,
-            'accesorio' => $r['accesorio'] ? ['nombre' => $r['accesorio']['nombre'], 'precio' => $r['accesorio']['precio']] : null
+            'credito' => $cred ? ['origen' => $cred['origen'], 'folio' => $cred['folio'], 'institucion' => $cred['institucion'], 'monto' => $cred['monto'], 'plazo' => $cred['plazo']] : null
         ];
         $ins->execute([
             $ventaId, $r['id_concepto'], $r['id_opcion'], $ctx['id_sucursal'], $ctx['id_caja'], $ctx['id_usuario'],
             $veh['id_producto'] ?? null, $veh['vin'] ?? null, $veh['origen'] ?? null, $veh['descripcion'] ?? null,
-            $cred['id_contrato'] ?? null, $cred['origen'] ?? null, $r['accesorio']['id_producto'] ?? null, $r['referencia'],
-            $r['base'], $r['porcentaje'], $r['gravado'], $r['exento'], $r['accesorio_importe'], $r['subtotal'], $r['iva'], $r['total'],
+            $cred['id_contrato'] ?? null, $cred['origen'] ?? null, $r['referencia'],
+            $r['base'], $r['porcentaje'], $r['gravado'], $r['exento'], $r['subtotal'], $r['iva'], $r['total'],
             $r['vigencia_inicio'], $r['vigencia_fin'], json_encode($datos, JSON_UNESCAPED_UNICODE)
         ]);
         $idVc = (int)$pdo->lastInsertId();
@@ -551,12 +506,6 @@ function posRegistrarConceptosVenta(PDO $pdo, int $ventaId, array $lista, array 
         // Línea del servicio (producto tipo servicio, sin inventario)
         if ($r['servicio_total'] > 0) {
             $detalle->execute([$ventaId, $r['id_producto_servicio'], $r['servicio_total'], $r['servicio_total'], $idVc]);
-        }
-        // Accesorio instalado: su propia línea y baja de inventario
-        if ($r['accesorio']) {
-            $detalle->execute([$ventaId, $r['accesorio']['id_producto'], $r['accesorio_importe'], $r['accesorio_importe'], $idVc]);
-            $stock->execute([$r['accesorio']['id_producto'], $ctx['id_sucursal']]);
-            if ($stock->rowCount() !== 1) throw new RuntimeException('El inventario cambió durante la venta. Verifica las existencias e inténtalo nuevamente.');
         }
 
         $totalConceptos += $r['total'];
@@ -614,15 +563,15 @@ function posConceptosTicketHTML(PDO $pdo, int $ventaId): string {
     $html = '';
     foreach ($filas as $f) {
         $detalle = array_filter([
-            $f['plan'] ? h($f['plan']) : '',
-            $f['vin'] ? 'VIN ' . h($f['vin']) . ($f['vehiculo_descripcion'] ? ' · ' . h($f['vehiculo_descripcion']) : '') : '',
-            $f['referencia'] ? 'Ref. ' . h($f['referencia']) : '',
-            $f['hasta'] ? 'Vigencia ' . h($f['desde']) . ' al ' . h($f['hasta']) : ''
+            $f['plan'] ? conceptoHtml($f['plan']) : '',
+            $f['vin'] ? 'VIN ' . conceptoHtml($f['vin']) . ($f['vehiculo_descripcion'] ? ' · ' . conceptoHtml($f['vehiculo_descripcion']) : '') : '',
+            $f['referencia'] ? 'Ref. ' . conceptoHtml($f['referencia']) : '',
+            $f['hasta'] ? 'Vigencia ' . conceptoHtml($f['desde']) . ' al ' . conceptoHtml($f['hasta']) : ''
         ]);
-        $html .= '<tr><td><strong>' . h($f['nombre']) . '</strong><br><span class="muted">Folio ' . h($f['folio']) . ($detalle ? ' — ' . implode(' — ', $detalle) : '') . '</span></td>'
-            . '<td class="der">' . karmaMoneyFmt($f['subtotal']) . '</td>'
-            . '<td class="der">' . karmaMoneyFmt($f['iva']) . '</td>'
-            . '<td class="der">' . karmaMoneyFmt($f['total']) . '</td></tr>';
+        $html .= '<tr><td><strong>' . conceptoHtml($f['nombre']) . '</strong><br><span class="muted">Folio ' . conceptoHtml($f['folio']) . ($detalle ? ' — ' . implode(' — ', $detalle) : '') . '</span></td>'
+            . '<td class="der">' . conceptoMonedaPdf($f['subtotal']) . '</td>'
+            . '<td class="der">' . conceptoMonedaPdf($f['iva']) . '</td>'
+            . '<td class="der">' . conceptoMonedaPdf($f['total']) . '</td></tr>';
     }
     return '<h2>2c. Servicios, seguros y trámites</h2>
       <table class="tabla-datos">

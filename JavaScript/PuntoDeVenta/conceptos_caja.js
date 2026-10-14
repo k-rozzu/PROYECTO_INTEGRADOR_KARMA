@@ -1,8 +1,8 @@
 /* ===== KARMA · Punto de Venta — Conceptos de caja (seguros, financiamiento, trámites, impuestos y posventa) =====
    Agrega la pestaña «Servicios» al formulario de Venta (junto a Vehículo / Crédito / Refacción) para capturar y cobrar:
    seguro de cobertura amplia, co seguro de vida y desempleo, seguro de llantas y rines, comisión por apertura, gestoría
-   de placas, ISAN, tenencia / refrendo, holograma 00, mantenimiento prepagado, garantía extendida, accesorios con
-   instalación, película de seguridad / polarizado y órdenes de servicio de taller.
+   de placas, ISAN, tenencia / refrendo, holograma 00, mantenimiento prepagado, garantía extendida, película de
+   seguridad / polarizado y órdenes de servicio de taller (los accesorios originales se venden en el Catálogo).
    Flujo: el cajero elige el concepto → captura vehículo / crédito / plan / datos → el servidor calcula (calcular_concepto)
    → «Guardar» lo agrega al ticket → F3 cobra todo en la MISMA venta (crear_venta, con el gafete de VENTA) → el servidor
    recalcula, guarda el desglose (ventas_conceptos) y devuelve los folios que se muestran en el ticket.
@@ -15,7 +15,7 @@ const ESPERA_CALCULO_CONCEPTO = 350;                   // ms sin teclear antes d
 const ETIQUETAS_ORIGEN_VEHICULO = { ticket: "Del ticket", vendido: "Vendido por KARMA", externo: "Externo" };
 const ETIQUETAS_ORIGEN_CREDITO = { karma: "Contrato KARMA", externo: "Financiera externa" };
 
-let CONCEPTOS_CAJA = { disponible: false, conceptos: [], vehiculosVendidos: [], accesorios: [] };
+let CONCEPTOS_CAJA = { disponible: false, conceptos: [], vehiculosVendidos: [] };
 let conceptoCalculo = null;          // último cálculo válido del servidor para lo capturado
 let conceptoMensaje = "";            // lo que falta capturar o el motivo por el que no se puede cobrar
 let conceptoClaveCalculo = "";       // datos con los que se hizo el último cálculo (evita peticiones repetidas)
@@ -96,7 +96,6 @@ function payloadConcepto(){
     id_concepto: c.id,
     id_opcion: Number(b.opcionId) || 0,
     vehiculo, credito,
-    accesorio_id: c.base === "accesorio" ? (Number(b.accesorioId) || 0) : 0,
     campos: { ...(b.campos || {}) }
   };
 }
@@ -139,7 +138,7 @@ function formularioConceptosHTML(){
   `;
 }
 
-// Cliente + concepto + vehículo / crédito / accesorio + plan + campos propios + resultado del cálculo
+// Cliente + concepto + vehículo / crédito + plan + campos propios + resultado del cálculo
 function camposConceptosHTML(){
   const b = borrador;
   if (!CONCEPTOS_CAJA.disponible){
@@ -175,7 +174,6 @@ function camposConceptosHTML(){
       ${c ? `
         ${seccionVehiculoConceptoHTML(c)}
         ${seccionCreditoConceptoHTML(c)}
-        ${seccionAccesorioConceptoHTML(c)}
         ${seccionOpcionConceptoHTML(c)}
         ${c.campos.map(campoConceptoHTML).join("")}
       ` : ""}
@@ -269,21 +267,6 @@ function seccionCreditoConceptoHTML(c){
       </div>
     </div>
     ${detalle}`;
-}
-
-// Accesorio original con existencia en la sucursal
-function seccionAccesorioConceptoHTML(c){
-  if (c.base !== "accesorio") return "";
-  const lista = CONCEPTOS_CAJA.accesorios;
-  return `
-    <div class="form-field span-2">
-      <label>Accesorio original</label>
-      <select id="selAccesorio" ${!lista.length ? "disabled" : ""}>
-        <option value="">${lista.length ? "Selecciona…" : "No hay accesorios registrados"}</option>
-        ${lista.map(a => `<option value="${a.id}" ${a.unidades < 1 ? "disabled" : ""} ${Number(borrador.accesorioId) === a.id ? "selected" : ""}>${escapeHTML(`${a.marca || ""} · ${a.nombre} · ${formatoMoneda(a.precio)} · ${a.unidades} unid.`)}</option>`).join("")}
-      </select>
-      <div class="form-field-info">El accesorio se descuenta del inventario de la sucursal al concretar la venta.</div>
-    </div>`;
 }
 
 // Plan / cobertura / paquete
@@ -388,7 +371,6 @@ function bindFormularioConceptos(panel){
   enlazarLista("selVehTipo", "vehTipo", true);
   enlazarLista("selOpcion", "opcionId", false);
   enlazarLista("selCredFolio", "credFolio", false);
-  enlazarLista("selAccesorio", "accesorioId", false);
 
   // Textos y números: guardan sin redibujar (no se pierde el foco) y piden un nuevo cálculo
   const enlazarTexto = (id, clave, transformar) => $(`#${id}`, panel)?.addEventListener("input", (e) => {
@@ -501,7 +483,7 @@ async function guardarConceptoEnTicket(){
       subtotal: Number(calculo.subtotal), iva: Number(calculo.iva),
       vin: calculo.vehiculo?.vin || "", vehiculo: calculo.vehiculo?.descripcion || "",
       credito: calculo.credito ? (calculo.credito.folio || calculo.credito.institucion) : "",
-      accesorio: calculo.accesorio?.nombre || "", referencia: calculo.referencia || "",
+      referencia: calculo.referencia || "",
       vigenciaFin: calculo.vigenciaFin || "",
       // Si el concepto depende de un vehículo de este ticket, se quita junto con él (F4)
       vehiculoTicketId: payload.vehiculo?.origen === "ticket" ? Number(borrador.vehTicketId) : null,
@@ -521,7 +503,7 @@ async function guardarConceptoEnTicket(){
 
 // Tarjeta del concepto en el ticket (mismas clases que los demás artículos)
 function conceptoTicketItemHTML(it){
-  const referencia = it.vehiculo || it.credito || it.accesorio || "—";
+  const referencia = it.vehiculo || it.credito || "—";
   return `
     <div class="ticket-item">
       <div class="ticket-item-head">
@@ -576,7 +558,7 @@ function conceptosTicketDigitalHTML(conceptos){
       const cat = data.conceptos || {};
       CONCEPTOS_CAJA = {
         disponible: !!cat.disponible, aviso: cat.aviso || "",
-        conceptos: cat.conceptos || [], vehiculosVendidos: cat.vehiculosVendidos || [], accesorios: cat.accesorios || []
+        conceptos: cat.conceptos || [], vehiculosVendidos: cat.vehiculosVendidos || []
       };
     }
     return data;
