@@ -4,3 +4,4 @@ PHP/PuntoDeVenta/vendor/
 PHP/Traduccion/cache/
 # Respaldos completos de la base de datos (contienen datos y hashes de usuarios): no se suben al repositorio
 Database/respaldos/
+CLAUDE.md

@@ -4,7 +4,7 @@
 // Revisa la sesión de inmediato cuando la página se muestra, incluso si viene de la caché del navegador
 window.addEventListener('pageshow', function (event) {
     if (!localStorage.getItem("karma_user")) {
-        window.location.replace("/index.html");
+        window.location.replace("../index.html");
     }
 });
 
@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const userDataString = localStorage.getItem("karma_user");
     if (!userDataString) {
         // Redirección sin guardar el intento en el historial
-        window.location.replace("/index.html"); 
+        window.location.replace("../index.html"); 
         return;
     }
     const usuario = JSON.parse(userDataString);
@@ -41,6 +41,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             "catalog": "Catálogo Completo",
             "start_sale": "Iniciar Venta",
             "manage_branch": "Gestionar Sucursal",
+            "manager_panel": "Panel de Gerente",
             "flip_info": "Gira para más info ↺",
             "engine": "Motor",
             "displacement": "Cilindraje",
@@ -52,6 +53,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             "catalog": "Full Catalog",
             "start_sale": "Start Sale",
             "manage_branch": "Manage Branch",
+            "manager_panel": "Manager Panel",
             "flip_info": "Flip for more info ↺",
             "engine": "Engine",
             "displacement": "Displacement",
@@ -123,9 +125,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (logoutBtn) {
         logoutBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            localStorage.removeItem("karma_user"); 
-            // Replace elimina la página actual del historial
-            window.location.replace("/index.html");  
+            localStorage.removeItem("karma_user");
+            // También cierra la sesión PHP del Punto de Venta; si falla, igual se regresa al login
+            fetch('../PHP/PuntoDeVenta/api.php?action=logout').finally(() => {
+                // Replace elimina la página actual del historial
+                window.location.replace("../index.html");
+            });
         });
     }
 
@@ -190,7 +195,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // === 4. CARGAR PRODUCTOS DESDE LA BASE DE DATOS NODE.JS ===
     async function loadProducts() {
         try {
-            const response = await fetch('/api/productos'); 
+            const response = await fetch('../PHP/Home/productos.php');
             if (response.ok) {
                 const productos = await response.json();
                 
@@ -208,7 +213,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 // Generar tarjetas para Top Sellers (Giratorias)
                 topSellers.forEach(prod => {
-                    const imgSrc = prod.imagen_path || '/assets/home/porsche-911.png'; 
+                    // En la BD las rutas empiezan con "/assets/...": se vuelven relativas a Home/ para que funcionen en cualquier carpeta
+                    const imgSrc = prod.imagen_path ? '..' + prod.imagen_path : '../assets/inventario/porsche-911.png';
                     
                     const cardHTML = `
                     <div class="card">

@@ -9,7 +9,7 @@ USE pos_multisede;
 -- Asegura las columnas vin y color_interior (ya existen en tu base, pero no venían en los .sql del proyecto)
 ALTER TABLE productos
     ADD COLUMN IF NOT EXISTS color_interior VARCHAR(80) NULL,
-    ADD COLUMN IF NOT EXISTS vin VARCHAR(17) NULL;
+    ADD COLUMN IF NOT EXISTS vin VARCHAR(17) NULL,
     ADD COLUMN imagen_path VARCHAR(255) NULL;
 
 -- Garantiza que no se repita ningún VIN

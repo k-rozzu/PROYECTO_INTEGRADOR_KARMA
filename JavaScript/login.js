@@ -10,7 +10,8 @@ if (new URLSearchParams(window.location.search).get("destino") === "pos") {
 // si el proyecto corre con el servidor Node.js (puerto 3000), PHP no se ejecuta y se usa /api/login como antes.
 
 async function autenticar(correo, password) {
-    const respuesta = await fetch("/KARMA/PHP/Login/login.php", {
+    // Ruta relativa a index.html: funciona sin importar el nombre de la carpeta en htdocs
+    const respuesta = await fetch("PHP/Login/login.php", {
         method: "POST",
         headers: {
             "Content-Type": "application/json"

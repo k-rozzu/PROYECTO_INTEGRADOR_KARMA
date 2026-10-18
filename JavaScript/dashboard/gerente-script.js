@@ -1354,7 +1354,12 @@ function attachEvents(){
 
   // Cerrar sesión
   $("#logoutBtn")?.addEventListener("click", () => {
-    if (confirm("¿Cerrar sesión?")) window.location.href = "/index.html";
+    if (!confirm("¿Cerrar sesión?")) return;
+    // Igual que el Home: borra el usuario guardado y cierra la sesión PHP del Punto de Venta
+    localStorage.removeItem("karma_user");
+    fetch("../PHP/PuntoDeVenta/api.php?action=logout").finally(() => {
+      window.location.replace("../index.html");
+    });
   });
 
   // Cerrar modales: botones con data-close-modal o clic en overlay
