@@ -281,6 +281,6 @@ node backend/server.js
 <div align="center">
 
 <sub>EQUIPO KARMA</sub><br>
-<sub>Ibarra Heredia Alan Alejandro · Martinez Zuñiga Carolina · Nava Montiel Miranda Lizet · Vázquez Atanacio Diego Alejandro · Nava Montiel Dana Paola</sub>
+<sub>Ibarra Heredia Alan Alejandro · Martinez Zuñiga Carolina · Nava Montiel Dana Paola · Nava Montiel Miranda Lizet · Vázquez Atanacio Diego Alejandro</sub>
 
 </div>
