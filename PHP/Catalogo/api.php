@@ -814,11 +814,11 @@ try {
             $p = catProducto((int)($d['id_producto'] ?? 0));
             if (!$p) apiError('El producto no existe.', 404);
             $pdo = db();
-            $del = $pdo->prepare('DELETE FROM clientes_favoritos WHERE id_cliente = ? AND id_producto = ?');
+            $del = $pdo->prepare('DELETE FROM favoritos_catalogo WHERE id_cliente = ? AND id_producto = ?');
             $del->execute([(int)$cliente['id_cliente'], $p['id']]);
             $favorito = false;
             if ($del->rowCount() === 0) {
-                $pdo->prepare('INSERT INTO clientes_favoritos (id_cliente, id_producto) VALUES (?, ?)')->execute([(int)$cliente['id_cliente'], $p['id']]);
+                $pdo->prepare('INSERT INTO favoritos_catalogo (id_cliente, id_producto) VALUES (?, ?)')->execute([(int)$cliente['id_cliente'], $p['id']]);
                 $favorito = true;
             }
             apiOk(['favorito' => $favorito, 'mensaje' => $favorito ? "{$p['titulo']} se guardó en tus vehículos de interés." : 'Se quitó de tus vehículos de interés.']);

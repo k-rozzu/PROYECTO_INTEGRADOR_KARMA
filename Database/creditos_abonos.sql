@@ -100,7 +100,7 @@ DELETE c FROM clientes c
    AND NOT EXISTS (SELECT 1 FROM web_orders x WHERE x.id_cliente = c.id_cliente)
    AND NOT EXISTS (SELECT 1 FROM citas x WHERE x.id_cliente = c.id_cliente)
    AND NOT EXISTS (SELECT 1 FROM notificaciones x WHERE x.id_cliente = c.id_cliente)
-   AND NOT EXISTS (SELECT 1 FROM clientes_favoritos x WHERE x.id_cliente = c.id_cliente)
+   AND NOT EXISTS (SELECT 1 FROM favoritos_catalogo x WHERE x.id_cliente = c.id_cliente)
    AND NOT EXISTS (SELECT 1 FROM solicitudes x WHERE x.id_cliente = c.id_cliente)
    AND NOT EXISTS (SELECT 1 FROM abonos_credito x WHERE x.id_cliente = c.id_cliente);
 

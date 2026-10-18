@@ -207,7 +207,7 @@ function catCompatiblesConVehiculo(array $vehiculo, int $limite = 8): array {
 // Ids de los vehículos favoritos del cliente
 function catFavoritosIds(?int $idCliente): array {
     if (!$idCliente) return [];
-    $stmt = db()->prepare('SELECT id_producto FROM clientes_favoritos WHERE id_cliente = ?');
+    $stmt = db()->prepare('SELECT id_producto FROM favoritos_catalogo WHERE id_cliente = ?');
     $stmt->execute([$idCliente]);
     return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
 }

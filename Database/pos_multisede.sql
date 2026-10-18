@@ -312,10 +312,10 @@ CREATE TABLE `clientes` (
 -- --------------------------------------------------------
 
 --
--- Estructura de tabla para la tabla `clientes_favoritos`
+-- Estructura de tabla para la tabla `favoritos_catalogo`
 --
 
-CREATE TABLE `clientes_favoritos` (
+CREATE TABLE `favoritos_catalogo` (
   `id_cliente` int(11) NOT NULL,
   `id_producto` int(11) NOT NULL,
   `fecha` datetime NOT NULL DEFAULT current_timestamp()
@@ -1522,9 +1522,9 @@ ALTER TABLE `clientes`
   ADD KEY `fk_clientes_sucursal_preferida` (`id_sucursal_preferida`);
 
 --
--- Indices de la tabla `clientes_favoritos`
+-- Indices de la tabla `favoritos_catalogo`
 --
-ALTER TABLE `clientes_favoritos`
+ALTER TABLE `favoritos_catalogo`
   ADD PRIMARY KEY (`id_cliente`,`id_producto`),
   ADD KEY `fk_favoritos_productos` (`id_producto`);
 
@@ -1934,9 +1934,9 @@ ALTER TABLE `clientes`
   ADD CONSTRAINT `fk_clientes_sucursal_preferida` FOREIGN KEY (`id_sucursal_preferida`) REFERENCES `sucursales` (`id_sucursal`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 --
--- Filtros para la tabla `clientes_favoritos`
+-- Filtros para la tabla `favoritos_catalogo`
 --
-ALTER TABLE `clientes_favoritos`
+ALTER TABLE `favoritos_catalogo`
   ADD CONSTRAINT `fk_favoritos_clientes` FOREIGN KEY (`id_cliente`) REFERENCES `clientes` (`id_cliente`) ON DELETE CASCADE ON UPDATE CASCADE,
   ADD CONSTRAINT `fk_favoritos_productos` FOREIGN KEY (`id_producto`) REFERENCES `productos` (`id_producto`) ON DELETE CASCADE ON UPDATE CASCADE;
 

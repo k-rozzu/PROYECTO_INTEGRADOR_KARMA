@@ -22,7 +22,7 @@
 --   * citas                → visitas, apartados, pruebas de manejo y citas de servicio.
 --   * solicitudes          → contacto, información, cotizaciones, garantía, seguros, financiamiento…
 --   * notificaciones       → avisos que ve el cliente en su perfil.
---   * clientes_favoritos   → vehículos de interés del cliente.
+--   * favoritos_catalogo   → vehículos de interés del cliente.
 --   * promociones          → promociones de demostración que muestra el sitio.
 --   * catalogo_opciones    → colores, versiones y equipamiento del configurador.
 -- =====================================================================================
@@ -267,7 +267,7 @@ CREATE TABLE IF NOT EXISTS notificaciones (
 
 -- ===== 9. VEHÍCULOS DE INTERÉS (favoritos) =====
 
-CREATE TABLE IF NOT EXISTS clientes_favoritos (
+CREATE TABLE IF NOT EXISTS favoritos_catalogo (
     id_cliente INT NOT NULL,
     id_producto INT NOT NULL,
     fecha DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -327,4 +327,4 @@ DROP PROCEDURE IF EXISTS karma_tmp_ejecutar_si_falta;
 SELECT TABLE_NAME AS tabla_catalogo
   FROM information_schema.TABLES
  WHERE TABLE_SCHEMA = DATABASE()
-   AND TABLE_NAME IN ('productos_web','web_order_detalle','citas','solicitudes','notificaciones','clientes_favoritos','promociones','catalogo_opciones');
+   AND TABLE_NAME IN ('productos_web','web_order_detalle','citas','solicitudes','notificaciones','favoritos_catalogo','promociones','catalogo_opciones');
