@@ -89,10 +89,10 @@
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <img alt="Vista Garantías" src="https://img.shields.io/badge/VISTA-GARANT%C3%8DAS-17181B?style=flat-square&labelColor=9E1B2E">
+      <img alt="Vistas Venta y Garantías" src="https://img.shields.io/badge/VISTA-VENTA%20%C2%B7%20GARANT%C3%8DAS-17181B?style=flat-square&labelColor=9E1B2E">
       <h3>Servicios y garantías</h3>
-      Garantía de 4 años registrada con cada vehículo vendido; vence a la hora exacta.<br>
-      <sub>El cajero envía solicitudes que resuelve un gerente. Seguros, taller y trámites se agendan como cita desde el catálogo.</sub>
+      13 conceptos en caja: seguros, financiamiento, trámites e impuestos, posventa y taller.<br>
+      <sub>Garantía de 4 años con cada vehículo vendido; las solicitudes desde caja las resuelve un gerente.</sub>
     </td>
     <td width="50%" valign="top">
       <img alt="Vista Web orders" src="https://img.shields.io/badge/VISTA-WEB%20ORDERS-17181B?style=flat-square&labelColor=9E1B2E">
@@ -113,17 +113,17 @@
   <tr>
     <td width="33%" valign="top">
       <h3>Administrador general</h3>
-      Inicio administrativo y panel de gestión: sucursales, personal, inventario y pedidos.<br>
-      <sub>El panel aún usa datos de demostración.</sub>
+      Inicio administrativo, acceso al POS y panel de gestión de sucursales, personal, inventario y pedidos.<br>
+      <sub>El panel de gestión aún usa datos de demostración.</sub>
     </td>
     <td width="33%" valign="top">
       <h3>Gerente de sucursal</h3>
-      Comparte el inicio administrativo y resuelve, junto con el administrador, las solicitudes de garantía.<br>
+      Inicio administrativo y acceso al POS. Resuelve, junto con el administrador, las solicitudes de garantía.<br>
       <sub>Regla en la base de datos; pantalla de aprobación pendiente.</sub>
     </td>
     <td width="33%" valign="top">
       <h3>Cajero / Asesor</h3>
-      Único rol con acceso al POS de su sucursal: ventas, créditos, abonos, garantías y Web orders.<br>
+      Opera el POS de su sucursal: ventas, servicios, créditos, abonos, garantías y Web orders.<br>
       <sub>Confirma cada operación sensible con su gafete.</sub>
     </td>
   </tr>
@@ -154,7 +154,7 @@
 flowchart LR
     subgraph contado["CONTADO"]
         direction TB
-        c1("Artículo y cliente<br/>código de barras o selección") --> c2("Cobro en efectivo<br/>cálculo de cambio")
+        c1("Artículos y servicios<br/>código de barras o selección") --> c2("Cobro en efectivo<br/>cálculo de cambio")
         c2 --> c3("Gafete QR<br/>autoriza el cajero")
         c3 --> c4("Venta registrada<br/>inventario y garantía")
         c4 --> c5("Ticket PDF<br/>envío por correo")
@@ -210,10 +210,10 @@ flowchart LR
 
 ```bash
 cd C:/xampp/htdocs
-git clone https://github.com/k-rozzu/PROYECTO_INTEGRADOR_KARMA.git
+git clone https://github.com/k-rozzu/PROYECTO_INTEGRADOR_KARMA.git KARMA
 ```
 
-> Conserva el nombre de la carpeta `PROYECTO_INTEGRADOR_KARMA`: el inicio administrativo enlaza al POS con esa ruta. Dompdf ya viene incluido en `PHP/PuntoDeVenta/vendor/`.
+> Clona el proyecto en la carpeta `KARMA`: la pantalla de acceso llama a `/KARMA/PHP/Login/login.php`. Dompdf ya viene incluido en `PHP/PuntoDeVenta/vendor/`.
 
 Para el envío de tickets por correo, la traducción ES / EN o el servidor Node, crea un archivo `.env` en la raíz. Git lo ignora y `.htaccess` bloquea su acceso desde el navegador.
 
@@ -241,33 +241,23 @@ GOOGLE_TRANSLATE_API_KEY=
 Inicia MySQL en el panel de XAMPP y abre el cliente desde la carpeta `Database`:
 
 ```bash
-cd C:/xampp/htdocs/PROYECTO_INTEGRADOR_KARMA/Database
+cd C:/xampp/htdocs/KARMA/Database
 C:/xampp/mysql/bin/mysql -u root --default-character-set=utf8mb4
 ```
 
-Importa los scripts en este orden (también puedes hacerlo desde phpMyAdmin):
+Crea la base e importa el volcado completo (también puedes hacerlo desde phpMyAdmin):
 
 ```sql
-SOURCE pos_multisede.sql;
+CREATE DATABASE IF NOT EXISTS pos_multisede CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE pos_multisede;
-SOURCE cajero_extensiones.sql;
-SOURCE adicionales_tickets.sql;
-SOURCE datos_prueba_cajero.sql;
-SOURCE ajustes.sql;
-SOURCE catalogo_estructura.sql;
-SOURCE catalogo_productos.sql;
-SOURCE catalogo_datos_demo.sql;
-SOURCE catalogo_ajustes_servicios.sql;
-SOURCE autorizacion_empleado.sql;
-SOURCE contrato_credito.sql;
-SOURCE garantias.sql;
-SOURCE creditos_abonos.sql;
+SOURCE pos_multisede.sql;
 ```
 
+> - `pos_multisede.sql` trae la estructura, los triggers, el evento de garantías y los datos de demostración. Los demás scripts de `Database/` actualizan bases creadas antes de este volcado.
 > - El PHP se conecta a `pos_multisede` en `127.0.0.1` con el usuario `root` sin contraseña, los valores por defecto de XAMPP. Puedes cambiarlos con las variables de entorno `KARMA_DB_HOST`, `KARMA_DB_NAME`, `KARMA_DB_USER` y `KARMA_DB_PASS`.
-> - Las garantías caducan con un evento de MySQL. Para que siga activo al reiniciar, agrega `event_scheduler=ON` en la sección `[mysqld]` de `my.ini`.
-> - Los cajeros de prueba los crea `catalogo_datos_demo.sql`; sus datos de acceso están en los comentarios del script.
-> - **Pendiente:** la columna `usuarios.codigo_empleado` y el trigger `auto_codigo_empleado`, que usa la autorización con gafete, todavía no están en los scripts de `Database/`.
+> - Para que el evento de garantías siga activo al reiniciar, agrega `event_scheduler=ON` en la sección `[mysqld]` de `my.ini`.
+> - Las cuentas de demostración vienen en el volcado; las contraseñas de los cajeros de prueba están en los comentarios de `catalogo_datos_demo.sql`.
+> - **Pendiente:** el volcado no incluye la columna `usuarios.codigo_empleado` ni el trigger `auto_codigo_empleado`, que usa la autorización con gafete.
 
 ### Ejecución
 
@@ -275,11 +265,11 @@ Inicia **Apache** y **MySQL** en el panel de XAMPP.
 
 | Acceso | Dirección |
 | :--- | :--- |
-| Inicio de sesión | `http://localhost/PROYECTO_INTEGRADOR_KARMA/` |
-| Catálogo web | `http://localhost/PROYECTO_INTEGRADOR_KARMA/PHP/Catalogo/index.php` |
-| Punto de Venta · rol Cajero | `http://localhost/PROYECTO_INTEGRADOR_KARMA/PHP/PuntoDeVenta/index.php` |
+| Inicio de sesión | `http://localhost/KARMA/` |
+| Catálogo web | `http://localhost/KARMA/PHP/Catalogo/index.php` |
+| Punto de Venta | `http://localhost/KARMA/PHP/PuntoDeVenta/index.php` |
 
-Servidor Node opcional: sirve los archivos estáticos y `/api/login` en `http://localhost:3000`. El POS y el catálogo necesitan Apache porque están hechos en PHP.
+El servidor Node es opcional: expone `/api/login` y sirve los archivos estáticos en `http://localhost:3000`. La pantalla de acceso usa la versión PHP, así que el POS y el catálogo necesitan Apache.
 
 ```bash
 npm install
