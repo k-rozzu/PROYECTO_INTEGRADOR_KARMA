@@ -228,7 +228,6 @@
     }
   }
 
-  // Traduce un texto suelto desde JavaScript (útil para alert, mensajes, etc.)
   async function traducir(texto) {
     const limpio = String(texto ?? "");
     const { ini, nucleo, fin } = partir(limpio);
@@ -243,7 +242,6 @@
     }
   }
 
-  // Cambia el idioma de toda la página ("es" regresa al original, "en" traduce)
   function setIdioma(idioma) {
     idioma = String(idioma || IDIOMA_BASE).toLowerCase();
     idiomaActual = idioma;
@@ -262,22 +260,19 @@
     document.dispatchEvent(new CustomEvent("karma:idioma", { detail: { idioma } }));
   }
 
-  // Alterna entre el idioma base y el inglés
   function alternar() {
     setIdioma(idiomaActual === IDIOMA_BASE ? "en" : IDIOMA_BASE);
   }
 
-  // Funciones públicas que pueden usar otras páginas: KarmaTraductor.setIdioma("en"), .traducir("Hola")…
   window.KarmaTraductor = Object.freeze({
     setIdioma,
     alternar,
-    traducir,
+    traducir, 
     getIdioma: () => idiomaActual,
     idiomaBase: IDIOMA_BASE,
     reescanear: () => { if (idiomaActual !== IDIOMA_BASE) aplicarTodo(); }
   });
 
-  // Al cargar la página se aplica el idioma que el usuario eligió la última vez
   function iniciar() {
     if (idiomaActual !== IDIOMA_BASE) setIdioma(idiomaActual);
   }

@@ -1,178 +1,296 @@
-# Karma
-
-**Sistema web de punto de venta e inventario multi-sede para una concesionaria de vehículos.**
-
-## 📋 Descripción
-
-**Karma** es una aplicación web de punto de venta e inventario **multi-sede**, desarrollada para la gestión centralizada de una concesionaria de vehículos.
-
-El sistema busca integrar en una misma plataforma la administración de **sucursales, vehículos, inventario, clientes, ventas, pagos y usuarios**, facilitando la organización y gestión de la información de las diferentes sucursales.
-
-La aplicación contempla diferentes roles de usuario y mecanismos de control de acceso, de acuerdo con las responsabilidades establecidas para cada integrante dentro de la organización.
-
-Entre las funcionalidades desarrolladas se encuentran el **inicio de sesión, control de acceso, dashboard administrativo, interfaz de punto de venta para cajeros, consulta de inventario, gestión de clientes y créditos, procesamiento de ventas y pagos, gestión de garantías y seguimiento de órdenes realizadas mediante la plataforma web**.
-
----
-## 🎯 Objetivo general
-
-Desarrollar una aplicación web de punto de venta e inventario multi-sede para una concesionaria de vehículos, que permita:
-
-* Administrar de manera centralizada las diferentes sucursales de la empresa.
-* Controlar el inventario de vehículos y refacciones disponible en cada sucursal.
-* Registrar y gestionar las ventas realizadas.
-* Gestionar información de clientes y operaciones a crédito.
-* Facilitar el registro y seguimiento de pagos.
-* Gestionar garantías relacionadas con vehículos y refacciones.
-* Establecer diferentes niveles de acceso de acuerdo con el rol de cada usuario.
-* Centralizar la información necesaria para la operación de las sucursales.
-
----
-## ⚙️ Funcionalidades principales
-
-### 🔐 Inicio de sesión
-
-El sistema cuenta con una funcionalidad de inicio de sesión que permite al usuario ingresar mediante su correo electrónico y contraseña.
-
-La autenticación se realiza mediante una solicitud al servidor utilizando una API desarrollada con **Node.js**, donde se procesan las credenciales proporcionadas y se determina si el usuario puede acceder al sistema.
-
-<img width="1300" height="400" alt="Karma_login" src="https://github.com/user-attachments/assets/f8d615cd-8146-4c2c-8ee5-19444c7f058f" />
-
-### 📊 Administración
-
-El sistema cuenta con un **dashboard para el administrador general**, integrado con la estructura general del punto de venta.
-
-El acceso a esta sección se encuentra restringido de acuerdo con el rol del usuario, permitiendo que únicamente los usuarios con los permisos correspondientes puedan acceder a las funcionalidades administrativas.
-
-<img width="1300" height="400" alt="Karma_dashboard" src="https://github.com/user-attachments/assets/c3373974-b042-4ba6-8075-65e601d52178" />
-
-
-### 🛒 Punto de venta
-
-La interfaz del punto de venta está orientada principalmente a los cajeros y permite:
-
-* Consultar el inventario disponible.
-* Consultar información de clientes.
-* Consultar clientes con crédito activo.
-* Consultar garantías vigentes.
-* Registrar información relacionada con garantías.
-* Dar seguimiento a órdenes realizadas mediante la plataforma web.
-* Procesar el cobro de vehículos y refacciones.
-* Combinar diferentes métodos de pago en una misma operación.
-* Registrar ventas a crédito.
-
-La interfaz también incorpora elementos de apoyo para la operación, como la identificación del cajero y sucursal, estado de caja, hora local, barra de búsqueda y modo oscuro.
-
-<img width="1300" height="400" alt="Karma_modulo_cajero" src="https://github.com/user-attachments/assets/f0fd3323-7cf1-4ecb-9cd8-fc79b39fda04" />
-
-
-### 💳 Pagos
-
-El proyecto contempla la integración de pagos mediante **PayPal**, utilizando módulos desarrollados en **PHP** para establecer la comunicación correspondiente con el servicio.
-
-Esta integración permite incorporar el procesamiento de pagos electrónicos dentro del flujo del punto de venta.
-
-### 🌐 Catálogo web
-
-Sitio para clientes (`PHP/Catalogo/index.php`) integrado con el punto de venta y la misma base de datos:
-
-* Vehículos Audi, Porsche y Ducati, refacciones y accesorios con existencias reales de cada sucursal (Manzanillo y Colima tienen inventario independiente).
-* Carrito con dos modalidades: envío con pago con tarjeta (simulado) o recoger en sucursal pagando en efectivo; estos pedidos llegan a **Web orders** del cajero para cobrarse.
-* Ver modelos, simular créditos, agendar citas (visita u orden de servicio de taller) y apartar vehículos; configurador, vista 3D y perfil del cliente.
-* Servicios de la agencia: seguros (cobertura amplia, vida y desempleo, llantas y rines), comisión por apertura, gestoría de placas, ISAN, tenencia, verificación (holograma 00), mantenimiento prepagado, garantía extendida, accesorios e instalación, polarizado y orden de servicio de taller.
-* Botón **Punto de Venta** que lleva al login existente (solo entran cajeros) y botón **Catálogo** en el punto de venta.
-
-La documentación completa del módulo está en [`docs/CATALOGO.md`](docs/CATALOGO.md).
-
-## 🗄️ Base de datos
-
-Karma utiliza **MySQL** como sistema gestor de bases de datos para almacenar, organizar y consultar la información necesaria para el funcionamiento del sistema.
-
-La estructura de la base de datos contempla información relacionada con:
-
-* Usuarios y roles.
-* Sucursales.
-* Vehículos.
-* Inventario.
-* Clientes.
-* Ventas.
-* Pagos.
-* Créditos.
-* Garantías.
-* Órdenes.
-
-Las tablas y relaciones se establecen de acuerdo con los requerimientos y funcionalidades contempladas para el sistema.
-
----
-## 🛠️ Tecnologías y herramientas utilizadas
-
-### Node.js
-
-**Node.js** se utiliza para desarrollar la lógica del servidor relacionada con el inicio de sesión. La aplicación recibe las solicitudes de autenticación mediante una API y procesa las credenciales proporcionadas por el usuario.
-
-### PHP
-
-**PHP** se utiliza actualmente para implementar los módulos relacionados con la integración de pagos mediante **PayPal**, permitiendo establecer la comunicación necesaria con el servicio de pagos.
-
-### MySQL
-
-**MySQL** se utiliza como sistema gestor de bases de datos para almacenar, organizar y consultar la información del sistema.
-
-### HTML, CSS y JavaScript
-
-Estas tecnologías se utilizan para desarrollar la interfaz y las funcionalidades del lado del cliente:
-
-* **HTML:** estructura el contenido de las páginas.
-* **CSS:** define el diseño y la presentación visual.
-* **JavaScript:** implementa funcionalidades de interacción y comunicación con los servicios del sistema, incluyendo las solicitudes realizadas a la API de autenticación.
-
-### XAMPP
-
-**XAMPP** se utiliza como entorno de desarrollo local para ejecutar y probar diferentes componentes del proyecto, principalmente aquellos relacionados con PHP y MySQL.
-
-### GitHub
-
-**GitHub** se utiliza para almacenar y administrar el código fuente del proyecto, además de facilitar el trabajo colaborativo y el control de versiones entre los integrantes del equipo.
-
-### Figma
-
-**Figma** se utiliza para el diseño y prototipado de la interfaz de usuario. Permite elaborar mockups, diseñar las diferentes vistas del sistema y visualizar los flujos de interacción antes de implementar las interfaces.
-
----
-## 📊 Gestión del proyecto
-
-### Jira
-
-Para la gestión y organización del proyecto se utiliza **Jira**, siguiendo la metodología **Scrum**.
-
-Jira permite organizar las actividades del equipo mediante:
-
-* Creación y asignación de tareas.
-* Establecimiento de fechas límite.
-* Organización del trabajo mediante **Sprints**.
-* Seguimiento del progreso.
-* Visualización de las tareas mediante tableros y vistas de Sprint.
-
-El uso de Scrum y Jira permite distribuir las actividades entre los integrantes del equipo y realizar un seguimiento del desarrollo durante las diferentes etapas del proyecto.
-
----
-## 📚 Documentación
-
-La documentación del proyecto incluye información relacionada con:
-
-* Anteproyecto.
-* Requerimientos del sistema.
-* Diseño y estructura de la base de datos.
-* Diseño de interfaces.
-* Avances del desarrollo.
-* Implementación de funcionalidades.
-* Gestión y seguimiento del proyecto.
-* Módulo Catálogo web: [`docs/CATALOGO.md`](docs/CATALOGO.md).
-
----
-## 👥 Integrantes del equipo
-
-* **Ibarra Heredia Alan Alejandro**
-* **Martinez Zuñiga Carolina**
-* **Nava Montiel Miranda Lizet**
-* **Vázquez Atanacio Diego Alejandro**
-* **Nava Montiel Dana Paola**
+<div align="center">
+
+<br>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/logo-karma.png">
+  <source media="(prefers-color-scheme: light)" srcset="assets/logo-karma-vector.svg">
+  <img alt="Emblema de KARMA" src="assets/logo-karma-vector.svg" width="92">
+</picture>
+
+<h1>KARMA — Point of Sale &amp; Luxury Automotive Management</h1>
+
+<p><em>Precision Engineering for High-End Mobility: Audi • Porsche • Ducati</em></p>
+
+<p>
+  <img alt="POS multi-sucursal" src="https://img.shields.io/badge/POS%20MULTI--SUCURSAL-9E1B2E?style=for-the-badge">
+  <img alt="PHP, SQL y JavaScript" src="https://img.shields.io/badge/PHP%20%C2%B7%20SQL%20%C2%B7%20JAVASCRIPT-10213F?style=for-the-badge">
+  <img alt="Español e inglés" src="https://img.shields.io/badge/ES%20%2F%20EN-17181B?style=for-the-badge">
+</p>
+
+<sub>PROYECTO INTEGRADOR EN DESARROLLO · ENTORNO LOCAL XAMPP · SUCURSALES MANZANILLO Y COLIMA</sub>
+
+<br>
+
+<sub>
+  <a href="#tecnologias">TECNOLOGÍAS</a> &nbsp;·&nbsp;
+  <a href="#modulos">MÓDULOS</a> &nbsp;·&nbsp;
+  <a href="#roles">ROLES</a> &nbsp;·&nbsp;
+  <a href="#flujo">FLUJO</a> &nbsp;·&nbsp;
+  <a href="#interfaz">INTERFAZ</a> &nbsp;·&nbsp;
+  <a href="#instalacion">INSTALACIÓN</a>
+</sub>
+
+</div>
+
+<br>
+
+<a name="tecnologias"></a>
+<p align="center"><img alt="Tecnologías" src="https://img.shields.io/badge/%E2%80%8B-TECNOLOG%C3%8DAS-10213F?style=for-the-badge&labelColor=9E1B2E"></p>
+<h2 align="center">Ingeniería del sistema</h2>
+
+<div align="center">
+
+<table>
+  <tr>
+    <td align="center"><img alt="PHP 8" src="https://img.shields.io/badge/PHP%208-17181B?style=for-the-badge&logo=php&logoColor=F1F1EF"><br><sub>POS, catálogo y API</sub></td>
+    <td align="center"><img alt="JavaScript" src="https://img.shields.io/badge/JAVASCRIPT-17181B?style=for-the-badge&logo=javascript&logoColor=F1F1EF"><br><sub>Lógica de caja</sub></td>
+    <td align="center"><img alt="HTML5" src="https://img.shields.io/badge/HTML5-17181B?style=for-the-badge&logo=html5&logoColor=F1F1EF"><br><sub>Estructura</sub></td>
+    <td align="center"><img alt="CSS3" src="https://img.shields.io/badge/CSS3-17181B?style=for-the-badge&logo=css&logoColor=F1F1EF"><br><sub>Modo claro y oscuro</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img alt="MariaDB y SQL" src="https://img.shields.io/badge/MARIADB%20%C2%B7%20SQL-17181B?style=for-the-badge&logo=mariadb&logoColor=F1F1EF"><br><sub>Triggers y eventos</sub></td>
+    <td align="center"><img alt="Node.js" src="https://img.shields.io/badge/NODE.JS-17181B?style=for-the-badge&logo=nodedotjs&logoColor=F1F1EF"><br><sub>API de login · Express</sub></td>
+    <td align="center"><img alt="REST API" src="https://img.shields.io/badge/REST%20API-17181B?style=for-the-badge"><br><sub>Endpoints del POS</sub></td>
+    <td align="center"><img alt="JSON" src="https://img.shields.io/badge/JSON-17181B?style=for-the-badge&logo=json&logoColor=F1F1EF"><br><sub>Intercambio de datos</sub></td>
+  </tr>
+</table>
+
+<sub>INTEGRACIONES</sub><br>
+<img alt="Dompdf: tickets y contratos en PDF" src="https://img.shields.io/badge/Dompdf-tickets%20y%20contratos%20PDF-17181B?style=flat-square&labelColor=10213F">
+<img alt="three.js: vista 3D" src="https://img.shields.io/badge/three.js-vista%203D-17181B?style=flat-square&labelColor=10213F&logo=threedotjs&logoColor=F1F1EF">
+<img alt="jsQR: lectura del gafete" src="https://img.shields.io/badge/jsQR-gafete%20QR-17181B?style=flat-square&labelColor=10213F">
+<img alt="Chart.js: panel administrativo" src="https://img.shields.io/badge/Chart.js-panel-17181B?style=flat-square&labelColor=10213F&logo=chartdotjs&logoColor=F1F1EF">
+<img alt="Brevo: ticket por correo" src="https://img.shields.io/badge/Brevo-ticket%20por%20correo-17181B?style=flat-square&labelColor=10213F&logo=brevo&logoColor=F1F1EF">
+<img alt="DeepL o Google: traducción" src="https://img.shields.io/badge/DeepL%20%2F%20Google-traducci%C3%B3n-17181B?style=flat-square&labelColor=10213F&logo=deepl&logoColor=F1F1EF">
+
+</div>
+
+<br>
+
+<a name="modulos"></a>
+<p align="center"><img alt="Módulos del POS" src="https://img.shields.io/badge/%E2%80%8B-M%C3%93DULOS%20DEL%20POS-10213F?style=for-the-badge&labelColor=9E1B2E"></p>
+<h2 align="center">Una caja para toda la agencia</h2>
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img alt="Vista Venta" src="https://img.shields.io/badge/VISTA-VENTA-17181B?style=flat-square&labelColor=9E1B2E">
+      <h3>Venta de vehículos</h3>
+      Audi, Porsche y Ducati con VIN validado y vista 3D del modelo.<br>
+      <sub>Contado en efectivo o crédito con enganche, contrato firmado y abonos en caja.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img alt="Vista Inventario" src="https://img.shields.io/badge/VISTA-INVENTARIO-17181B?style=flat-square&labelColor=9E1B2E">
+      <h3>Refacciones</h3>
+      Venta por código de barras o selección manual.<br>
+      <sub>Existencias independientes por sucursal; también a la venta en la tienda en línea.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img alt="Vista Garantías" src="https://img.shields.io/badge/VISTA-GARANT%C3%8DAS-17181B?style=flat-square&labelColor=9E1B2E">
+      <h3>Servicios y garantías</h3>
+      Garantía de 4 años registrada con cada vehículo vendido; vence a la hora exacta.<br>
+      <sub>El cajero envía solicitudes que resuelve un gerente. Seguros, taller y trámites se agendan como cita desde el catálogo.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img alt="Vista Web orders" src="https://img.shields.io/badge/VISTA-WEB%20ORDERS-17181B?style=flat-square&labelColor=9E1B2E">
+      <h3>Catálogo web</h3>
+      Sitio para clientes con carrito, apartados, citas y simulador de crédito.<br>
+      <sub>Cada pedido llega a Web orders para cobrarse o cancelarse en caja.</sub>
+    </td>
+  </tr>
+</table>
+
+<br>
+
+<a name="roles"></a>
+<p align="center"><img alt="Roles y accesos" src="https://img.shields.io/badge/%E2%80%8B-ROLES%20Y%20ACCESOS-10213F?style=for-the-badge&labelColor=9E1B2E"></p>
+<h2 align="center">Cada perfil, su alcance</h2>
+
+<table>
+  <tr>
+    <td width="33%" valign="top">
+      <h3>Administrador general</h3>
+      Inicio administrativo y panel de gestión: sucursales, personal, inventario y pedidos.<br>
+      <sub>El panel aún usa datos de demostración.</sub>
+    </td>
+    <td width="33%" valign="top">
+      <h3>Gerente de sucursal</h3>
+      Comparte el inicio administrativo y resuelve, junto con el administrador, las solicitudes de garantía.<br>
+      <sub>Regla en la base de datos; pantalla de aprobación pendiente.</sub>
+    </td>
+    <td width="33%" valign="top">
+      <h3>Cajero / Asesor</h3>
+      Único rol con acceso al POS de su sucursal: ventas, créditos, abonos, garantías y Web orders.<br>
+      <sub>Confirma cada operación sensible con su gafete.</sub>
+    </td>
+  </tr>
+</table>
+
+<div align="center">
+
+<table>
+  <tr>
+    <td align="center"><b>bcrypt</b><br><sub>contraseñas</sub></td>
+    <td align="center"><b>Gafete QR</b><br><sub>o código EMP</sub></td>
+    <td align="center"><b>60 s</b><br><sub>permiso de un solo uso</sub></td>
+    <td align="center"><b>CSRF</b><br><sub>en cada petición</sub></td>
+    <td align="center"><b>Bitácora</b><br><sub>de autorizaciones</sub></td>
+  </tr>
+</table>
+
+</div>
+
+<br>
+
+<a name="flujo"></a>
+<p align="center"><img alt="Flujo operativo" src="https://img.shields.io/badge/%E2%80%8B-FLUJO%20OPERATIVO-10213F?style=for-the-badge&labelColor=9E1B2E"></p>
+<h2 align="center">Contado y crédito, frente a frente</h2>
+
+```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontSize": "14px", "primaryColor": "#17181B", "primaryTextColor": "#F1F1EF", "primaryBorderColor": "#2B2C2F", "lineColor": "#9A9B99", "clusterBkg": "#101012", "clusterBorder": "#2B2C2F", "titleColor": "#F1F1EF"}, "flowchart": {"rankSpacing": 32, "nodeSpacing": 48}}}%%
+flowchart LR
+    subgraph contado["CONTADO"]
+        direction TB
+        c1("Artículo y cliente<br/>código de barras o selección") --> c2("Cobro en efectivo<br/>cálculo de cambio")
+        c2 --> c3("Gafete QR<br/>autoriza el cajero")
+        c3 --> c4("Venta registrada<br/>inventario y garantía")
+        c4 --> c5("Ticket PDF<br/>envío por correo")
+    end
+    subgraph credito["CRÉDITO"]
+        direction TB
+        k1("Vehículo y plazo<br/>el ticket cobra el enganche") --> k2("Cobro del enganche<br/>en efectivo")
+        k2 --> k3("Gafete QR<br/>autoriza el cajero")
+        k3 --> k4("Contrato y firma<br/>amortización en PDF")
+        k4 --> k5("Abonos en caja<br/>hasta liquidar")
+    end
+    contado ~~~ credito
+    classDef inicio fill:#10213F,stroke:#10213F,color:#F1F1EF
+    classDef cierre fill:#9E1B2E,stroke:#9E1B2E,color:#F1F1EF
+    class c1,k1 inicio
+    class c5,k5 cierre
+```
+
+<br>
+
+<a name="interfaz"></a>
+<p align="center"><img alt="Interfaz" src="https://img.shields.io/badge/%E2%80%8B-INTERFAZ-10213F?style=for-the-badge&labelColor=9E1B2E"></p>
+<h2 align="center">Vistas del sistema</h2>
+
+<p align="center">
+  <img alt="Punto de Venta de KARMA: formulario Registrar venta con las pestañas Vehículo, Crédito y Refacción, y el ticket con el total con IVA" src="assets/readme/pos-principal.png" width="100%">
+  <br>
+  <sub><b>PUNTO DE VENTA</b> · registro de venta y ticket</sub>
+</p>
+
+<p align="center">
+  <img alt="Catálogo web de KARMA: sección Elegidos para ti con tarjetas de vehículos Audi, precio, disponibilidad por sucursal y botones Ver modelo, Agendar cita y Apartar" src="assets/readme/catalogo-vehiculos.png" width="49%">
+  <img alt="Inicio administrativo de KARMA: sección Los más vendidos con tarjetas de Porsche y acceso a Iniciar venta y Gestionar sucursal" src="assets/readme/inicio-administrador.jpg" width="49%">
+  <br>
+  <sub><b>CATÁLOGO DE VEHÍCULOS</b> · sitio para clientes &nbsp;&nbsp;|&nbsp;&nbsp; <b>INICIO ADMINISTRATIVO</b> · más vendidos y catálogo completo</sub>
+</p>
+
+<br>
+
+<a name="instalacion"></a>
+<p align="center"><img alt="Instalación y configuración" src="https://img.shields.io/badge/%E2%80%8B-INSTALACI%C3%93N%20Y%20CONFIGURACI%C3%93N-10213F?style=for-the-badge&labelColor=9E1B2E"></p>
+<h2 align="center">Puesta en marcha local</h2>
+
+### Requisitos previos
+
+| Herramienta | Versión | Uso |
+| :--- | :--- | :--- |
+| **XAMPP** | PHP 8 · MariaDB 10.4 | Apache, PHP y base de datos. Los scripts usan sintaxis de MariaDB. |
+| **Git** | — | Clonar el repositorio |
+| **Node.js** | Opcional | API de login con Express en el puerto 3000 |
+
+### Preparación
+
+```bash
+cd C:/xampp/htdocs
+git clone https://github.com/k-rozzu/PROYECTO_INTEGRADOR_KARMA.git
+```
+
+> Conserva el nombre de la carpeta `PROYECTO_INTEGRADOR_KARMA`: el inicio administrativo enlaza al POS con esa ruta. Dompdf ya viene incluido en `PHP/PuntoDeVenta/vendor/`.
+
+Para el envío de tickets por correo, la traducción ES / EN o el servidor Node, crea un archivo `.env` en la raíz. Git lo ignora y `.htaccess` bloquea su acceso desde el navegador.
+
+```dotenv
+# Base de datos (servidor Node)
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=
+DB_NAME=pos_multisede
+
+# Ticket PDF por correo (Brevo)
+BREVO_API_KEY=
+BREVO_REMITENTE_EMAIL=
+BREVO_REMITENTE_NOMBRE=
+
+# Traducción ES / EN: deepl o google
+TRADUCTOR_PROVEEDOR=deepl
+DEEPL_API_KEY=
+GOOGLE_TRANSLATE_API_KEY=
+```
+
+### Base de datos
+
+Inicia MySQL en el panel de XAMPP y abre el cliente desde la carpeta `Database`:
+
+```bash
+cd C:/xampp/htdocs/PROYECTO_INTEGRADOR_KARMA/Database
+C:/xampp/mysql/bin/mysql -u root --default-character-set=utf8mb4
+```
+
+Importa los scripts en este orden (también puedes hacerlo desde phpMyAdmin):
+
+```sql
+SOURCE pos_multisede.sql;
+USE pos_multisede;
+SOURCE cajero_extensiones.sql;
+SOURCE adicionales_tickets.sql;
+SOURCE datos_prueba_cajero.sql;
+SOURCE ajustes.sql;
+SOURCE catalogo_estructura.sql;
+SOURCE catalogo_productos.sql;
+SOURCE catalogo_datos_demo.sql;
+SOURCE catalogo_ajustes_servicios.sql;
+SOURCE autorizacion_empleado.sql;
+SOURCE contrato_credito.sql;
+SOURCE garantias.sql;
+SOURCE creditos_abonos.sql;
+```
+
+> - El PHP se conecta a `pos_multisede` en `127.0.0.1` con el usuario `root` sin contraseña, los valores por defecto de XAMPP. Puedes cambiarlos con las variables de entorno `KARMA_DB_HOST`, `KARMA_DB_NAME`, `KARMA_DB_USER` y `KARMA_DB_PASS`.
+> - Las garantías caducan con un evento de MySQL. Para que siga activo al reiniciar, agrega `event_scheduler=ON` en la sección `[mysqld]` de `my.ini`.
+> - Los cajeros de prueba los crea `catalogo_datos_demo.sql`; sus datos de acceso están en los comentarios del script.
+> - **Pendiente:** la columna `usuarios.codigo_empleado` y el trigger `auto_codigo_empleado`, que usa la autorización con gafete, todavía no están en los scripts de `Database/`.
+
+### Ejecución
+
+Inicia **Apache** y **MySQL** en el panel de XAMPP.
+
+| Acceso | Dirección |
+| :--- | :--- |
+| Inicio de sesión | `http://localhost/PROYECTO_INTEGRADOR_KARMA/` |
+| Catálogo web | `http://localhost/PROYECTO_INTEGRADOR_KARMA/PHP/Catalogo/index.php` |
+| Punto de Venta · rol Cajero | `http://localhost/PROYECTO_INTEGRADOR_KARMA/PHP/PuntoDeVenta/index.php` |
+
+Servidor Node opcional: sirve los archivos estáticos y `/api/login` en `http://localhost:3000`. El POS y el catálogo necesitan Apache porque están hechos en PHP.
+
+```bash
+npm install
+node backend/server.js
+```
+
+<br>
+
+<div align="center">
+
+<sub>EQUIPO KARMA</sub><br>
+<sub>Ibarra Heredia Alan Alejandro · Martinez Zuñiga Carolina · Nava Montiel Miranda Lizet · Vázquez Atanacio Diego Alejandro · Nava Montiel Dana Paola</sub>
+
+</div>
