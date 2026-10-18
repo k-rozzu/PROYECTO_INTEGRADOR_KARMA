@@ -1,0 +1,253 @@
+{
+ "fotografias": [
+  {
+   "archivo": "assets/Catalogo/accesorios/maletas-laterales-ducati.webp",
+   "titulo": "Panniers 5467.jpg",
+   "autor": "Ashley Pomeroy",
+   "licencia": "CC BY-SA 4.0",
+   "licencia_url": "https://creativecommons.org/licenses/by-sa/4.0",
+   "fuente": "https://commons.wikimedia.org/wiki/File:Panniers_5467.jpg"
+  },
+  {
+   "archivo": "assets/Catalogo/banners/concesionario.webp",
+   "titulo": "Car Showroom - geograph.org.uk - 8092984.jpg",
+   "autor": "Peter McDermott",
+   "licencia": "CC BY-SA 2.0",
+   "licencia_url": "https://creativecommons.org/licenses/by-sa/2.0",
+   "fuente": "https://commons.wikimedia.org/wiki/File:Car_Showroom_-_geograph.org.uk_-_8092984.jpg"
+  },
+  {
+   "archivo": "assets/Catalogo/banners/financiamiento.webp",
+   "titulo": "Nevada Mountain Highway PLC-HW-9.jpg",
+   "autor": "Shadowmeld Photography",
+   "licencia": "CC BY-SA 4.0",
+   "licencia_url": "https://creativecommons.org/licenses/by-sa/4.0",
+   "fuente": "https://commons.wikimedia.org/wiki/File:Nevada_Mountain_Highway_PLC-HW-9.jpg"
+  },
+  {
+   "archivo": "assets/Catalogo/banners/hero-audi.webp",
+   "titulo": "Audi RS e-tron GT IMG 0703.jpg",
+   "autor": "Alexander-93",
+   "licencia": "CC BY-SA 4.0",
+   "licencia_url": "https://creativecommons.org/licenses/by-sa/4.0",
+   "fuente": "https://commons.wikimedia.org/wiki/File:Audi_RS_e-tron_GT_IMG_0703.jpg"
+  },
+  {
+   "archivo": "assets/Catalogo/banners/hero-ducati.webp",
+   "titulo": "Ducati-Panigale-V4-clarkintlspeedwayph-californiasuperbike-trackday-7285-2025.jpg",
+   "autor": "Monkinvideos",
+   "licencia": "CC BY-SA 4.0",
+   "licencia_url": "https://creativecommons.org/licenses/by-sa/4.0",
+   "fuente": "https://commons.wikimedia.org/wiki/File:Ducati-Panigale-V4-clarkintlspeedwayph-californiasuperbike-trackday-7285-2025.jpg"
+  },
+  {
+   "archivo": "assets/Catalogo/banners/hero-porsche.webp",
+   "titulo": "Porsche 911 GT3 RS - Track Day ASA + GTRO - (12055263064).jpg",
+   "autor": "Nicolas Serre",
+   "licencia": "CC BY 2.0",
+   "licencia_url": "https://creativecommons.org/licenses/by/2.0",
+   "fuente": "https://commons.wikimedia.org/wiki/File:Porsche_911_GT3_RS_-_Track_Day_ASA_%2B_GTRO_-_(12055263064).jpg"
+  },
+  {
+   "archivo": "assets/Catalogo/banners/prueba-manejo.webp",
+   "titulo": "Nevada Highway 50 Sunset.jpg",
+   "autor": "Amine Abassir",
+   "licencia": "CC BY-SA 4.0",
+   "licencia_url": "https://creativecommons.org/licenses/by-sa/4.0",
+   "fuente": "https://commons.wikimedia.org/wiki/File:Nevada_Highway_50_Sunset.jpg"
+  },
+  {
+   "archivo": "assets/Catalogo/banners/servicio.webp",
+   "titulo": "Car Restoration Workshop (Unsplash).jpg",
+   "autor": "Igor Ovsyannykov igorovsyannykov",
+   "licencia": "CC0",
+   "licencia_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+   "fuente": "https://commons.wikimedia.org/wiki/File:Car_Restoration_Workshop_(Unsplash).jpg"
+  },
+  {
+   "archivo": "assets/Catalogo/marcas/audi-interior.webp",
+   "titulo": "Audi A8 L D5 Black Valcona Interior with Piano Black Inlay (23).jpg",
+   "autor": "Damian B Oh",
+   "licencia": "CC BY-SA 4.0",
+   "licencia_url": "https://creativecommons.org/licenses/by-sa/4.0",
+   "fuente": "https://commons.wikimedia.org/wiki/File:Audi_A8_L_D5_Black_Valcona_Interior_with_Piano_Black_Inlay_(23).jpg"
+  },
+  {
+   "archivo": "assets/Catalogo/marcas/ducati-detalle.webp",
+   "titulo": "Ducati 1199 Panigale S Tricolore (5).jpg",
+   "autor": "Cjp24",
+   "licencia": "CC BY-SA 4.0",
+   "licencia_url": "https://creativecommons.org/licenses/by-sa/4.0",
+   "fuente": "https://commons.wikimedia.org/wiki/File:Ducati_1199_Panigale_S_Tricolore_(5).jpg"
+  },
+  {
+   "archivo": "assets/Catalogo/marcas/porsche-interior.webp",
+   "titulo": "Porsche 992 911 Targa 4 GTS 50 Years Porsche Design Edition (17).jpg",
+   "autor": "Damian B Oh",
+   "licencia": "CC BY-SA 4.0",
+   "licencia_url": "https://creativecommons.org/licenses/by-sa/4.0",
+   "fuente": "https://commons.wikimedia.org/wiki/File:Porsche_992_911_Targa_4_GTS_50_Years_Porsche_Design_Edition_(17).jpg"
+  },
+  {
+   "archivo": "assets/Catalogo/servicios/cambio-aceite.webp",
+   "titulo": "Checking the oil level in a car engine.jpg",
+   "autor": "Shixart1985",
+   "licencia": "CC BY 2.0",
+   "licencia_url": "https://creativecommons.org/licenses/by/2.0",
+   "fuente": "https://commons.wikimedia.org/wiki/File:Checking_the_oil_level_in_a_car_engine.jpg"
+  },
+  {
+   "archivo": "assets/Catalogo/servicios/diagnostico.webp",
+   "titulo": "Mechanic works on machine at an automotive service center.jpg",
+   "autor": "Shixart1985",
+   "licencia": "CC BY 2.0",
+   "licencia_url": "https://creativecommons.org/licenses/by/2.0",
+   "fuente": "https://commons.wikimedia.org/wiki/File:Mechanic_works_on_machine_at_an_automotive_service_center.jpg"
+  },
+  {
+   "archivo": "assets/Catalogo/servicios/electrico.webp",
+   "titulo": "Car battery.jpg",
+   "autor": "Azorbli",
+   "licencia": "CC BY-SA 4.0",
+   "licencia_url": "https://creativecommons.org/licenses/by-sa/4.0",
+   "fuente": "https://commons.wikimedia.org/wiki/File:Car_battery.jpg"
+  },
+  {
+   "archivo": "assets/Catalogo/servicios/financiamiento.webp",
+   "titulo": "Car keys with keychain.jpg",
+   "autor": "MediaPhoto.Org",
+   "licencia": "CC BY 3.0",
+   "licencia_url": "https://creativecommons.org/licenses/by/3.0",
+   "fuente": "https://commons.wikimedia.org/wiki/File:Car_keys_with_keychain.jpg"
+  },
+  {
+   "archivo": "assets/Catalogo/servicios/frenos.webp",
+   "titulo": "Alarm bells! (25681917701).jpg",
+   "autor": "Riley from Christchurch, New Zealand",
+   "licencia": "CC BY 2.0",
+   "licencia_url": "https://creativecommons.org/licenses/by/2.0",
+   "fuente": "https://commons.wikimedia.org/wiki/File:Alarm_bells!_(25681917701).jpg"
+  },
+  {
+   "archivo": "assets/Catalogo/servicios/mantenimiento.webp",
+   "titulo": "Car Restoration Workshop (Unsplash).jpg",
+   "autor": "Igor Ovsyannykov igorovsyannykov",
+   "licencia": "CC0",
+   "licencia_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+   "fuente": "https://commons.wikimedia.org/wiki/File:Car_Restoration_Workshop_(Unsplash).jpg"
+  },
+  {
+   "archivo": "assets/Catalogo/servicios/motocicletas.webp",
+   "titulo": "Vintage vehicles and motorcycles workshop in Yass, 2023, 09.jpg",
+   "autor": "Kgbo",
+   "licencia": "CC BY-SA 4.0",
+   "licencia_url": "https://creativecommons.org/licenses/by-sa/4.0",
+   "fuente": "https://commons.wikimedia.org/wiki/File:Vintage_vehicles_and_motorcycles_workshop_in_Yass,_2023,_09.jpg"
+  },
+  {
+   "archivo": "assets/Catalogo/servicios/neumaticos.webp",
+   "titulo": "Tire Changer.jpg",
+   "autor": "Flippin504",
+   "licencia": "CC BY 3.0",
+   "licencia_url": "https://creativecommons.org/licenses/by/3.0",
+   "fuente": "https://commons.wikimedia.org/wiki/File:Tire_Changer.jpg"
+  },
+  {
+   "archivo": "assets/Catalogo/servicios/reparacion.webp",
+   "titulo": "Car mechanic's workbench (Unsplash).jpg",
+   "autor": "AJ Yorio lightninghorse",
+   "licencia": "CC0",
+   "licencia_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+   "fuente": "https://commons.wikimedia.org/wiki/File:Car_mechanic%27s_workbench_(Unsplash).jpg"
+  }
+ ],
+ "renders_propios": [
+  "assets/Catalogo/refacciones/audi/bateria.webp",
+  "assets/Catalogo/refacciones/audi/bomba-agua.webp",
+  "assets/Catalogo/refacciones/audi/bujias.webp",
+  "assets/Catalogo/refacciones/audi/disco-delantero.webp",
+  "assets/Catalogo/refacciones/audi/disco-trasero.webp",
+  "assets/Catalogo/refacciones/audi/filtro-aceite.webp",
+  "assets/Catalogo/refacciones/audi/filtro-aire.webp",
+  "assets/Catalogo/refacciones/audi/kit-distribucion.webp",
+  "assets/Catalogo/refacciones/audi/pastillas-delanteras.webp",
+  "assets/Catalogo/refacciones/audi/pastillas-traseras.webp",
+  "assets/Catalogo/refacciones/porsche/bateria.webp",
+  "assets/Catalogo/refacciones/porsche/bomba-agua.webp",
+  "assets/Catalogo/refacciones/porsche/bujias.webp",
+  "assets/Catalogo/refacciones/porsche/disco-delantero.webp",
+  "assets/Catalogo/refacciones/porsche/disco-trasero.webp",
+  "assets/Catalogo/refacciones/porsche/filtro-aceite.webp",
+  "assets/Catalogo/refacciones/porsche/filtro-aire.webp",
+  "assets/Catalogo/refacciones/porsche/kit-distribucion.webp",
+  "assets/Catalogo/refacciones/porsche/pastillas-delanteras.webp",
+  "assets/Catalogo/refacciones/porsche/pastillas-traseras.webp",
+  "assets/Catalogo/refacciones/ducati/bateria.webp",
+  "assets/Catalogo/refacciones/ducati/cadena-transmision.webp",
+  "assets/Catalogo/refacciones/ducati/disco-delantero.webp",
+  "assets/Catalogo/refacciones/ducati/espejo-retrovisor.webp",
+  "assets/Catalogo/refacciones/ducati/filtro-aceite.webp",
+  "assets/Catalogo/refacciones/ducati/filtro-aire.webp",
+  "assets/Catalogo/refacciones/ducati/kit-bujias.webp",
+  "assets/Catalogo/refacciones/ducati/maneta-freno-embrague.webp",
+  "assets/Catalogo/refacciones/ducati/pastillas-delanteras.webp",
+  "assets/Catalogo/refacciones/ducati/pastillas-traseras.webp"
+ ],
+ "propias": [
+  "assets/Catalogo/accesorios/barras-techo-audi.webp",
+  "assets/Catalogo/accesorios/cargador-portatil-porsche.webp",
+  "assets/Catalogo/accesorios/funda-interior-porsche.webp",
+  "assets/Catalogo/accesorios/funda-moto-ducati.webp",
+  "assets/Catalogo/accesorios/organizador-cajuela-audi.webp",
+  "assets/Catalogo/accesorios/parabrisas-touring-ducati.webp",
+  "assets/Catalogo/accesorios/tapetes-audi.webp",
+  "assets/Catalogo/accesorios/tapetes-premium-porsche.webp",
+  "assets/Catalogo/sucursales/colima.webp",
+  "assets/Catalogo/sucursales/manzanillo.webp",
+  "assets/Catalogo/vehiculos/audi/a3.webp",
+  "assets/Catalogo/vehiculos/audi/a4.webp",
+  "assets/Catalogo/vehiculos/audi/a5.webp",
+  "assets/Catalogo/vehiculos/audi/a6.webp",
+  "assets/Catalogo/vehiculos/audi/a7.webp",
+  "assets/Catalogo/vehiculos/audi/a8.webp",
+  "assets/Catalogo/vehiculos/audi/q3.webp",
+  "assets/Catalogo/vehiculos/audi/q5.webp",
+  "assets/Catalogo/vehiculos/audi/q7.webp",
+  "assets/Catalogo/vehiculos/audi/q8.webp",
+  "assets/Catalogo/vehiculos/audi/r8.webp",
+  "assets/Catalogo/vehiculos/audi/rs3.webp",
+  "assets/Catalogo/vehiculos/audi/rs5.webp",
+  "assets/Catalogo/vehiculos/audi/rs6.webp",
+  "assets/Catalogo/vehiculos/audi/rs7.webp",
+  "assets/Catalogo/vehiculos/ducati/desertx.webp",
+  "assets/Catalogo/vehiculos/ducati/diavel-v4.webp",
+  "assets/Catalogo/vehiculos/ducati/hypermotard.webp",
+  "assets/Catalogo/vehiculos/ducati/monster-sp.webp",
+  "assets/Catalogo/vehiculos/ducati/monster.webp",
+  "assets/Catalogo/vehiculos/ducati/multistrada-v2.webp",
+  "assets/Catalogo/vehiculos/ducati/multistrada-v4.webp",
+  "assets/Catalogo/vehiculos/ducati/panigale-v2.webp",
+  "assets/Catalogo/vehiculos/ducati/panigale-v4-s.webp",
+  "assets/Catalogo/vehiculos/ducati/panigale-v4.webp",
+  "assets/Catalogo/vehiculos/ducati/scrambler-icon.webp",
+  "assets/Catalogo/vehiculos/ducati/scrambler-nightshift.webp",
+  "assets/Catalogo/vehiculos/ducati/streetfighter-v2.webp",
+  "assets/Catalogo/vehiculos/ducati/streetfighter-v4.webp",
+  "assets/Catalogo/vehiculos/ducati/supersport-950.webp",
+  "assets/Catalogo/vehiculos/porsche/718-boxster.webp",
+  "assets/Catalogo/vehiculos/porsche/718-cayman.webp",
+  "assets/Catalogo/vehiculos/porsche/911-carrera-s.webp",
+  "assets/Catalogo/vehiculos/porsche/911-carrera.webp",
+  "assets/Catalogo/vehiculos/porsche/911-gt3-rs.webp",
+  "assets/Catalogo/vehiculos/porsche/911-gt3.webp",
+  "assets/Catalogo/vehiculos/porsche/911-targa.webp",
+  "assets/Catalogo/vehiculos/porsche/911-turbo.webp",
+  "assets/Catalogo/vehiculos/porsche/cayenne-turbo.webp",
+  "assets/Catalogo/vehiculos/porsche/cayenne.webp",
+  "assets/Catalogo/vehiculos/porsche/macan.webp",
+  "assets/Catalogo/vehiculos/porsche/panamera-turbo.webp",
+  "assets/Catalogo/vehiculos/porsche/panamera.webp",
+  "assets/Catalogo/vehiculos/porsche/taycan-turbo.webp",
+  "assets/Catalogo/vehiculos/porsche/taycan.webp"
+ ]
+}

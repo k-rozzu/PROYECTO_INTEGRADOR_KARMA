@@ -1,0 +1,76 @@
+<?php
+declare(strict_types=1);
+
+/* KARMA · Catálogo — íconos SVG de línea (sin librerías externas). Se usan desde PHP con icono('nombre')
+   y desde JavaScript con KARMA.icono('nombre') (layout.php los publica en window.KARMA.iconos). */
+
+const CAT_ICONOS = [
+    'buscar' => '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
+    'carrito' => '<path d="M3 4h2.2l2.1 10.2a2 2 0 0 0 2 1.6h7.6a2 2 0 0 0 2-1.5L20.5 8H6.1"/><circle cx="9.5" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/>',
+    'usuario' => '<circle cx="12" cy="8" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/>',
+    'menu' => '<path d="M4 7h16M4 12h16M4 17h16"/>',
+    'cerrar' => '<path d="M6 6l12 12M18 6L6 18"/>',
+    'flecha' => '<path d="M5 12h14M13 6l6 6-6 6"/>',
+    'flecha-izq' => '<path d="M19 12H5M11 6l-6 6 6 6"/>',
+    'chevron' => '<path d="M6 9l6 6 6-6"/>',
+    'chevron-der' => '<path d="M9 6l6 6-6 6"/>',
+    'chevron-izq' => '<path d="M15 6l-6 6 6 6"/>',
+    'ubicacion' => '<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.5"/>',
+    'telefono' => '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z"/>',
+    'correo' => '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 6.5l8.5 6 8.5-6"/>',
+    'reloj' => '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    'candado' => '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+    'sol' => '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M2.5 12H5M19 12h2.5M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"/>',
+    'luna' => '<path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a6.8 6.8 0 0 0 10.5 10.5Z"/>',
+    'corazon' => '<path d="M12 20s-7.5-4.6-9.2-9.4A4.9 4.9 0 0 1 12 6.6a4.9 4.9 0 0 1 9.2 4c-1.7 4.8-9.2 9.4-9.2 9.4Z"/>',
+    'check' => '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    'check-circulo' => '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.8 2.8L16.5 9.5"/>',
+    'calendario' => '<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+    'volante' => '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.2"/><path d="M3.5 11h6.3M14.2 11h6.3M12 14.2v6.3"/>',
+    'llave' => '<path d="M14.5 6.5a4 4 0 1 0 3 3L21 6l-3-3-3.5 3.5ZM10 10l-7 7v3h3l7-7"/>',
+    'herramienta' => '<path d="M14.7 6.3a4 4 0 0 1-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 1 5.4-5.4l-2.6 2.6-2-2 2.6-2.6Z"/>',
+    'tarjeta' => '<rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 9.5h19M6 15h4"/>',
+    'efectivo' => '<rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.8"/><path d="M6 9.5v.01M18 14.5v.01"/>',
+    'envio' => '<path d="M3 6h11v10H3zM14 9h4l3 3v4h-7"/><circle cx="7" cy="17.5" r="1.7"/><circle cx="17.5" cy="17.5" r="1.7"/>',
+    'tienda' => '<path d="M4 10v10h16V10M3 10l2-6h14l2 6M3 10h18M9 20v-6h6v6"/>',
+    'info' => '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/>',
+    'alerta' => '<path d="M12 3l9.5 17h-19L12 3Z"/><path d="M12 10v4.5M12 17.5v.01"/>',
+    'motor' => '<path d="M4 10h2l2-3h6l1 2h3l2 2v5h-2v2h-4l-2-2H8l-2 2H4v-8Z"/><path d="M2 12v3"/>',
+    'velocimetro' => '<path d="M4.5 18a8.5 8.5 0 1 1 15 0"/><path d="M12 14l4-5"/><circle cx="12" cy="14" r="1.3"/>',
+    'engranaje' => '<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2.5 12h3M18.5 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',
+    'gota' => '<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11Z"/>',
+    'freno' => '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3"/><path d="M5 7.5c1.5-2 3.6-3.3 6-3.8"/>',
+    'rayo' => '<path d="M13 2.5L5 13.5h6l-1 8 8-11h-6l1-8Z"/>',
+    'escudo' => '<path d="M12 3l8 3v6c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V6l8-3Z"/><path d="M8.5 12l2.5 2.5 4.5-4.5"/>',
+    'paraguas' => '<path d="M12 3a9 9 0 0 1 9 9H3a9 9 0 0 1 9-9ZM12 12v6.5a2 2 0 0 1-4 0"/>',
+    'auto' => '<path d="M3 16l1.6-5.4A3 3 0 0 1 7.5 8.5h9a3 3 0 0 1 2.9 2.1L21 16"/><path d="M3 16h18v2.5a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V18H7v.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V16Z"/><circle cx="7.5" cy="16" r="1.3"/><circle cx="16.5" cy="16" r="1.3"/>',
+    'moto' => '<circle cx="5.5" cy="16.5" r="3"/><circle cx="18.5" cy="16.5" r="3"/><path d="M5.5 16.5l3.5-8h5l4.5 8M9 8.5h4.5M14 12h-5"/>',
+    'etiqueta' => '<path d="M3 12V4h8l10 10-8 8L3 12Z"/><circle cx="7.5" cy="8.5" r="1.4"/>',
+    'porcentaje' => '<path d="M19 5L5 19"/><circle cx="7" cy="7" r="2.3"/><circle cx="17" cy="17" r="2.3"/>',
+    'documento' => '<path d="M14 3H6v18h12V7l-4-4Z"/><path d="M14 3v4h4M9 12h6M9 16h6"/>',
+    'filtro' => '<path d="M4 5h16l-6 7.5V19l-4 1.5v-8L4 5Z"/>',
+    'pausa' => '<path d="M9 6v12M15 6v12"/>',
+    'play' => '<path d="M8 5.5v13L18.5 12 8 5.5Z"/>',
+    'mas' => '<path d="M12 5v14M5 12h14"/>',
+    'menos' => '<path d="M5 12h14"/>',
+    'basura' => '<path d="M4 7h16M9 7V4h6v3M6.5 7l1 13h9l1-13"/>',
+    'cubo' => '<path d="M12 2.5l8.5 4.8v9.4L12 21.5l-8.5-4.8V7.3L12 2.5Z"/><path d="M3.5 7.3L12 12l8.5-4.7M12 12v9.5"/>',
+    'campana' => '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2H4.5L6 16Z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>',
+    'salir' => '<path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/>',
+    'historial' => '<path d="M3.5 12a8.5 8.5 0 1 0 2.5-6"/><path d="M3.5 4.5V9H8M12 7.5V12l3 2"/>',
+    'grafica' => '<path d="M4 20V4M4 20h16"/><path d="M8 16l4-5 3 3 5-7"/>',
+    'apreton' => '<path d="M3 11l4-4 4 2 3-2 7 5-3 3-3-2-3 3-3-2-3 3-3-3Z"/>',
+    'mapa' => '<path d="M9 4L3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5L9 4Z"/><path d="M9 4v13.5M15 6.5V20"/>',
+    'mensaje' => '<path d="M4 5h16v11H9l-5 4V5Z"/>',
+    'estrella' => '<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.8 6.8 19.6l1-5.8L3.5 9.7l5.9-.9L12 3.5Z"/>',
+    'regalo' => '<rect x="3.5" y="8.5" width="17" height="4"/><path d="M5 12.5v8h14v-8M12 8.5v12M12 8.5S10.5 4 8 4.5 7.5 8.5 12 8.5Zm0 0s1.5-4.5 4-4 .5 4-4 4Z"/>',
+    'idioma' => '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+    'ojo' => '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/>',
+    'compartir' => '<circle cx="18" cy="5.5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="18.5" r="2.5"/><path d="M8.2 10.8l7.6-4M8.2 13.2l7.6 4"/>',
+];
+
+// Devuelve el SVG del ícono (trazo con currentColor para heredar el color del texto)
+function icono(string $nombre, string $clase = 'icono'): string {
+    $trazos = CAT_ICONOS[$nombre] ?? CAT_ICONOS['info'];
+    return '<svg class="' . $clase . '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . $trazos . '</svg>';
+}
