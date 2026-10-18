@@ -28,7 +28,8 @@
   <a href="#roles">ROLES</a> &nbsp;·&nbsp;
   <a href="#flujo">FLUJO</a> &nbsp;·&nbsp;
   <a href="#interfaz">INTERFAZ</a> &nbsp;·&nbsp;
-  <a href="#instalacion">INSTALACIÓN</a>
+  <a href="#instalacion">INSTALACIÓN</a> &nbsp;·&nbsp;
+  <a href="#equipo">EQUIPO</a>
 </sub>
 
 </div>
@@ -49,7 +50,7 @@
     <td align="center"><img alt="CSS3" src="https://img.shields.io/badge/CSS3-17181B?style=for-the-badge&logo=css&logoColor=F1F1EF"><br><sub>Modo claro y oscuro</sub></td>
   </tr>
   <tr>
-    <td align="center"><img alt="MariaDB y SQL" src="https://img.shields.io/badge/MARIADB%20%C2%B7%20SQL-17181B?style=for-the-badge&logo=mariadb&logoColor=F1F1EF"><br><sub>Triggers y eventos</sub></td>
+    <td align="center"><img alt="SQL" src="https://img.shields.io/badge/SQL-17181B?style=for-the-badge"><br><sub>Triggers y eventos</sub></td>
     <td align="center"><img alt="Node.js" src="https://img.shields.io/badge/NODE.JS-17181B?style=for-the-badge&logo=nodedotjs&logoColor=F1F1EF"><br><sub>API de login · Express</sub></td>
     <td align="center"><img alt="REST API" src="https://img.shields.io/badge/REST%20API-17181B?style=for-the-badge"><br><sub>Endpoints del POS</sub></td>
     <td align="center"><img alt="JSON" src="https://img.shields.io/badge/JSON-17181B?style=for-the-badge&logo=json&logoColor=F1F1EF"><br><sub>Intercambio de datos</sub></td>
@@ -278,9 +279,45 @@ node backend/server.js
 
 <br>
 
-<div align="center">
+<a name="equipo"></a>
+<p align="center"><img alt="Equipo" src="https://img.shields.io/badge/%E2%80%8B-EQUIPO-10213F?style=for-the-badge&labelColor=9E1B2E"></p>
+<h2 align="center">Las personas detrás de KARMA</h2>
 
-<sub>EQUIPO KARMA</sub><br>
-<sub>Ibarra Heredia Alan Alejandro · Martinez Zuñiga Carolina · Nava Montiel Dana Paola · Nava Montiel Miranda Lizet · Vázquez Atanacio Diego Alejandro</sub>
-
-</div>
+<table>
+  <tr>
+    <th align="left">INTEGRANTE</th>
+    <th align="left">ROL PROFESIONAL PRINCIPAL</th>
+    <th align="left">ESPECIALIZACIÓN COMPLEMENTARIA</th>
+    <th align="left">ÁREA DE MAYOR RESPONSABILIDAD</th>
+  </tr>
+  <tr>
+    <td valign="top"><b>Alan Ibarra</b><br><sub>Ibarra Heredia Alan Alejandro</sub></td>
+    <td valign="top">Payments Integration Engineer<br><sub>Ingeniero de Integración de Pagos</sub></td>
+    <td valign="top">Frontend Developer<br><sub>Desarrollador Frontend</sub></td>
+    <td valign="top">Integración de PayPal, funcionalidades de cobro y desarrollo de interfaces.</td>
+  </tr>
+  <tr>
+    <td valign="top"><b>Carolina Zúñiga</b><br><sub>Martinez Zuñiga Carolina</sub></td>
+    <td valign="top">Full-Stack Software Engineer<br><sub>Ingeniera de Software Full-Stack</sub></td>
+    <td valign="top">Database Engineer y Application Security Engineer<br><sub>Ingeniera de Bases de Datos y de Seguridad de Aplicaciones</sub></td>
+    <td valign="top">Punto de Venta, Catálogo web, APIs, integridad de datos y seguridad de aplicaciones.</td>
+  </tr>
+  <tr>
+    <td valign="top"><b>Dana Nava</b><br><sub>Nava Montiel Dana Paola</sub></td>
+    <td valign="top">Full-Stack Developer<br><sub>Desarrolladora Full-Stack</sub></td>
+    <td valign="top">Backend Engineer y Frontend Engineer<br><sub>Ingeniera Backend y Frontend</sub></td>
+    <td valign="top">Autenticación, autorización, lógica de negocio e interfaces del panel de gerencia.</td>
+  </tr>
+  <tr>
+    <td valign="top"><b>Miranda Nava</b><br><sub>Nava Montiel Miranda Lizet</sub></td>
+    <td valign="top">Full-Stack Developer<br><sub>Desarrolladora Full-Stack</sub></td>
+    <td valign="top">Database Developer<br><sub>Desarrolladora de Bases de Datos</sub></td>
+    <td valign="top">Panel de administración, visualización de datos y conexión con la base de datos.</td>
+  </tr>
+  <tr>
+    <td valign="top"><b>Alejandro Vázquez</b><br><sub>Vázquez Atanacio Diego Alejandro</sub></td>
+    <td valign="top">Software Integration Engineer<br><sub>Ingeniero de Integración de Software</sub></td>
+    <td valign="top">Software Architect<br><sub>Arquitecto de Software</sub></td>
+    <td valign="top">Integración de módulos, arquitectura y comunicación entre tecnologías.</td>
+  </tr>
+</table>
