@@ -316,7 +316,7 @@ node backend/server.js
   </tr>
   <tr>
     <td valign="top"><b>Alejandro Vázquez</b><br><sub>Vázquez Atanacio Diego Alejandro</sub></td>
-    <td valign="top">Software Integration Engineer<br><sub>Ingeniero de Integración de Software</sub></td>
+    <td valign="top">Full-Stack Software Engineer<br><sub>Ingeniero de Software Full-Stack</sub></td>
     <td valign="top">Software Architect<br><sub>Arquitecto de Software</sub></td>
     <td valign="top">Integración de módulos, arquitectura y comunicación entre tecnologías.</td>
   </tr>
