@@ -891,3 +891,62 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 @media (prefers-reduced-motion: reduce){
   *{ transition-duration:.001ms !important; animation-duration:.001ms !important; }
 }
+
+/* ==========================================================================
+   FUNCIONES NUEVAS DEL PANEL (KPIs automotrices, cajas, catálogo, ventas,
+   consola rápida e impresión de comprobantes)
+   ========================================================================== */
+.kpi-grid--6{ grid-template-columns:repeat(3, 1fr); }
+
+/* Buscadores de Catálogo, Ventas, Auditoría e Inventario */
+.search-wrap{
+  display:flex; align-items:center; gap:8px;
+  border:1px solid var(--line); border-radius:999px;
+  padding:9px 16px;
+}
+.search-wrap input{ flex:1; border:none; outline:none; background:transparent; font:inherit; font-size:13px; }
+
+/* Selector de estado dentro de una tabla (cajas) */
+.select-table{
+  font:inherit; font-size:12px; font-weight:600;
+  padding:6px 10px; border-radius:999px;
+  border:1px solid rgba(16,33,63,.38);
+  background:var(--surface-2); color:var(--text-main);
+}
+
+/* Teclas de atajo y consola rápida */
+.kbd{
+  display:inline-block; min-width:26px; text-align:center;
+  font-family:'Courier New', monospace; font-size:11.5px; font-weight:700;
+  padding:3px 8px; border-radius:6px;
+  border:1px solid var(--line); border-bottom-width:2px;
+  background:var(--surface-1); color:var(--text-main);
+}
+.consola-lista{ display:flex; flex-direction:column; gap:6px; margin-top:14px; max-height:340px; overflow-y:auto; }
+.consola-item{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:11px 14px; border-radius:var(--radius-sm);
+  border:1px solid var(--line); background:var(--surface-2);
+  color:var(--text-main); font:inherit; font-size:13px; text-align:left; cursor:pointer;
+}
+.consola-item:hover, .consola-item.is-active{ border-color:var(--navy); background:var(--navy-soft); }
+
+/* Líneas de firma del contrato a crédito */
+.firmas{ display:grid; grid-template-columns:1fr 1fr; gap:40px; margin-top:56px; }
+.firmas div{ border-top:1px solid var(--text-main); padding-top:6px; text-align:center; font-size:12px; color:var(--text-muted); }
+
+@media (max-width:1180px){
+  .kpi-grid--6{ grid-template-columns:repeat(2, 1fr); }
+}
+@media (max-width:640px){
+  .kpi-grid--6{ grid-template-columns:1fr; }
+}
+
+/* Al imprimir un comprobante sólo se muestra su contenido */
+@media print{
+  body *{ visibility:hidden; }
+  #modalComprobante, #modalComprobante *{ visibility:visible; }
+  #modalComprobante{ position:absolute; inset:0; background:#fff; display:block; }
+  #modalComprobante .modal-card{ box-shadow:none; border:none; width:100%; max-height:none; }
+  #modalComprobante .modal-close, #modalComprobante .no-print{ display:none; }
+}

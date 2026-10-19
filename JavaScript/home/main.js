@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const userDataString = localStorage.getItem("karma_user");
     if (!userDataString) {
         // Si alguien intenta entrar sin iniciar sesión, lo regresa al login
-        window.location.href = "/index.html"; 
+        window.location.href = "../index.html"; 
         return;
     }
     const usuario = JSON.parse(userDataString);
@@ -48,10 +48,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Buscamos el botón al que le acabamos de poner el ID en navbar.html
     const logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) {
-        logoutBtn.addEventListener('click', (e) => {
+        logoutBtn.addEventListener('click', async (e) => {
             e.preventDefault();
+            // Cierra la sesión PHP en el servidor
+            try { await fetch("../PHP/Login/auth.php?action=logout", { method: "POST" }); } catch (_) {}
             localStorage.removeItem("karma_user"); // Borra la sesión
-            window.location.href = "/index.html";  // Redirige al login
+            window.location.href = "../index.html";  // Redirige al login
         });
     }
     // 2. Inicializar lógica del Menú de Perfil

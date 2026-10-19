@@ -1,25 +1,19 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>KARMA · Punto de Venta — Panel Administrador</title>
-<!-- Tipografías: Fraunces (display / elegante) + Inter (UI / datos) -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/CSS/dashboard/admin-style.css">
-<!-- Chart.js — usado para las gráficas del panel (rendimiento mensual, inventario, ventas por categoría) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KARMA · Panel Administrador</title>
+  <link rel="stylesheet" href="../CSS/dashboard/admin-style.css">
+  <!-- Chart.js — usado para las gráficas del panel (rendimiento mensual, inventario, ventas por categoría) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
-<body>
+<body> 
 
 <div class="app">
 
-  <!-- ============================================================
-       BARRA SUPERIOR: logo (clic = ir a Dashboard), idioma, tema,
-       filtro global de sucursal, cerrar sesión y sub-navegación
-       ============================================================ -->
+  <!-- Barra superior: logo, idioma, tema, filtro global de sucursal, cerrar sesión y sub-navegación -->
+
   <header class="topbar">
 
     <!-- Fila superior: marca + acciones de cuenta -->
@@ -45,6 +39,7 @@
           </select>
         </div>
         <a class="lang-toggle" href="reportes.html" style="text-decoration:none;">Registrar venta</a>
+        <button class="lang-toggle" id="helpBtn" type="button" title="Atajos de teclado · Ctrl + K abre la consola" data-i18n="helpBtn">F1 · Ayuda</button>
         <button class="lang-toggle" id="langToggle" title="Cambiar idioma" aria-label="Cambiar idioma">
           <span class="lang-op is-active" data-lang="es">ES</span>
           <span class="lang-sep">/</span>
@@ -68,8 +63,12 @@
         <button class="sub-nav-btn is-active" data-view="dashboard" data-i18n="navDashboard">Dashboard</button>
         <button class="sub-nav-btn" data-view="sucursales" data-i18n="navSucursales">Sucursales</button>
         <button class="sub-nav-btn" data-view="personal" data-i18n="navPersonal">Personal</button>
+        <button class="sub-nav-btn" data-view="catalogo" data-i18n="navCatalogo">Catálogo</button>
         <button class="sub-nav-btn" data-view="inventario" data-i18n="navInventario">Inventario</button>
         <button class="sub-nav-btn" data-view="pedidos" data-i18n="navPedidos">Pedidos</button>
+        <button class="sub-nav-btn" data-view="ventas" data-i18n="navVentas">Ventas</button>
+        <button class="sub-nav-btn" data-view="cortes" data-i18n="navCortes">Cortes de caja</button>
+        <button class="sub-nav-btn" data-view="auditoria" data-i18n="navAuditoria">Auditoría</button>
       </nav>
       <div class="sync-indicator" id="syncIndicator" title="Estado de conexión a la base de datos">
         <span class="sync-dot"></span>
@@ -100,7 +99,7 @@
     <div class="status-divider"></div>
     <div class="status-item">
       <span class="status-label" data-i18n="admin">Administrador</span>
-      <span class="status-value" id="statusAdmin">Sofía Herrera</span>
+      <span class="status-value" id="statusAdmin">—</span>
     </div>
     <div class="status-divider"></div>
     <div class="status-item">
@@ -183,9 +182,69 @@
   </div>
 </div>
 
+<!-- ============================================================
+     MODAL: cajas y terminales de cobro de una sucursal
+     ============================================================ -->
+<div class="modal-overlay" id="modalCajas">
+  <div class="modal-card modal-card--wide">
+    <button class="modal-close" data-close-modal>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 5l14 14M19 5L5 19"/></svg>
+    </button>
+    <div id="modalCajasContent"></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: alta / edición de modelo del catálogo maestro
+     ============================================================ -->
+<div class="modal-overlay" id="modalCatalogo">
+  <div class="modal-card modal-card--wide">
+    <button class="modal-close" data-close-modal>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 5l14 14M19 5L5 19"/></svg>
+    </button>
+    <div id="modalCatalogoContent"></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: reemisión de ticket / contrato (imprimible)
+     ============================================================ -->
+<div class="modal-overlay" id="modalComprobante">
+  <div class="modal-card modal-card--wide">
+    <button class="modal-close" data-close-modal>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 5l14 14M19 5L5 19"/></svg>
+    </button>
+    <div id="modalComprobanteContent"></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: atajos de teclado (F1)
+     ============================================================ -->
+<div class="modal-overlay" id="modalAyuda">
+  <div class="modal-card">
+    <button class="modal-close" data-close-modal>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 5l14 14M19 5L5 19"/></svg>
+    </button>
+    <div id="modalAyudaContent"></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: consola rápida (Ctrl + K)
+     ============================================================ -->
+<div class="modal-overlay" id="modalConsola">
+  <div class="modal-card">
+    <button class="modal-close" data-close-modal>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 5l14 14M19 5L5 19"/></svg>
+    </button>
+    <div id="modalConsolaContent"></div>
+  </div>
+</div>
+
 <!-- Región para notificaciones tipo "toast" -->
 <div class="toast-stack" id="toastStack" aria-live="polite"></div>
 
-<script src="/JavaScript/dashboard/admin-script.js"></script>
+<script src="../JavaScript/dashboard/admin-script.js"></script>
 </body>
 </html>

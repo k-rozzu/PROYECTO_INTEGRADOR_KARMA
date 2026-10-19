@@ -2,15 +2,9 @@
    KARMA · Punto de Venta — Panel de Administrador General
    admin-script.js
 
-   NOTA PARA CONECTAR A UNA BASE DE DATOS REAL
-   -----------------------------------------------------------------------
-   Todo el acceso a datos pasa por el objeto `DB` (ver más abajo). Cada
-   método de `DB` hoy resuelve con datos de ejemplo (seed) guardados en
-   memoria, simulando una llamada asíncrona. Para conectar un backend
-   real basta con reemplazar el cuerpo de cada método por un `fetch()`
-   a tu API (los comentarios "PROD:" muestran el endpoint sugerido) y
-   dejar la firma (parámetros / forma del objeto que regresa) igual, ya
-   que el resto de la aplicación sólo depende de esa forma de datos.
+   Todo el acceso a datos pasa por el objeto `DB`, que llama a la API PHP
+   (PHP/Dashboard/api.php). Cada vista se dibuja con una función render*()
+   a partir de los datos guardados en `state`.
    ========================================================================== */
 
 /* ==========================================================================
@@ -28,8 +22,6 @@ function formatoNumero(n){
 function escapeHTML(str){
   return String(str ?? "").replace(/[&<>"']/g, s => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[s]));
 }
-function delay(ms){ return new Promise(res => setTimeout(res, ms)); }
-function uid(prefix){ return prefix + "_" + Math.random().toString(36).slice(2, 9); }
 function iniciales(nombre){
   return (nombre || "").split(" ").filter(Boolean).slice(0,2).map(p => p[0].toUpperCase()).join("");
 }
@@ -53,13 +45,13 @@ const I18N = {
     revenue:"Ingresos", units:"Unidades",
     chartInventory:"Inventario global por categoría", chartInventorySub:"Distribución de existencias",
     chartByProduct:"Ventas por marca / producto", chartByProductSub:"Líneas más vendidas en toda la empresa",
-    recentSales:"Historial de ventas recientes", recentSalesSub:"Últimas transacciones registradas",
+    recentSales:"Monitor transaccional en vivo", recentSalesSub:"Últimas operaciones completadas",
     colFecha:"Fecha / hora", colSucursal:"Sucursal", colResponsable:"Cajero / cliente", colProductos:"Producto(s)", colTotal:"Total",
     criticalStock:"Monitor de stock crítico", criticalStockSub:"Existencias en o por debajo del mínimo",
     criticalEmpty:"Sin alertas de stock crítico en este momento.",
     quickTitle:"Accesos rápidos",
     qaSucursal:"Nueva sucursal", qaSucursalSub:"Registrar sede", qaArticulo:"Nuevo vehículo / artículo", qaArticuloSub:"Alta de inventario",
-    qaPersonal:"Manage Staff", qaPersonalSub:"Ir a personal", qaHistorial:"Historial de transacciones", qaHistorialSub:"Ver ventas consolidadas",
+    qaPersonal:"Gestionar personal", qaPersonalSub:"Ir a personal", qaHistorial:"Historial de transacciones", qaHistorialSub:"Ver ventas consolidadas",
     sucursalesTitle:"Sucursales", sucursalesSub:"Gestión centralizada de sedes (alta, edición y baja)",
     newSucursal:"Nueva sucursal", filterAll:"Todas", filterActive:"Activas", filterInactive:"Inactivas",
     colNombre:"Nombre", colDireccion:"Dirección", colTelefono:"Teléfono", colGerente:"Gerente a cargo",
@@ -67,7 +59,7 @@ const I18N = {
     noGerente:"Sin asignar",
     formSucursalNewTitle:"Registrar nueva sucursal", formSucursalEditTitle:"Editar sucursal",
     formSucursalDesc:"Los campos marcados son obligatorios. El estatus controla si la sede puede operar ventas.",
-    fName:"Nombre de la sucursal", fAddress:"Dirección", fPhone:"Teléfono", fEmail:"Correo de contacto",
+    fName:"Nombre de la sucursal", fAddress:"Dirección física", fPhone:"Teléfono", fEmail:"Correo de contacto",
     fManager:"Gerente a cargo", fCashiers:"Cajas activas", fStatus:"Estatus",
     statusActive:"Activo", statusInactive:"Inactivo", save:"Guardar", cancel:"Cancelar", saveChanges:"Guardar cambios",
     toastSucursalCreated:"Sucursal registrada correctamente", toastSucursalUpdated:"Sucursal actualizada",
@@ -85,7 +77,7 @@ const I18N = {
     noResults:"Sin resultados", noResultsSub:"No se encontraron artículos que coincidan con tu búsqueda.",
     startSearch:"Escribe para buscar", startSearchSub:"Consulta el stock de cualquier producto a través de todas las sucursales.",
     critical:"Crítico", ok:"Suficiente", low:"Bajo",
-    hintDB:"Vista conectada a DB (mock) — lista para apuntar a tu API real vía DB.*",
+    hintDB:"Vista conectada a la base de datos pos_multisede (MySQL).",
     formArticuloTitle:"Alta rápida de artículo", formArticuloDesc:"Registra un vehículo o refacción y asígnalo a una sucursal.",
     fTipo:"Tipo", tipoVehiculo:"Vehículo", tipoRefaccion:"Refacción", fMarca:"Marca", fModelo:"Modelo / nombre",
     fCategoria:"Categoría", fBranch:"Sucursal", fStockInicial:"Stock inicial", fStockMin:"Stock mínimo", fPrecioVenta:"Precio de venta",
@@ -117,6 +109,46 @@ const I18N = {
     unitCost:"Costo unitario", projectedPrice:"Precio proyectado", noPedidos:"Aún no hay pedidos registrados",
     noPedidosSub:"Registra tu primer pedido a proveedor con el botón “Nuevo pedido”.",
     minOneVehicle:"El pedido debe incluir al menos un vehículo",
+
+    navCatalogo:"Catálogo", navVentas:"Ventas", navCortes:"Cortes de caja", navAuditoria:"Auditoría", helpBtn:"F1 · Ayuda",
+    kpiStock:"Unidades en stock", daysSupply:"≈ {n} días de inventario", avgAging:"antigüedad prom. {n} d", agedUnits:"{n} rezagada(s) +90 d",
+    kpiMargen:"Margen bruto promedio", perUnit:"por venta · últimos 6 meses", noCostData:"Sin costos capturados",
+    kpiFI:"Penetración financiera (F&I)", fiSub:"{c} a crédito · {d} de contado",
+    kpiSedes:"Sedes operativas", kpiPersonalActivo:"Personal activo", registersOpen:"{n} caja(s) abierta(s) en turno",
+    chartByCategory:"Ingresos vs. unidades por categoría", chartByCategorySub:"Últimos 6 meses",
+    colAsesor:"Asesor", colModelo:"Modelo", colVin:"VIN", colMonto:"Monto",
+    fRazonSocial:"Razón social", fDireccionFiscal:"Dirección fiscal", fContacto:"Contacto operativo",
+    cajasBtn:"Cajas", cajasTitle:"Cajas y terminales · {s}", cajasDesc:"Autoriza, cierra o bloquea cada terminal de cobro de la sede.",
+    colCaja:"Caja", colTicketsHoy:"Tickets hoy", colTotalHoy:"Cobrado hoy", colUltimaVenta:"Última venta",
+    cajaAbierta:"Abierta", cajaCerrada:"Cerrada", cajaMant:"Mantenimiento", toastCaja:"Estado de caja actualizado",
+    noCajas:"Esta sucursal no tiene cajas registradas.",
+    relocate:"Reubicar", relocateTitle:"Reubicar gerente", relocateDesc:"Traslada al gerente a otra agencia; el cambio queda registrado en la auditoría.",
+    fNewPassword:"Nueva contraseña (opcional)", newPasswordHint:"Déjalo vacío para conservar la contraseña actual.",
+    toastUsuarioEstado:"Estatus de usuario actualizado",
+    catalogoTitle:"Catálogo maestro de modelos", catalogoSub:"Definición corporativa de líneas, carrocerías, equipamiento base y precios de lista",
+    newModelo:"Nuevo modelo", colCarroceria:"Carrocería", colPrecioLista:"Precio de lista",
+    formModeloNewTitle:"Registrar modelo", formModeloEditTitle:"Editar modelo",
+    formModeloDesc:"Los cambios de precio de lista quedan registrados en la auditoría.",
+    fCarroceria:"Carrocería", fPrecioLista:"Precio de lista recomendado",
+    toastModeloCreated:"Modelo agregado al catálogo", toastModeloUpdated:"Modelo actualizado", toastModeloEstado:"Estatus del modelo actualizado",
+    searchCatalogo:"Buscar marca, modelo o carrocería…",
+    colAntiguedad:"Días en patio", priceFormTitle:"Precio base y costo", fPrecioBase:"Precio base", fCosto:"Costo de adquisición",
+    toastPrecio:"Precio actualizado (registrado en auditoría)",
+    ventasTitle:"Historial consolidado de ventas", ventasSub:"Todas las ventas emitidas con su método de liquidación, folios y comprobantes",
+    filterContado:"Contado", filterCredito:"Crédito", searchVentas:"Buscar folio, cliente, VIN o modelo…",
+    colMetodo:"Liquidación", colCliente:"Cliente", reissue:"Comprobante", totalFiltered:"{n} venta(s) · {t}",
+    ticketTitle:"Ticket de venta", contractTitle:"Contrato de compraventa a crédito", print:"Imprimir",
+    colCantidad:"Cant.", colPrecioU:"Precio", colSubtotal:"Subtotal", efectivoRecibido:"Recibido", cambio:"Cambio",
+    enganche:"Enganche", adeudo:"Saldo financiado", abono:"Abono", plazos:"Plazos", cajaN:"Caja {n}",
+    signCliente:"Firma del cliente", signAsesor:"Firma del asesor",
+    cortesTitle:"Arqueos y cortes por terminal", cortesSub:"Resumen de cada turno: apertura (primer ticket), corte (último ticket) y efectivo esperado en caja",
+    colDia:"Día", colCajeros:"Cajero(s)", colApertura:"Apertura", colCorte:"Corte", colTickets:"Tickets",
+    colContado:"Contado", colCredito:"Crédito", colEfectivo:"Efectivo esperado", noCortes:"Aún no hay ventas registradas.",
+    auditoriaTitle:"Auditoría de actividad", auditoriaSub:"Quién hizo cada cambio en sucursales, personal, catálogos, precios y pedidos",
+    searchAuditoria:"Buscar usuario, acción o detalle…", colAccion:"Acción", colDetalle:"Detalle", noAuditoria:"Sin movimientos registrados.",
+    helpTitle:"Atajos de teclado", helpDesc:"Navega por el panel sin usar el ratón.", kConsole:"Abrir consola rápida", kHelp:"Ayuda",
+    consoleTitle:"Consola rápida", consolePlaceholder:"Escribe un comando: ventas, nueva sucursal…",
+    consoleHint:"↑ ↓ para elegir · Enter ejecuta · Esc cierra",
   },
   en:{
     topHome:"Go to Dashboard", brandSlogan:"General Administration Panel",
@@ -133,7 +165,7 @@ const I18N = {
     revenue:"Revenue", units:"Units",
     chartInventory:"Global inventory by category", chartInventorySub:"Stock distribution",
     chartByProduct:"Sales by make / product", chartByProductSub:"Best-selling lines company-wide",
-    recentSales:"Recent sales history", recentSalesSub:"Latest recorded transactions",
+    recentSales:"Live transaction monitor", recentSalesSub:"Latest completed operations",
     colFecha:"Date / time", colSucursal:"Branch", colResponsable:"Cashier / client", colProductos:"Product(s)", colTotal:"Total",
     criticalStock:"Critical stock monitor", criticalStockSub:"Stock at or below minimum threshold",
     criticalEmpty:"No critical stock alerts right now.",
@@ -147,7 +179,7 @@ const I18N = {
     noGerente:"Unassigned",
     formSucursalNewTitle:"Register new branch", formSucursalEditTitle:"Edit branch",
     formSucursalDesc:"Marked fields are required. Status controls whether the branch can process sales.",
-    fName:"Branch name", fAddress:"Address", fPhone:"Phone", fEmail:"Contact email",
+    fName:"Branch name", fAddress:"Street address", fPhone:"Phone", fEmail:"Contact email",
     fManager:"Manager in charge", fCashiers:"Active registers", fStatus:"Status",
     statusActive:"Active", statusInactive:"Inactive", save:"Save", cancel:"Cancel", saveChanges:"Save changes",
     toastSucursalCreated:"Branch registered successfully", toastSucursalUpdated:"Branch updated",
@@ -165,7 +197,7 @@ const I18N = {
     noResults:"No results", noResultsSub:"No items matched your search.",
     startSearch:"Type to search", startSearchSub:"Look up any product's stock across all branches.",
     critical:"Critical", ok:"Sufficient", low:"Low",
-    hintDB:"View connected to DB (mock) — ready to point to your real API via DB.*",
+    hintDB:"View connected to the pos_multisede database (MySQL).",
     formArticuloTitle:"Quick item registration", formArticuloDesc:"Register a vehicle or part and assign it to a branch.",
     fTipo:"Type", tipoVehiculo:"Vehicle", tipoRefaccion:"Part", fMarca:"Make", fModelo:"Model / name",
     fCategoria:"Category", fBranch:"Branch", fStockInicial:"Initial stock", fStockMin:"Minimum stock", fPrecioVenta:"Sale price",
@@ -197,6 +229,46 @@ const I18N = {
     unitCost:"Unit cost", projectedPrice:"Projected price", noPedidos:"No orders registered yet",
     noPedidosSub:"Register your first supplier order with the “New order” button.",
     minOneVehicle:"The order must include at least one vehicle",
+
+    navCatalogo:"Catalog", navVentas:"Sales", navCortes:"Cash closings", navAuditoria:"Audit trail", helpBtn:"F1 · Help",
+    kpiStock:"Units in stock", daysSupply:"≈ {n} days of supply", avgAging:"avg. age {n} d", agedUnits:"{n} aged 90+ d",
+    kpiMargen:"Average front-end gross", perUnit:"per sale · last 6 months", noCostData:"No cost data yet",
+    kpiFI:"Finance penetration (F&I)", fiSub:"{c} financed · {d} cash",
+    kpiSedes:"Operating branches", kpiPersonalActivo:"Active staff", registersOpen:"{n} register(s) open on shift",
+    chartByCategory:"Revenue vs. units by category", chartByCategorySub:"Last 6 months",
+    colAsesor:"Advisor", colModelo:"Model", colVin:"VIN", colMonto:"Amount",
+    fRazonSocial:"Legal name", fDireccionFiscal:"Tax address", fContacto:"Operations contact",
+    cajasBtn:"Registers", cajasTitle:"Registers & terminals · {s}", cajasDesc:"Authorize, close or lock every payment terminal at this branch.",
+    colCaja:"Register", colTicketsHoy:"Tickets today", colTotalHoy:"Collected today", colUltimaVenta:"Last sale",
+    cajaAbierta:"Open", cajaCerrada:"Closed", cajaMant:"Maintenance", toastCaja:"Register status updated",
+    noCajas:"This branch has no registers yet.",
+    relocate:"Relocate", relocateTitle:"Relocate manager", relocateDesc:"Move the manager to another branch; the change is logged in the audit trail.",
+    fNewPassword:"New password (optional)", newPasswordHint:"Leave empty to keep the current password.",
+    toastUsuarioEstado:"User status updated",
+    catalogoTitle:"Master model catalog", catalogoSub:"Corporate definition of lines, body styles, base equipment and list prices",
+    newModelo:"New model", colCarroceria:"Body style", colPrecioLista:"List price",
+    formModeloNewTitle:"Register model", formModeloEditTitle:"Edit model",
+    formModeloDesc:"List price changes are recorded in the audit trail.",
+    fCarroceria:"Body style", fPrecioLista:"Recommended list price",
+    toastModeloCreated:"Model added to catalog", toastModeloUpdated:"Model updated", toastModeloEstado:"Model status updated",
+    searchCatalogo:"Search make, model or body style…",
+    colAntiguedad:"Days in yard", priceFormTitle:"Base price & cost", fPrecioBase:"Base price", fCosto:"Acquisition cost",
+    toastPrecio:"Price updated (logged in audit trail)",
+    ventasTitle:"Consolidated sales history", ventasSub:"Every sale issued with its settlement method, folios and receipts",
+    filterContado:"Cash", filterCredito:"Financed", searchVentas:"Search folio, client, VIN or model…",
+    colMetodo:"Settlement", colCliente:"Client", reissue:"Receipt", totalFiltered:"{n} sale(s) · {t}",
+    ticketTitle:"Sales ticket", contractTitle:"Installment sales contract", print:"Print",
+    colCantidad:"Qty.", colPrecioU:"Price", colSubtotal:"Subtotal", efectivoRecibido:"Received", cambio:"Change",
+    enganche:"Down payment", adeudo:"Financed balance", abono:"Installment", plazos:"Terms", cajaN:"Register {n}",
+    signCliente:"Client signature", signAsesor:"Advisor signature",
+    cortesTitle:"Register counts & closings", cortesSub:"Summary of each shift: opening (first ticket), closing (last ticket) and expected cash in drawer",
+    colDia:"Day", colCajeros:"Cashier(s)", colApertura:"Opening", colCorte:"Closing", colTickets:"Tickets",
+    colContado:"Cash sales", colCredito:"Financed", colEfectivo:"Expected cash", noCortes:"No sales recorded yet.",
+    auditoriaTitle:"Activity audit trail", auditoriaSub:"Who made each change to branches, staff, catalogs, prices and orders",
+    searchAuditoria:"Search user, action or detail…", colAccion:"Action", colDetalle:"Detail", noAuditoria:"No activity recorded.",
+    helpTitle:"Keyboard shortcuts", helpDesc:"Navigate the panel without using the mouse.", kConsole:"Open quick console", kHelp:"Help",
+    consoleTitle:"Quick console", consolePlaceholder:"Type a command: sales, new branch…",
+    consoleHint:"↑ ↓ to choose · Enter runs · Esc closes",
   }
 };
 function t(key){
@@ -209,249 +281,95 @@ const MESES = {
 };
 
 /* ==========================================================================
-   CAPA DE DATOS (DB) — hoy en memoria, lista para reemplazar por fetch()
+   CAPA DE DATOS (DB) — API PHP en PHP/Dashboard/api.php (MySQL pos_multisede)
    ========================================================================== */
-const API_BASE = "/api"; // TODO: apuntar a la URL real del backend
+const API_BASE = "../PHP/Dashboard/api.php"; // relativa a dasboard/admin.html
+const AUTH_URL = "../PHP/Login/auth.php";
+const LOGIN_URL = "../index.html";
+const HOME_URL = "../Home/home.html";
 
-const SEED = (() => {
-  const sucursales = [
-    { id:"s1", nombre:"Manzanillo", direccion:"Blvd. Costero 1450, Manzanillo, Col.", telefono:"314 333 0101", email:"manzanillo@karma.mx", gerenteId:"u2", cajasActivas:3, estado:"activo" },
-    { id:"s2", nombre:"Colima Centro", direccion:"Av. Rey Colimán 220, Colima, Col.", telefono:"312 314 0202", email:"colima@karma.mx", gerenteId:"u3", cajasActivas:2, estado:"activo" },
-    { id:"s3", nombre:"Guadalajara Andares", direccion:"Blvd. Puerta de Hierro 4965, Zapopan, Jal.", telefono:"333 817 0303", email:"gdl@karma.mx", gerenteId:"u4", cajasActivas:4, estado:"activo" },
-    { id:"s4", nombre:"Puerto Vallarta", direccion:"Av. Francisco M. Ascencio 2895, Puerto Vallarta, Jal.", telefono:"322 224 0404", email:"pv@karma.mx", gerenteId:null, cajasActivas:1, estado:"inactivo" },
-  ];
-  const usuarios = [
-    { id:"u1", nombre:"Sofía Herrera", correo:"sofia.herrera@karma.mx", rol:"admin", sucursalId:null, estado:"activo" },
-    { id:"u2", nombre:"Diego Ramírez", correo:"diego.ramirez@karma.mx", rol:"gerente", sucursalId:"s1", estado:"activo" },
-    { id:"u3", nombre:"Valeria Nuño", correo:"valeria.nuno@karma.mx", rol:"gerente", sucursalId:"s2", estado:"activo" },
-    { id:"u4", nombre:"Rodrigo Campos", correo:"rodrigo.campos@karma.mx", rol:"gerente", sucursalId:"s3", estado:"activo" },
-    { id:"u5", nombre:"Ana Martínez", correo:"ana.martinez@karma.mx", rol:"cajero", sucursalId:"s1", estado:"activo" },
-    { id:"u6", nombre:"Luis Ortega", correo:"luis.ortega@karma.mx", rol:"cajero", sucursalId:"s1", estado:"activo" },
-    { id:"u7", nombre:"Camila Ríos", correo:"camila.rios@karma.mx", rol:"cajero", sucursalId:"s2", estado:"activo" },
-    { id:"u8", nombre:"Emilio Vargas", correo:"emilio.vargas@karma.mx", rol:"cajero", sucursalId:"s3", estado:"activo" },
-    { id:"u9", nombre:"Renata Solís", correo:"renata.solis@karma.mx", rol:"cajero", sucursalId:"s3", estado:"inactivo" },
-  ];
-  const productosBase = [
-    { producto:"911 Carrera GTS", marca:"Porsche", categoria:"Autos deportivos", precio:2850000 },
-    { producto:"Cayenne Turbo", marca:"Porsche", categoria:"SUV de lujo", precio:2190000 },
-    { producto:"Taycan Turbo S", marca:"Porsche", categoria:"Autos deportivos", precio:3120000 },
-    { producto:"RS6 Avant", marca:"Audi", categoria:"Autos deportivos", precio:2340000 },
-    { producto:"Q8 e-tron", marca:"Audi", categoria:"SUV de lujo", precio:1780000 },
-    { producto:"R8 V10", marca:"Audi", categoria:"Autos deportivos", precio:3980000 },
-    { producto:"Panigale V4 S", marca:"Ducati", categoria:"Motocicletas", precio:695000 },
-    { producto:"Multistrada V4", marca:"Ducati", categoria:"Motocicletas", precio:585000 },
-    { producto:"Streetfighter V2", marca:"Ducati", categoria:"Motocicletas", precio:398000 },
-    { producto:"Kit de frenos cerámicos", marca:"Genérico", categoria:"Refacciones", precio:68000 },
-    { producto:"Turbo de reemplazo", marca:"Genérico", categoria:"Refacciones", precio:112000 },
-    { producto:"Set de suspensión deportiva", marca:"Genérico", categoria:"Refacciones", precio:89000 },
-  ];
-  let invId = 1;
-  const inventario = [];
-  productosBase.forEach(p => {
-    sucursales.forEach(s => {
-      const base = Math.floor(Math.random()*6) + 1;
-      const min = 2;
-      inventario.push({
-        id:"inv" + (invId++), sucursalId:s.id,
-        producto:p.producto, marca:p.marca, categoria:p.categoria, precio:p.precio,
-        stockActual: Math.random() < 0.22 ? Math.max(0, min - 1) : base,
-        stockMinimo: min,
-      });
-    });
-  });
-
-  const clientes = ["Roberto Salas","Marina Islas","Fernando Tapia","Daniela Cordero","Iván Gutiérrez","Paola Duarte","Héctor Loera","Ximena Prado"];
-  const now = new Date();
-  const ventas = [];
-  let ventaId = 1;
-  for (let m = 5; m >= 0; m--){
-    const monthDate = new Date(now.getFullYear(), now.getMonth() - m, 1);
-    const numVentas = 6 + Math.floor(Math.random()*6);
-    for (let i = 0; i < numVentas; i++){
-      const s = sucursales[Math.floor(Math.random()*sucursales.length)];
-      const prod = productosBase[Math.floor(Math.random()*productosBase.length)];
-      const day = 1 + Math.floor(Math.random()*27);
-      const fecha = new Date(monthDate.getFullYear(), monthDate.getMonth(), day, 9 + Math.floor(Math.random()*9), Math.floor(Math.random()*60));
-      const cajero = usuarios.filter(u => u.rol === "cajero" && u.sucursalId === s.id)[0];
-      ventas.push({
-        id:"v" + (ventaId++),
-        fecha: fecha.toISOString(),
-        sucursalId: s.id,
-        responsable: cajero ? cajero.nombre : "—",
-        cliente: clientes[Math.floor(Math.random()*clientes.length)],
-        producto: prod.producto,
-        marca: prod.marca,
-        categoria: prod.categoria,
-        total: Math.round(prod.precio * (0.96 + Math.random()*0.08)),
-      });
-    }
+// Llama a una acción de la API; con `datos` hace POST JSON. Muestra un toast y lanza error si falla.
+async function api(accion, datos, id){
+  const url = `${API_BASE}?action=${encodeURIComponent(accion)}` + (id ? `&id=${encodeURIComponent(id)}` : "");
+  const opciones = datos === undefined ? {} : {
+    method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(datos)
+  };
+  let json = null, status = 0;
+  try{
+    const respuesta = await fetch(url, opciones);
+    status = respuesta.status;
+    json = await respuesta.json();
+  }catch(err){
+    console.error("Error de red / respuesta no JSON", err);
   }
-  const proveedores = ["Porsche AG", "Audi de México", "Ducati Motor Holding", "Ferrari SpA"];
-  const estadosPedido = ["solicitado", "transito", "patio", "recibido"];
-  let pedidoId = 1, folioN = 1042;
-  const pedidos = [];
-  for (let i = 0; i < 7; i++){
-    const s = sucursales[Math.floor(Math.random()*sucursales.length)];
-    const prov = proveedores[Math.floor(Math.random()*proveedores.length)];
-    const estado = i === 6 ? "cancelado" : estadosPedido[Math.min(i, estadosPedido.length - 1)];
-    const emision = new Date(now.getFullYear(), now.getMonth(), Math.max(1, now.getDate() - (10 + i*6)));
-    const eta = new Date(emision.getTime()); eta.setDate(eta.getDate() + 35);
-    const recibido = estado === "recibido" ? new Date(eta.getTime() - 86400000*2) : null;
-    const numVehiculos = 1 + Math.floor(Math.random()*3);
-    const vehiculos = [];
-    for (let v = 0; v < numVehiculos; v++){
-      const p = productosBase.filter(pb => pb.categoria !== "Refacciones")[Math.floor(Math.random()*productosBase.filter(pb=>pb.categoria!=="Refacciones").length)];
-      vehiculos.push({
-        modelo: p.producto, marca: p.marca, anio: 2026, version: ["Base","Performance","Sport Edition"][Math.floor(Math.random()*3)],
-        vin: "WP0" + Math.random().toString(36).slice(2,10).toUpperCase() + (1000+v),
-        colorExterior:["Negro Jet","Blanco Carrara","Gris GT","Azul Night"][Math.floor(Math.random()*4)],
-        colorInterior:["Piel Cognac","Piel Negra","Alcántara Roja"][Math.floor(Math.random()*3)],
-        equipamiento:"Paquete premium, techo panorámico, asistente de manejo",
-        costoAdquisicion: Math.round(p.precio*0.74), precioProyectado: p.precio,
-      });
-    }
-    pedidos.push({
-      id:"po"+(pedidoId++), folio:"PO-"+(folioN++), proveedor:prov, sucursalId:s.id,
-      fechaEmision: emision.toISOString(), fechaETA: eta.toISOString(),
-      fechaRecepcion: recibido ? recibido.toISOString() : null,
-      estado, vehiculos,
-    });
+  if (!json || !json.ok){
+    const mensaje = json?.error || (state.lang === "en" ? "Could not connect to the server" : "No se pudo conectar con el servidor");
+    mostrarToast(mensaje, "err");
+    // 401 = sin sesión → login; 403 = rol sin permiso → Home
+    if (status === 401) setTimeout(() => window.location.replace(LOGIN_URL), 1200);
+    if (status === 403) setTimeout(() => window.location.replace(HOME_URL), 1200);
+    throw new Error(mensaje);
   }
-
-  return { sucursales, usuarios, inventario, ventas, pedidos };
-})();
+  return json.data;
+}
 
 const DB = {
-  async getSucursales(){
-    // PROD: return (await fetch(`${API_BASE}/sucursales`)).json();
-    await delay(80);
-    return SEED.sucursales.map(s => ({ ...s }));
-  },
-  async createSucursal(payload){
-    // PROD: return (await fetch(`${API_BASE}/sucursales`, { method:"POST", body: JSON.stringify(payload) })).json();
-    await delay(120);
-    const nueva = { id: uid("s"), gerenteId:null, ...payload };
-    SEED.sucursales.push(nueva);
-    return nueva;
-  },
-  async updateSucursal(id, payload){
-    // PROD: return (await fetch(`${API_BASE}/sucursales/${id}`, { method:"PATCH", body: JSON.stringify(payload) })).json();
-    await delay(120);
-    const idx = SEED.sucursales.findIndex(s => s.id === id);
-    if (idx > -1) SEED.sucursales[idx] = { ...SEED.sucursales[idx], ...payload };
-    return SEED.sucursales[idx];
-  },
-  async setSucursalEstado(id, estado){
-    return DB.updateSucursal(id, { estado });
-  },
-  async getUsuarios(){
-    // PROD: return (await fetch(`${API_BASE}/usuarios`)).json();
-    await delay(80);
-    return SEED.usuarios.map(u => ({ ...u }));
-  },
-  async createUsuario(payload){
-    // PROD: hashear password en el servidor antes de guardar (password_hash)
-    // return (await fetch(`${API_BASE}/usuarios`, { method:"POST", body: JSON.stringify(payload) })).json();
-    await delay(140);
-    const { password, ...rest } = payload;
-    const nuevo = { id: uid("u"), estado:"activo", ...rest };
-    SEED.usuarios.push(nuevo);
-    return nuevo;
-  },
-  async updateUsuario(id, payload){
-    await delay(120);
-    const idx = SEED.usuarios.findIndex(u => u.id === id);
-    if (idx > -1) SEED.usuarios[idx] = { ...SEED.usuarios[idx], ...payload };
-    return SEED.usuarios[idx];
-  },
-  async getInventario(){
-    // PROD: return (await fetch(`${API_BASE}/inventario`)).json();
-    await delay(90);
-    return SEED.inventario.map(i => ({ ...i }));
-  },
-  async createInventarioItem(payload){
-    await delay(120);
-    const nuevo = { id: uid("inv"), ...payload };
-    SEED.inventario.push(nuevo);
-    return nuevo;
-  },
-  async getVentas(){
-    // PROD: return (await fetch(`${API_BASE}/ventas`)).json();
-    await delay(100);
-    return SEED.ventas.map(v => ({ ...v }));
-  },
+  getSucursales(){ return api("sucursales"); },
+  createSucursal(payload){ return api("crear_sucursal", payload); },
+  updateSucursal(id, payload){ return api("actualizar_sucursal", payload, id); },
+  setSucursalEstado(id, estado){ return api("estado_sucursal", { estado }, id); },
 
-  async getPedidos(){
-    // PROD: return (await fetch(`${API_BASE}/pedidos`)).json();
-    await delay(90);
-    return SEED.pedidos.map(p => ({ ...p, vehiculos: p.vehiculos.map(v => ({ ...v })) }));
-  },
-  async createPedido(payload){
-    // PROD: return (await fetch(`${API_BASE}/pedidos`, { method:"POST", body: JSON.stringify(payload) })).json();
-    await delay(140);
-    const folioN = 1000 + SEED.pedidos.length + Math.floor(Math.random()*50);
-    const nuevo = { id: uid("po"), folio:"PO-"+folioN, fechaRecepcion:null, estado:"solicitado", ...payload };
-    SEED.pedidos.push(nuevo);
-    return nuevo;
-  },
-  async updatePedido(id, payload){
-    // PROD: return (await fetch(`${API_BASE}/pedidos/${id}`, { method:"PATCH", body: JSON.stringify(payload) })).json();
-    await delay(120);
-    const idx = SEED.pedidos.findIndex(p => p.id === id);
-    if (idx > -1) SEED.pedidos[idx] = { ...SEED.pedidos[idx], ...payload };
-    return SEED.pedidos[idx];
-  },
-  async setPedidoEstado(id, estado){
-    await delay(110);
-    const p = SEED.pedidos.find(x => x.id === id);
-    if (!p) return null;
-    p.estado = estado;
-    if (estado === "recibido") p.fechaRecepcion = new Date().toISOString();
-    return p;
-  },
+  getCajas(){ return api("cajas"); },
+  setCajaEstado(id, estado){ return api("estado_caja", { estado }, id); },
+
+  getUsuarios(){ return api("usuarios"); },
+  // La contraseña se hashea en el servidor con password_hash()
+  createUsuario(payload){ return api("crear_usuario", payload); },
+  updateUsuario(id, payload){ return api("actualizar_usuario", payload, id); },
+  setUsuarioEstado(id, estado){ return api("estado_usuario", { estado }, id); },
+
+  getCatalogo(){ return api("catalogo"); },
+  createModelo(payload){ return api("crear_modelo", payload); },
+  updateModelo(id, payload){ return api("actualizar_modelo", payload, id); },
+  setModeloEstado(id, estado){ return api("estado_modelo", { estado }, id); },
+
+  getInventario(){ return api("inventario"); },
+  createInventarioItem(payload){ return api("crear_articulo", payload); },
+  updatePrecioProducto(payload){ return api("precio_producto", payload); },
+
+  getVentas(){ return api("ventas"); },
+  getVentaDetalle(id){ return api("venta_detalle", undefined, id); },
+  getCortes(){ return api("cortes"); },
+  getAuditoria(){ return api("auditoria"); },
+  setIdioma(idioma){ return api("idioma", { idioma }); },
+
+  getPedidos(){ return api("pedidos"); },
+  createPedido(payload){ return api("crear_pedido", payload); },
+  updatePedido(id, payload){ return api("actualizar_pedido", payload, id); },
+  setPedidoEstado(id, estado){ return api("estado_pedido", { estado }, id); },
   /**
-   * Simula el disparador / consulta transaccional que, al confirmar la
-   * recepción de un pedido, incrementa stock_actual en la tabla
-   * `inventarios` de la sucursal receptora por cada vehículo del lote.
-   * PROD (ejemplo de trigger en el backend):
-   *   UPDATE inventarios SET stock_actual = stock_actual + 1
-   *   WHERE sucursal_id = :sucursalId AND producto = :modelo;
-   *   -- o INSERT si el producto aún no existe en esa sucursal.
+   * Confirma la recepción del pedido: en el servidor incrementa stock_actual
+   * en `inventarios` de la sucursal receptora por cada vehículo del lote
+   * (o da de alta el producto si aún no existe en esa sucursal).
+   * Regresa { pedido, afectados }.
    */
-  async confirmarRecepcion(pedidoId){
-    await delay(160);
-    const pedido = SEED.pedidos.find(p => p.id === pedidoId);
-    if (!pedido) return null;
-    pedido.estado = "recibido";
-    pedido.fechaRecepcion = new Date().toISOString();
-
-    const afectados = [];
-    pedido.vehiculos.forEach(v => {
-      let item = SEED.inventario.find(i => i.sucursalId === pedido.sucursalId && i.producto === v.modelo);
-      if (item){
-        item.stockActual += 1;
-      }else{
-        item = {
-          id: uid("inv"), sucursalId: pedido.sucursalId,
-          producto: v.modelo, marca: v.marca, categoria: "Vehículos",
-          precio: v.precioProyectado, stockActual: 1, stockMinimo: 2,
-        };
-        SEED.inventario.push(item);
-      }
-      afectados.push(item);
-    });
-    return { pedido, afectados };
-  },
+  confirmarRecepcion(pedidoId){ return api("recibir_pedido", {}, pedidoId); },
 };
 
 /* ==========================================================================
    ESTADO GLOBAL
    ========================================================================== */
 const state = {
-  view:"dashboard",              // dashboard | sucursales | personal | inventario | pedidos
+  view:"dashboard",              // dashboard | sucursales | personal | catalogo | inventario | pedidos | ventas | cortes | auditoria
   lang:"es",
   sucursalFiltro:"todas",        // filtro global de sucursal
   sucursales:[], usuarios:[], inventario:[], ventas:[], pedidos:[],
+  catalogo:[], cajas:[], cortes:[], auditoria:[],
+  adminId:null,                  // usuario en sesión (no puede darse de baja a sí mismo)
+  catalogoQuery:"",
+  ventasFiltro:"all",            // all | contado | credito (vista Ventas)
+  ventasQuery:"",
+  auditoriaQuery:"",
   sucursalesEstadoFiltro:"all",  // all | active | inactive (vista Sucursales)
   personalRolFiltro:"all",       // all | admin | gerente | cajero (vista Personal)
   inventarioQuery:"",
@@ -467,14 +385,16 @@ const chartInstances = {};
 async function cargarDatos(){
   state.cargando = true;
   try{
-    const [sucursales, usuarios, inventario, ventas, pedidos] = await Promise.all([
-      DB.getSucursales(), DB.getUsuarios(), DB.getInventario(), DB.getVentas(), DB.getPedidos()
+    const [sucursales, usuarios, inventario, ventas, pedidos, catalogo, cajas] = await Promise.all([
+      DB.getSucursales(), DB.getUsuarios(), DB.getInventario(), DB.getVentas(), DB.getPedidos(), DB.getCatalogo(), DB.getCajas()
     ]);
     state.sucursales = sucursales;
     state.usuarios = usuarios;
     state.inventario = inventario;
     state.ventas = ventas;
     state.pedidos = pedidos;
+    state.catalogo = catalogo;
+    state.cajas = cajas;
     setSyncStatus(true);
   }catch(err){
     console.error("Error cargando datos", err);
@@ -552,6 +472,36 @@ function stockCritico(inv){
   return inv.filter(i => i.stockActual <= i.stockMinimo)
     .sort((a,b) => (a.stockActual - a.stockMinimo) - (b.stockActual - b.stockMinimo));
 }
+function enSucursal(lista, sucursalId = state.sucursalFiltro){
+  return sucursalId === "todas" ? lista : lista.filter(x => x.sucursalId === sucursalId);
+}
+// Ventas desde el día 1 de hace (meses - 1) meses hasta hoy
+function ventasUltimosMeses(ventas, meses = 6){
+  const now = new Date();
+  const desde = new Date(now.getFullYear(), now.getMonth() - (meses - 1), 1);
+  return ventas.filter(v => new Date(v.fecha) >= desde);
+}
+// Margen bruto promedio por venta (sólo ventas cuyo costo de adquisición se conoce)
+function margenPromedio(ventas){
+  const conCosto = ventas.filter(v => v.margen !== null);
+  return conCosto.length ? conCosto.reduce((s,v) => s + v.margen, 0) / conCosto.length : null;
+}
+// Días de inventario (Days of Supply): unidades en stock ÷ vehículos vendidos por día en los últimos 30 días
+function diasDeInventario(unidadesStock, ventas){
+  const hace30 = Date.now() - 30 * 86400000;
+  const vendidos = ventas.filter(v => new Date(v.fecha) >= hace30).reduce((s,v) => s + v.vehiculos, 0);
+  return vendidos ? Math.round(unidadesStock / (vendidos / 30)) : null;
+}
+function ventasPorCategoria(ventas){
+  const map = {};
+  ventas.forEach(v => {
+    const cat = v.categoria || "—";
+    if (!map[cat]) map[cat] = { ingresos:0, unidades:0 };
+    map[cat].ingresos += v.total;
+    map[cat].unidades += v.unidades;
+  });
+  return map;
+}
 
 /* ==========================================================================
    RENDER PRINCIPAL
@@ -569,6 +519,15 @@ function renderMain(){
   else if (state.view === "personal") renderPersonal();
   else if (state.view === "inventario") renderInventario();
   else if (state.view === "pedidos") renderPedidos();
+  else if (state.view === "catalogo") renderCatalogo();
+  else if (state.view === "ventas") renderVentas();
+  else if (state.view === "cortes") renderCortes();
+  else if (state.view === "auditoria") renderAuditoria();
+}
+function irAVista(vista){
+  state.view = vista;
+  cerrarModales();
+  renderMain();
 }
 
 /* ==========================================================================
@@ -585,8 +544,23 @@ function renderDashboard(){
   const delta = totalMesAnterior > 0 ? ((totalMesActual - totalMesAnterior) / totalMesAnterior) * 100 : (totalMesActual > 0 ? 100 : 0);
   const deltaUp = delta >= 0;
 
-  const volumenInventario = inv.reduce((s,i) => s + i.stockActual, 0);
   const alertas = stockCritico(inv);
+
+  // Unidades en stock (sólo vehículos), días de inventario y unidades rezagadas en patio
+  const vehiculos = inv.filter(i => i.tipo !== "refaccion" && i.stockActual > 0);
+  const unidadesStock = vehiculos.reduce((s,i) => s + i.stockActual, 0);
+  const dos = diasDeInventario(unidadesStock, ventas);
+  const antiguedad = vehiculos.length ? Math.round(vehiculos.reduce((s,i) => s + i.diasPatio, 0) / vehiculos.length) : 0;
+  const rezagadas = vehiculos.filter(i => i.diasPatio > 90).reduce((s,i) => s + i.stockActual, 0);
+ 
+  // Margen bruto y penetración financiera (F&I) de los últimos 6 meses
+  const ventas6 = ventasUltimosMeses(ventas, 6);
+  const margen = margenPromedio(ventas6);
+  const aCredito = ventas6.filter(v => v.credito).length;
+  const penetracionFI = ventas6.length ? (aCredito / ventas6.length) * 100 : 0;
+
+  const personalActivo = enSucursal(state.usuarios).filter(u => u.estado === "activo").length;
+  const cajasAbiertas = enSucursal(state.cajas).filter(c => c.estado === "abierta").length;
 
   main.innerHTML = `
     <div class="panel panel-full">
@@ -617,7 +591,7 @@ function renderDashboard(){
         </button>
       </div>
 
-      <div class="kpi-grid fade-in fade-in--1">
+      <div class="kpi-grid kpi-grid--6 fade-in fade-in--1">
         <div class="kpi-card">
           <div class="kpi-icon">${iconCoin()}</div>
           <div class="kpi-label">${t("kpiVentas")}</div>
@@ -628,22 +602,35 @@ function renderDashboard(){
           </div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-icon">${iconBox()}</div>
-          <div class="kpi-label">${t("kpiInventario")}</div>
-          <div class="kpi-value">${formatoNumero(volumenInventario)}</div>
-          <div class="kpi-sub"><span>${t("unitsInStock")}</span></div>
+          <div class="kpi-icon">${iconCar()}</div>
+          <div class="kpi-label">${t("kpiStock")}</div>
+          <div class="kpi-value">${formatoNumero(unidadesStock)}</div>
+          <div class="kpi-sub"><span>${dos !== null ? t("daysSupply").replace("{n}", dos) + " · " : ""}${t("avgAging").replace("{n}", antiguedad)}</span></div>
+          ${rezagadas ? `<div class="kpi-sub"><span class="kpi-delta is-down">${t("agedUnits").replace("{n}", rezagadas)}</span></div>` : ""}
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon">${iconChart()}</div>
+          <div class="kpi-label">${t("kpiMargen")}</div>
+          <div class="kpi-value">${margen !== null ? formatoMoneda(margen) : "—"}</div>
+          <div class="kpi-sub"><span>${margen !== null ? t("perUnit") : t("noCostData")}</span></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon">${iconCard()}</div>
+          <div class="kpi-label">${t("kpiFI")}</div>
+          <div class="kpi-value">${penetracionFI.toFixed(1)}%</div>
+          <div class="kpi-sub"><span>${t("fiSub").replace("{c}", aCredito).replace("{d}", ventas6.length - aCredito)}</span></div>
         </div>
         <div class="kpi-card">
           <div class="kpi-icon">${iconBuilding()}</div>
-          <div class="kpi-label">${t("kpiSucursales")}</div>
+          <div class="kpi-label">${t("kpiSedes")}</div>
           <div class="kpi-value">${sucursalesActivas}</div>
           <div class="kpi-sub"><span>${t("ofTotalBranches").replace("{n}", state.sucursales.length)}</span></div>
         </div>
         <div class="kpi-card">
           <div class="kpi-icon">${iconUsers()}</div>
-          <div class="kpi-label">${t("kpiPersonal")}</div>
-          <div class="kpi-value">${state.usuarios.length}</div>
-          <div class="kpi-sub"><span>${t("registeredUsers")}</span></div>
+          <div class="kpi-label">${t("kpiPersonalActivo")}</div>
+          <div class="kpi-value">${personalActivo}</div>
+          <div class="kpi-sub"><span>${t("registersOpen").replace("{n}", cajasAbiertas)}</span></div>
         </div>
       </div>
 
@@ -709,6 +696,17 @@ function renderDashboard(){
         </div>
       </div>
 
+      <div class="chart-card fade-in fade-in--3" style="margin-bottom:24px;">
+        <div class="chart-card-head">
+          <div><h3>${t("chartByCategory")}</h3><span>${t("chartByCategorySub")}</span></div>
+        </div>
+        <div class="chart-canvas-wrap"><canvas id="chartByCategory"></canvas></div>
+        <div class="chart-legend">
+          <span class="chart-legend-item"><span class="chart-legend-dot" style="background:var(--chart-navy)"></span>${t("revenue")}</span>
+          <span class="chart-legend-item"><span class="chart-legend-dot" style="background:var(--chart-red)"></span>${t("units")}</span>
+        </div>
+      </div>
+
       <div class="chart-card fade-in fade-in--4" style="margin-bottom:30px;">
         <div class="chart-card-head">
           <div><h3>${t("recentSales")}</h3><span>${t("recentSalesSub")}</span></div>
@@ -716,18 +714,19 @@ function renderDashboard(){
         <div class="table-wrap">
           <table class="data-table">
             <thead><tr>
-              <th>${t("colFecha")}</th><th>${t("colSucursal")}</th><th>${t("colResponsable")}</th><th>${t("colProductos")}</th><th>${t("colTotal")}</th>
+              <th>${t("colFecha")}</th><th>${t("colSucursal")}</th><th>${t("colAsesor")}</th><th>${t("colModelo")}</th><th>${t("colVin")}</th><th>${t("colMonto")}</th>
             </tr></thead>
             <tbody>
-              ${[...ventas].sort((a,b) => new Date(b.fecha) - new Date(a.fecha)).slice(0,8).map(v => `
+              ${ventas.slice(0,8).map(v => `
                 <tr>
-                  <td class="cell-muted">${new Date(v.fecha).toLocaleString(state.lang === "en" ? "en-US" : "es-MX", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" })}</td>
+                  <td class="cell-muted">${formatoFechaHora(v.fecha)}</td>
                   <td>${escapeHTML(sucursalNombre(v.sucursalId))}</td>
                   <td>${escapeHTML(v.responsable)} <span class="cell-em">/ ${escapeHTML(v.cliente)}</span></td>
                   <td>${escapeHTML(v.producto)}</td>
+                  <td><span class="vehiculo-detail-vin">${escapeHTML(v.vin || "—")}</span></td>
                   <td><strong>${formatoMoneda(v.total)}</strong></td>
                 </tr>
-              `).join("") || `<tr><td colspan="5" class="cell-muted">—</td></tr>`}
+              `).join("") || `<tr><td colspan="6" class="cell-muted">—</td></tr>`}
             </tbody>
           </table>
         </div>
@@ -746,7 +745,7 @@ function bindQuickActions(){
     if (action === "sucursal") abrirModalSucursal();
     else if (action === "articulo") abrirModalArticulo();
     else if (action === "personal") { state.view = "personal"; renderMain(); }
-    else if (action === "historial") { state.view = "dashboard"; renderMain(); setTimeout(() => $(".chart-card")?.scrollIntoView({ behavior:"smooth" }), 60); }
+    else if (action === "historial") irAVista("ventas");
   }));
 }
 
@@ -806,6 +805,32 @@ function drawDashboardCharts(ventas, inv){
       options:{
         responsive:true, maintainAspectRatio:false, cutout:"64%",
         plugins:{ legend:{ position:"bottom", labels:{ boxWidth:10, padding:12, font:{ size:11 } } } }
+      }
+    });
+  }
+
+  // Ingresos vs. unidades por categoría (últimos 6 meses)
+  const porCategoria = ventasPorCategoria(ventasUltimosMeses(ventas, 6));
+  destroyChart("byCategory");
+  const ctxC = $("#chartByCategory");
+  if (ctxC){
+    chartInstances.byCategory = new Chart(ctxC, {
+      data:{
+        labels: Object.keys(porCategoria),
+        datasets:[
+          { type:"bar", label:t("revenue"), data:Object.values(porCategoria).map(c => c.ingresos), backgroundColor:c.navy, borderRadius:6, yAxisID:"y", order:2, maxBarThickness:42 },
+          { type:"line", label:t("units"), data:Object.values(porCategoria).map(c => c.unidades), borderColor:c.red, backgroundColor:c.red, yAxisID:"y1", order:1, pointRadius:4, borderWidth:2, tension:.35 },
+        ]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        interaction:{ mode:"index", intersect:false },
+        plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:(ctx) => ctx.dataset.label === t("revenue") ? `${t("revenue")}: ${formatoMoneda(ctx.raw)}` : `${t("units")}: ${ctx.raw}` } } },
+        scales:{
+          x:{ grid:{ display:false } },
+          y:{ position:"left", grid:{ color:c.grid }, ticks:{ callback:(v) => formatoNumero(v) } },
+          y1:{ position:"right", grid:{ display:false }, ticks:{ precision:0 } },
+        }
       }
     });
   }
@@ -876,7 +901,7 @@ function renderSucursales(){
               const g = gerenteDeSucursal(s.id);
               return `
               <tr>
-                <td><strong>${escapeHTML(s.nombre)}</strong></td>
+                <td><strong>${escapeHTML(s.nombre)}</strong>${s.razonSocial ? `<br><span class="cell-em">${escapeHTML(s.razonSocial)}</span>` : ""}</td>
                 <td class="cell-muted">${escapeHTML(s.direccion)}</td>
                 <td class="cell-muted">${escapeHTML(s.telefono)}</td>
                 <td>${g ? escapeHTML(g.nombre) : `<span class="cell-em">${t("noGerente")}</span>`}</td>
@@ -885,6 +910,7 @@ function renderSucursales(){
                 <td>
                   <div class="btn-table-row">
                     <button class="btn-table" data-editar-sucursal="${s.id}">${t("edit")}</button>
+                    <button class="btn-table" data-cajas-sucursal="${s.id}">${t("cajasBtn")}</button>
                     <button class="btn-table" data-toggle-sucursal="${s.id}">${s.estado === "activo" ? t("deactivate") : t("activate")}</button>
                   </div>
                 </td>
@@ -899,6 +925,7 @@ function renderSucursales(){
   $("#btnNuevaSucursal").addEventListener("click", () => abrirModalSucursal());
   $$("[data-sfiltro]").forEach(b => b.addEventListener("click", () => { state.sucursalesEstadoFiltro = b.dataset.sfiltro; renderSucursales(); }));
   $$("[data-editar-sucursal]").forEach(b => b.addEventListener("click", () => abrirModalSucursal(b.dataset.editarSucursal)));
+  $$("[data-cajas-sucursal]").forEach(b => b.addEventListener("click", () => abrirModalCajas(b.dataset.cajasSucursal)));
   $$("[data-toggle-sucursal]").forEach(b => b.addEventListener("click", async () => {
     const id = b.dataset.toggleSucursal;
     const s = state.sucursales.find(x => x.id === id);
@@ -920,10 +947,13 @@ function abrirModalSucursal(id){
     <p class="modal-desc">${t("formSucursalDesc")}</p>
     <form id="formSucursal">
       <div class="form-grid">
-        <div class="form-field span-2"><label>${t("fName")} *</label><input type="text" name="nombre" required value="${s ? escapeHTML(s.nombre) : ""}"></div>
+        <div class="form-field"><label>${t("fName")} *</label><input type="text" name="nombre" required value="${s ? escapeHTML(s.nombre) : ""}"></div>
+        <div class="form-field"><label>${t("fRazonSocial")}</label><input type="text" name="razonSocial" value="${s ? escapeHTML(s.razonSocial) : ""}"></div>
         <div class="form-field span-2"><label>${t("fAddress")} *</label><input type="text" name="direccion" required value="${s ? escapeHTML(s.direccion) : ""}"></div>
+        <div class="form-field span-2"><label>${t("fDireccionFiscal")}</label><input type="text" name="direccionFiscal" value="${s ? escapeHTML(s.direccionFiscal) : ""}"></div>
         <div class="form-field"><label>${t("fPhone")} *</label><input type="tel" name="telefono" required value="${s ? escapeHTML(s.telefono) : ""}"></div>
         <div class="form-field"><label>${t("fEmail")}</label><input type="email" name="email" value="${s ? escapeHTML(s.email || "") : ""}"></div>
+        <div class="form-field span-2"><label>${t("fContacto")}</label><input type="text" name="contacto" value="${s ? escapeHTML(s.contacto) : ""}"></div>
         <div class="form-field"><label>${t("fManager")}</label>
           <select name="gerenteId">
             <option value="">${t("noGerente")}</option>
@@ -958,22 +988,26 @@ function abrirModalSucursal(id){
     const fd = new FormData(form);
     const payload = {
       nombre: fd.get("nombre").trim(),
+      razonSocial: fd.get("razonSocial").trim(),
       direccion: fd.get("direccion").trim(),
+      direccionFiscal: fd.get("direccionFiscal").trim(),
       telefono: fd.get("telefono").trim(),
       email: fd.get("email").trim(),
+      contacto: fd.get("contacto").trim(),
       gerenteId: fd.get("gerenteId") || null,
       cajasActivas: Number(fd.get("cajasActivas")) || 0,
       estado: fd.get("estado"),
     };
     if (editando){
-      await DB.updateSucursal(id, payload);
-      Object.assign(s, payload);
+      Object.assign(s, await DB.updateSucursal(id, payload));
       mostrarToast(t("toastSucursalUpdated"), "ok");
     }else{
       const nueva = await DB.createSucursal(payload);
       state.sucursales.push(nueva);
       mostrarToast(t("toastSucursalCreated"), "ok");
     }
+    // El gerente elegido queda asignado en usuarios y las cajas pueden haber cambiado
+    [state.usuarios, state.cajas] = await Promise.all([DB.getUsuarios(), DB.getCajas()]);
     cerrarModales();
     poblarSelectorSucursales();
     if (state.view === "sucursales") renderSucursales();
@@ -981,6 +1015,51 @@ function abrirModalSucursal(id){
   });
 
   abrirModal("#modalSucursal");
+}
+
+/* ----- Cajas y terminales de una sucursal ----- */
+function estadoCajaLabel(estado){
+  return { abierta:t("cajaAbierta"), cerrada:t("cajaCerrada"), mantenimiento:t("cajaMant") }[estado] || estado;
+}
+function abrirModalCajas(sucursalId){
+  const cajas = state.cajas.filter(c => c.sucursalId === sucursalId);
+  const badge = { abierta:"badge-ok", cerrada:"badge-off", mantenimiento:"badge-warn" };
+  $("#modalCajasContent").innerHTML = `
+    <h3 class="modal-title">${t("cajasTitle").replace("{s}", escapeHTML(sucursalNombre(sucursalId)))}</h3>
+    <p class="modal-desc">${t("cajasDesc")}</p>
+    ${cajas.length ? `
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>${t("colCaja")}</th><th>${t("colEstado")}</th><th>${t("colTicketsHoy")}</th><th>${t("colTotalHoy")}</th><th>${t("colUltimaVenta")}</th><th>${t("colAcciones")}</th></tr></thead>
+        <tbody>
+          ${cajas.map(c => `
+            <tr>
+              <td><strong>${t("cajaN").replace("{n}", c.numero)}</strong></td>
+              <td><span class="badge ${badge[c.estado]}"><span class="badge-dot"></span>${estadoCajaLabel(c.estado)}</span></td>
+              <td>${c.ticketsHoy}</td>
+              <td>${formatoMoneda(c.totalHoy)}</td>
+              <td class="cell-muted">${formatoFechaHora(c.ultimaVenta)}</td>
+              <td>
+                <select class="select-table" data-estado-caja="${c.id}">
+                  ${["abierta", "cerrada", "mantenimiento"].map(e => `<option value="${e}" ${c.estado === e ? "selected" : ""}>${estadoCajaLabel(e)}</option>`).join("")}
+                </select>
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>` : `<div class="empty-state"><strong>${t("noCajas")}</strong></div>`}
+    <div class="form-actions"><button type="button" class="btn btn-ghost" data-close-modal>${t("close")}</button></div>
+  `;
+  $$("[data-estado-caja]").forEach(sel => sel.addEventListener("change", async () => {
+    const actualizada = await DB.setCajaEstado(sel.dataset.estadoCaja, sel.value);
+    Object.assign(state.cajas.find(c => c.id === actualizada.id), actualizada);
+    state.sucursales = await DB.getSucursales(); // recalcula "cajas activas"
+    mostrarToast(t("toastCaja"), "ok");
+    abrirModalCajas(sucursalId);
+    if (state.view === "sucursales") renderSucursales();
+  }));
+  abrirModal("#modalCajas");
 }
 
 /* ==========================================================================
@@ -1026,7 +1105,13 @@ function renderPersonal(){
                 <td><span class="role-badge role-${u.rol}">${u.rol === "admin" ? t("roleAdminF") : u.rol === "gerente" ? t("roleGerenteF") : t("roleCajeroF")}</span></td>
                 <td class="cell-muted">${u.sucursalId ? escapeHTML(sucursalNombre(u.sucursalId)) : "—"}</td>
                 <td>${u.estado === "activo" ? `<span class="badge badge-ok"><span class="badge-dot"></span>${t("statusActive")}</span>` : `<span class="badge badge-off"><span class="badge-dot"></span>${t("statusInactive")}</span>`}</td>
-                <td><button class="btn-table" data-editar-usuario="${u.id}">${t("edit")}</button></td>
+                <td>
+                  <div class="btn-table-row">
+                    <button class="btn-table" data-editar-usuario="${u.id}">${t("edit")}</button>
+                    ${u.rol === "gerente" ? `<button class="btn-table" data-reubicar-usuario="${u.id}">${t("relocate")}</button>` : ""}
+                    ${u.id !== state.adminId ? `<button class="btn-table" data-toggle-usuario="${u.id}">${u.estado === "activo" ? t("deactivate") : t("activate")}</button>` : ""}
+                  </div>
+                </td>
               </tr>
             `).join("") || `<tr><td colspan="5"><div class="empty-state"><strong>${t("noResults")}</strong></div></td></tr>`}
           </tbody>
@@ -1038,6 +1123,46 @@ function renderPersonal(){
   $("#btnNuevoGerente").addEventListener("click", () => abrirModalPersonal());
   $$("[data-rfiltro]").forEach(b => b.addEventListener("click", () => { state.personalRolFiltro = b.dataset.rfiltro; renderPersonal(); }));
   $$("[data-editar-usuario]").forEach(b => b.addEventListener("click", () => abrirModalPersonal(b.dataset.editarUsuario)));
+  $$("[data-reubicar-usuario]").forEach(b => b.addEventListener("click", () => abrirModalReubicar(b.dataset.reubicarUsuario)));
+  $$("[data-toggle-usuario]").forEach(b => b.addEventListener("click", async () => {
+    const u = state.usuarios.find(x => x.id === b.dataset.toggleUsuario);
+    Object.assign(u, await DB.setUsuarioEstado(u.id, u.estado === "activo" ? "inactivo" : "activo"));
+    mostrarToast(t("toastUsuarioEstado"), "ok");
+    renderPersonal();
+  }));
+}
+
+// Traslado rápido de un gerente a otra sucursal (usa el mismo endpoint que la edición)
+function abrirModalReubicar(id){
+  const u = state.usuarios.find(x => x.id === id);
+  $("#modalPersonalContent").innerHTML = `
+    <h3 class="modal-title">${t("relocateTitle")}</h3>
+    <p class="modal-desc">${escapeHTML(u.nombre)} · ${t("relocateDesc")}</p>
+    <form id="formReubicar">
+      <div class="form-grid cols-1">
+        <div class="form-field"><label>${t("fAssignedBranch")}</label>
+          <select name="sucursalId">
+            <option value="">${t("noGerente")}</option>
+            ${state.sucursales.map(s => `<option value="${s.id}" ${u.sucursalId === s.id ? "selected" : ""}>${escapeHTML(s.nombre)}</option>`).join("")}
+          </select>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" data-close-modal>${t("cancel")}</button>
+        <button type="submit" class="btn btn-primary">${t("saveChanges")}</button>
+      </div>
+    </form>
+  `;
+  $("#formReubicar").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const sucursalId = e.target.sucursalId.value || null;
+    Object.assign(u, await DB.updateUsuario(u.id, { nombre:u.nombre, correo:u.correo, rol:u.rol, sucursalId }));
+    state.sucursales = await DB.getSucursales(); // el gerente a cargo de cada sede cambia
+    mostrarToast(t("toastUsuarioUpdated"), "ok");
+    cerrarModales();
+    renderPersonal();
+  });
+  abrirModal("#modalPersonal");
 }
 
 function abrirModalPersonal(id){
@@ -1058,7 +1183,9 @@ function abrirModalPersonal(id){
             <option value="admin" ${u && u.rol==="admin"?"selected":""}>${t("roleAdminF")}</option>
           </select>
         </div>
-        ${!editando ? `<div class="form-field span-2"><label>${t("fPassword")} *</label><input type="password" name="password" required minlength="8"><p class="form-field-info">${t("passwordHint")}</p></div>` : ""}
+        ${!editando
+          ? `<div class="form-field span-2"><label>${t("fPassword")} *</label><input type="password" name="password" required minlength="8"><p class="form-field-info">${t("passwordHint")}</p></div>`
+          : `<div class="form-field span-2"><label>${t("fNewPassword")}</label><input type="password" name="password" minlength="8"><p class="form-field-info">${t("newPasswordHint")}</p></div>`}
         <div class="form-field span-2"><label>${t("fAssignedBranch")}</label>
           <select name="sucursalId">
             <option value="">—</option>
@@ -1082,13 +1209,12 @@ function abrirModalPersonal(id){
       correo: fd.get("correo").trim(),
       rol: fd.get("rol"),
       sucursalId: fd.get("sucursalId") || null,
+      password: fd.get("password"),
     };
     if (editando){
-      await DB.updateUsuario(id, payload);
-      Object.assign(u, payload);
+      Object.assign(u, await DB.updateUsuario(id, payload));
       mostrarToast(t("toastUsuarioUpdated"), "ok");
     }else{
-      payload.password = fd.get("password");
       const nuevo = await DB.createUsuario(payload);
       state.usuarios.push(nuevo);
       mostrarToast(t("toastUsuarioCreated"), "ok");
@@ -1189,17 +1315,19 @@ function renderInventarioResultados(agrupados, q){
     <div class="table-wrap">
       <table class="data-table">
         <thead><tr>
-          <th>${t("colProducto")}</th><th>${t("colCategoria")}</th><th>${t("colStockActual")}</th><th>${t("colPrecio")}</th><th>${t("colEstado")}</th><th></th>
+          <th>${t("colProducto")}</th><th>${t("colCategoria")}</th><th>${t("colStockActual")}</th><th>${t("colAntiguedad")}</th><th>${t("colPrecio")}</th><th>${t("colEstado")}</th><th></th>
         </tr></thead>
         <tbody>
           ${items.map(it => {
             const total = it.sedes.reduce((s,x) => s + x.stockActual, 0);
             const critico = it.sedes.some(x => x.stockActual <= x.stockMinimo);
+            const dias = Math.max(...it.sedes.map(x => x.diasPatio));
             return `
             <tr class="is-clickable" data-producto="${escapeHTML(it.producto)}">
               <td><strong>${escapeHTML(it.producto)}</strong><br><span class="cell-em">${escapeHTML(it.marca)}</span></td>
               <td class="cell-muted">${escapeHTML(it.categoria)}</td>
               <td>${total}</td>
+              <td>${dias > 90 ? `<span class="badge badge-warn"><span class="badge-dot"></span>${dias} d</span>` : `${dias} d`}</td>
               <td>${formatoMoneda(it.precio)}</td>
               <td>${critico ? `<span class="badge badge-danger"><span class="badge-dot"></span>${t("critical")}</span>` : `<span class="badge badge-ok"><span class="badge-dot"></span>${t("ok")}</span>`}</td>
               <td><button class="btn-table" data-ver-stock="${escapeHTML(it.producto)}">${t("colSucursal")}</button></td>
@@ -1223,22 +1351,41 @@ function abrirModalStock(producto){
     <p class="modal-desc">${t("stockDetailSub")}</p>
     <div class="table-wrap">
       <table class="data-table">
-        <thead><tr><th>${t("colSucursal")}</th><th>${t("colStockActual")}</th><th>${t("colStockMinimo")}</th><th>${t("colEstado")}</th></tr></thead>
+        <thead><tr><th>${t("colSucursal")}</th><th>${t("colStockActual")}</th><th>${t("colStockMinimo")}</th><th>${t("colAntiguedad")}</th><th>${t("colEstado")}</th></tr></thead>
         <tbody>
           ${sedes.map(s => `
             <tr>
               <td>${escapeHTML(sucursalNombre(s.sucursalId))}</td>
               <td><strong>${s.stockActual}</strong></td>
               <td class="cell-muted">${s.stockMinimo}</td>
+              <td class="cell-muted">${s.diasPatio} d</td>
               <td>${s.stockActual <= s.stockMinimo ? `<span class="badge badge-danger"><span class="badge-dot"></span>${t("critical")}</span>` : `<span class="badge badge-ok"><span class="badge-dot"></span>${t("ok")}</span>`}</td>
             </tr>
           `).join("")}
-          <tr><td><strong>${t("totalNetwork")}</strong></td><td colspan="3"><strong>${total}</strong></td></tr>
+          <tr><td><strong>${t("totalNetwork")}</strong></td><td colspan="4"><strong>${total}</strong></td></tr>
         </tbody>
       </table>
     </div>
-    <div class="form-actions"><button type="button" class="btn btn-ghost" data-close-modal>${t("close")}</button></div>
+    <form id="formPrecio">
+      <div class="panel-heading" style="margin:20px 0 10px;"><h2 style="font-size:16px;">${t("priceFormTitle")}</h2></div>
+      <div class="form-grid">
+        <div class="form-field"><label>${t("fPrecioBase")} *</label><input type="number" min="0" name="precio" required value="${sedes[0].precio}"></div>
+        <div class="form-field"><label>${t("fCosto")}</label><input type="number" min="0" name="costo" value="${sedes[0].costo ?? ""}"></div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" data-close-modal>${t("close")}</button>
+        <button type="submit" class="btn btn-primary">${t("saveChanges")}</button>
+      </div>
+    </form>
   `;
+  $("#formPrecio").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const ids = [...new Set(sedes.map(x => x.productoId))];
+    state.inventario = await DB.updatePrecioProducto({ ids, precio: e.target.precio.value, costo: e.target.costo.value });
+    mostrarToast(t("toastPrecio"), "ok");
+    cerrarModales();
+    if (state.view === "inventario") renderInventario();
+  });
   abrirModal("#modalStock");
 }
 
@@ -1254,6 +1401,10 @@ function estadoPedidoBadgeClass(estado){
 function formatoFecha(iso){
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString(state.lang === "en" ? "en-US" : "es-MX", { day:"2-digit", month:"short", year:"numeric" });
+}
+function formatoFechaHora(iso){
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString(state.lang === "en" ? "en-US" : "es-MX", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" });
 }
 
 function renderPedidos(){
@@ -1325,7 +1476,7 @@ function filaVehiculoHTML(idx, v = {}){
       <button type="button" class="vehiculo-row-remove" data-remove-vehiculo="${idx}" title="${t("cancel")}">×</button>
       <div class="vehiculo-row-index">${t("vehiculoN")} ${idx + 1}</div>
       <div class="form-grid">
-        <div class="form-field"><label>${t("fModeloV")} *</label><input type="text" name="modelo" required value="${escapeHTML(v.modelo || "")}"></div>
+        <div class="form-field"><label>${t("fModeloV")} *</label><input type="text" name="modelo" required list="listaModelos" value="${escapeHTML(v.modelo || "")}"></div>
         <div class="form-field"><label>${t("fAnio")}</label><input type="number" name="anio" value="${v.anio || new Date().getFullYear()}"></div>
         <div class="form-field"><label>${t("fVersion")}</label><input type="text" name="version" value="${escapeHTML(v.version || "")}"></div>
         <div class="form-field"><label>${t("fVin")} *</label><input type="text" name="vin" required value="${escapeHTML(v.vin || "")}"></div>
@@ -1376,6 +1527,9 @@ function abrirModalPedido(id){
       <div class="panel-heading" style="margin:20px 0 4px;">
         <h2 style="font-size:16px;">${t("vehiculosSectionTitle")}</h2>
       </div>
+      <datalist id="listaModelos">
+        ${state.catalogo.filter(m => m.estado === "activo").map(m => `<option value="${escapeHTML(m.modelo)}">${escapeHTML(`${m.marca} · ${m.version} · ${formatoMoneda(m.precioLista)}`)}</option>`).join("")}
+      </datalist>
       <div class="vehiculo-rows" id="vehiculoRows">
         ${p ? p.vehiculos.map((v,i) => filaVehiculoHTML(i, v)).join("") : filaVehiculoHTML(0)}
       </div>
@@ -1399,6 +1553,17 @@ function abrirModalPedido(id){
   }
   bindRemoveButtons();
 
+  // Al elegir un modelo del catálogo se llenan versión, equipamiento y precio de lista
+  rowsWrap.addEventListener("change", (e) => {
+    if (e.target.name !== "modelo") return;
+    const m = state.catalogo.find(x => x.modelo === e.target.value);
+    if (!m) return;
+    const row = e.target.closest(".vehiculo-row");
+    $("[name=version]", row).value ||= m.version;
+    $("[name=equipamiento]", row).value ||= m.equipamiento;
+    $("[name=precioProyectado]", row).value ||= m.precioLista;
+  });
+
   $("#btnAddVehiculo").addEventListener("click", () => {
     rowsWrap.insertAdjacentHTML("beforeend", filaVehiculoHTML(vehiculoIdx++));
     bindRemoveButtons();
@@ -1417,8 +1582,7 @@ function abrirModalPedido(id){
       vehiculos,
     };
     if (editando){
-      await DB.updatePedido(id, payload);
-      Object.assign(p, payload);
+      Object.assign(p, await DB.updatePedido(id, payload));
       mostrarToast(t("toastPedidoUpdated"), "ok");
     }else{
       const nuevo = await DB.createPedido(payload);
@@ -1530,8 +1694,9 @@ function abrirModalPedidoDetalle(id){
   });
 
   $("#btnConfirmarRecepcion")?.addEventListener("click", async () => {
-    const { afectados } = await DB.confirmarRecepcion(p.id);
-    // Sincroniza el inventario local con lo que "escribió" la BD simulada
+    const { pedido, afectados } = await DB.confirmarRecepcion(p.id);
+    Object.assign(p, pedido);
+    // Sincroniza el inventario local con lo que escribió la BD
     afectados.forEach(item => {
       const local = state.inventario.find(i => i.id === item.id);
       if (local) Object.assign(local, item);
@@ -1554,6 +1719,348 @@ function abrirModalPedidoDetalle(id){
   $("#btnEditarPedido")?.addEventListener("click", () => { cerrarModales(); abrirModalPedido(p.id); });
 
   abrirModal("#modalPedidoDetalle");
+}
+
+/* ==========================================================================
+   VISTA: CATÁLOGO MAESTRO DE MODELOS Y VERSIONES
+   ========================================================================== */
+function renderCatalogo(){
+  const main = $("#main");
+  const q = state.catalogoQuery.trim().toLowerCase();
+  const lista = state.catalogo.filter(m => !q || `${m.marca} ${m.modelo} ${m.version} ${m.carroceria}`.toLowerCase().includes(q));
+
+  main.innerHTML = `
+    <div class="panel panel-full">
+      <div class="panel-heading fade-in">
+        <div><p class="eyebrow-plain">KARMA</p><h2>${t("catalogoTitle")}</h2></div>
+        <div class="panel-heading-actions">
+          <button class="btn btn-primary" id="btnNuevoModelo">${iconPlus()} ${t("newModelo")}</button>
+        </div>
+      </div>
+      <p class="modal-desc" style="margin-top:-14px;">${t("catalogoSub")}</p>
+
+      <div class="section-toolbar fade-in fade-in--1">
+        ${cajaBusqueda("inpBuscarCatalogo", t("searchCatalogo"), state.catalogoQuery)}
+      </div>
+
+      <div class="table-wrap fade-in fade-in--2">
+        <table class="data-table">
+          <thead><tr>
+            <th>${t("colModelo")}</th><th>${t("fVersion")}</th><th>${t("colCarroceria")}</th><th>${t("fAnio")}</th>
+            <th>${t("fEquipamiento")}</th><th>${t("colPrecioLista")}</th><th>${t("colEstado")}</th><th>${t("colAcciones")}</th>
+          </tr></thead>
+          <tbody>
+            ${lista.map(m => `
+              <tr>
+                <td><strong>${escapeHTML(m.modelo)}</strong><br><span class="cell-em">${escapeHTML(m.marca)}</span></td>
+                <td>${escapeHTML(m.version || "—")}</td>
+                <td><span class="role-badge role-gerente">${escapeHTML(m.carroceria)}</span></td>
+                <td class="cell-muted">${m.anio || "—"}</td>
+                <td class="cell-muted">${escapeHTML(m.equipamiento || "—")}</td>
+                <td><strong>${formatoMoneda(m.precioLista)}</strong></td>
+                <td>${badgeEstado(m.estado)}</td>
+                <td>
+                  <div class="btn-table-row">
+                    <button class="btn-table" data-editar-modelo="${m.id}">${t("edit")}</button>
+                    <button class="btn-table" data-toggle-modelo="${m.id}">${m.estado === "activo" ? t("deactivate") : t("activate")}</button>
+                  </div>
+                </td>
+              </tr>
+            `).join("") || `<tr><td colspan="8"><div class="empty-state"><strong>${t("noResults")}</strong></div></td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  bindBusqueda("inpBuscarCatalogo", "catalogoQuery", renderCatalogo);
+  $("#btnNuevoModelo").addEventListener("click", () => abrirModalModelo());
+  $$("[data-editar-modelo]").forEach(b => b.addEventListener("click", () => abrirModalModelo(b.dataset.editarModelo)));
+  $$("[data-toggle-modelo]").forEach(b => b.addEventListener("click", async () => {
+    const m = state.catalogo.find(x => x.id === b.dataset.toggleModelo);
+    Object.assign(m, await DB.setModeloEstado(m.id, m.estado === "activo" ? "inactivo" : "activo"));
+    mostrarToast(t("toastModeloEstado"), "ok");
+    renderCatalogo();
+  }));
+}
+
+function abrirModalModelo(id){
+  const editando = !!id;
+  const m = editando ? state.catalogo.find(x => x.id === id) : null;
+  const carrocerias = ["Sedán", "SUV", "Supercar", "Coupé", "Pickup", "Motocicleta"];
+
+  $("#modalCatalogoContent").innerHTML = `
+    <h3 class="modal-title">${editando ? t("formModeloEditTitle") : t("formModeloNewTitle")}</h3>
+    <p class="modal-desc">${t("formModeloDesc")}</p>
+    <form id="formModelo">
+      <div class="form-grid">
+        <div class="form-field"><label>${t("fMarca")} *</label><input type="text" name="marca" required value="${m ? escapeHTML(m.marca) : ""}"></div>
+        <div class="form-field"><label>${t("fModeloV")} *</label><input type="text" name="modelo" required value="${m ? escapeHTML(m.modelo) : ""}"></div>
+        <div class="form-field"><label>${t("fVersion")}</label><input type="text" name="version" value="${m ? escapeHTML(m.version) : ""}"></div>
+        <div class="form-field"><label>${t("fCarroceria")} *</label>
+          <input type="text" name="carroceria" required list="listaCarrocerias" value="${m ? escapeHTML(m.carroceria) : ""}">
+          <datalist id="listaCarrocerias">${carrocerias.map(c => `<option value="${c}">`).join("")}</datalist>
+        </div>
+        <div class="form-field"><label>${t("fAnio")}</label><input type="number" name="anio" value="${m && m.anio ? m.anio : new Date().getFullYear()}"></div>
+        <div class="form-field"><label>${t("fPrecioLista")} *</label><input type="number" min="0" name="precioLista" required value="${m ? m.precioLista : ""}"></div>
+        <div class="form-field span-2"><label>${t("fEquipamiento")}</label><textarea name="equipamiento">${m ? escapeHTML(m.equipamiento) : ""}</textarea></div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" data-close-modal>${t("cancel")}</button>
+        <button type="submit" class="btn btn-primary">${editando ? t("saveChanges") : t("save")}</button>
+      </div>
+    </form>
+  `;
+
+  $("#formModelo").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const payload = Object.fromEntries(new FormData(e.target));
+    if (editando){
+      Object.assign(m, await DB.updateModelo(id, payload));
+      mostrarToast(t("toastModeloUpdated"), "ok");
+    }else{
+      state.catalogo.push(await DB.createModelo(payload));
+      mostrarToast(t("toastModeloCreated"), "ok");
+    }
+    cerrarModales();
+    if (state.view === "catalogo") renderCatalogo();
+  });
+  abrirModal("#modalCatalogo");
+}
+
+/* ==========================================================================
+   VISTA: HISTORIAL CONSOLIDADO DE VENTAS + FOLIOS Y COMPROBANTES
+   ========================================================================== */
+function metodoVenta(v){
+  return v.credito ? t("filterCredito") : v.metodo;
+}
+
+function renderVentas(){
+  const main = $("#main");
+  const q = state.ventasQuery.trim().toLowerCase();
+  let lista = ventasFiltradas();
+  if (state.ventasFiltro === "contado") lista = lista.filter(v => !v.credito);
+  if (state.ventasFiltro === "credito") lista = lista.filter(v => v.credito);
+  if (q) lista = lista.filter(v => `${v.folio} ${v.ticket || ""} ${v.cliente} ${v.vin} ${v.producto} ${v.responsable}`.toLowerCase().includes(q));
+  const total = lista.reduce((s,v) => s + v.total, 0);
+  const filtros = [["all", t("filterAll")], ["contado", t("filterContado")], ["credito", t("filterCredito")]];
+
+  main.innerHTML = `
+    <div class="panel panel-full">
+      <div class="panel-heading fade-in">
+        <div><p class="eyebrow-plain">KARMA · ${escapeHTML(state.sucursalFiltro === "todas" ? t("allBranches") : sucursalNombre(state.sucursalFiltro))}</p><h2>${t("ventasTitle")}</h2></div>
+      </div>
+      <p class="modal-desc" style="margin-top:-14px;">${t("ventasSub")}</p>
+
+      <div class="section-toolbar fade-in fade-in--1">
+        <div class="filter-pills">
+          ${filtros.map(([clave, texto]) => `<button class="filter-pill ${state.ventasFiltro === clave ? "is-active" : ""}" data-vfiltro="${clave}">${texto}</button>`).join("")}
+        </div>
+        ${cajaBusqueda("inpBuscarVentas", t("searchVentas"), state.ventasQuery)}
+      </div>
+      <p class="eyebrow-plain">${t("totalFiltered").replace("{n}", lista.length).replace("{t}", formatoMoneda(total))}</p>
+
+      <div class="table-wrap fade-in fade-in--2">
+        <table class="data-table">
+          <thead><tr>
+            <th>${t("colFolio")}</th><th>${t("colFecha")}</th><th>${t("colSucursal")}</th><th>${t("colAsesor")}</th><th>${t("colCliente")}</th>
+            <th>${t("colModelo")}</th><th>${t("colVin")}</th><th>${t("colMetodo")}</th><th>${t("colTotal")}</th><th></th>
+          </tr></thead>
+          <tbody>
+            ${lista.map(v => `
+              <tr>
+                <td><span class="folio-chip">${escapeHTML(v.folio)}</span></td>
+                <td class="cell-muted">${formatoFechaHora(v.fecha)}</td>
+                <td>${escapeHTML(sucursalNombre(v.sucursalId))}</td>
+                <td>${escapeHTML(v.responsable)}</td>
+                <td>${escapeHTML(v.cliente)}</td>
+                <td>${escapeHTML(v.producto)}</td>
+                <td><span class="vehiculo-detail-vin">${escapeHTML(v.vin || "—")}</span></td>
+                <td><span class="badge ${v.credito ? "badge-transito" : "badge-ok"}"><span class="badge-dot"></span>${escapeHTML(metodoVenta(v))}</span></td>
+                <td><strong>${formatoMoneda(v.total)}</strong></td>
+                <td><button class="btn-table" data-comprobante="${v.id}">${t("reissue")}</button></td>
+              </tr>
+            `).join("") || `<tr><td colspan="10"><div class="empty-state"><strong>${t("noResults")}</strong></div></td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  bindBusqueda("inpBuscarVentas", "ventasQuery", renderVentas);
+  $$("[data-vfiltro]").forEach(b => b.addEventListener("click", () => { state.ventasFiltro = b.dataset.vfiltro; renderVentas(); }));
+  $$("[data-comprobante]").forEach(b => b.addEventListener("click", () => abrirComprobante(b.dataset.comprobante)));
+}
+
+// Reemisión del ticket (contado) o del contrato (crédito) lista para imprimir
+async function abrirComprobante(id){
+  const v = await DB.getVentaDetalle(id);
+  const s = v.sucursal || {};
+  const c = v.clienteCredito;
+  $("#modalComprobanteContent").innerHTML = `
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px; flex-wrap:wrap;">
+      <span class="folio-chip">${escapeHTML(v.folio)}</span>
+      ${v.ticket ? `<span class="cell-muted">Ticket #${v.ticket}</span>` : ""}
+    </div>
+    <h3 class="modal-title">${c ? t("contractTitle") : t("ticketTitle")}</h3>
+    <p class="modal-desc">
+      <strong>${escapeHTML(s.razonSocial || "KARMA")}</strong> · ${escapeHTML(s.nombre || "")}<br>
+      ${escapeHTML(s.direccionFiscal || s.direccion || "")} · ${escapeHTML(s.telefono || "")}<br>
+      ${formatoFechaHora(v.fecha)} · ${t("cajaN").replace("{n}", v.caja ?? "—")} · ${t("colAsesor")}: ${escapeHTML(v.responsable)}
+    </p>
+
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>${t("colProducto")}</th><th>${t("colVin")}</th><th>${t("colCantidad")}</th><th>${t("colPrecioU")}</th><th>${t("colSubtotal")}</th></tr></thead>
+        <tbody>
+          ${v.lineas.map(l => `
+            <tr>
+              <td>${escapeHTML(l.producto)}</td>
+              <td><span class="vehiculo-detail-vin">${escapeHTML(l.vin || "—")}</span></td>
+              <td>${l.cantidad}</td>
+              <td>${formatoMoneda(l.precio)}</td>
+              <td>${formatoMoneda(l.subtotal)}</td>
+            </tr>
+          `).join("")}
+          <tr><td colspan="4"><strong>${t("colTotal")}</strong></td><td><strong>${formatoMoneda(v.total)}</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="vehiculo-detail-card" style="margin-top:14px;">
+      <div class="vehiculo-detail-grid">
+        <div><span>${t("colCliente")}</span><strong>${escapeHTML(v.cliente)}</strong></div>
+        <div><span>${t("colMetodo")}</span><strong>${escapeHTML(metodoVenta(v))}</strong></div>
+        <div><span>${t("efectivoRecibido")}</span><strong>${formatoMoneda(v.efectivoRecibido)}</strong></div>
+        <div><span>${t("cambio")}</span><strong>${formatoMoneda(v.cambio)}</strong></div>
+        ${c ? `
+        <div><span>RFC / INE</span><strong>${escapeHTML(c.rfc_ine || "—")}</strong></div>
+        <div><span>${t("enganche")}</span><strong>${formatoMoneda(c.enganche)}</strong></div>
+        <div><span>${t("adeudo")}</span><strong>${formatoMoneda(c.total_adeudo)}</strong></div>
+        <div><span>${t("abono")}</span><strong>${formatoMoneda(c.monto_abono)}</strong></div>
+        <div><span>${t("plazos")}</span><strong>${c.abonos_totales}</strong></div>` : ""}
+      </div>
+    </div>
+
+    ${c ? `<div class="firmas"><div>${t("signCliente")}</div><div>${t("signAsesor")}</div></div>` : ""}
+
+    <div class="form-actions no-print">
+      <button type="button" class="btn btn-ghost" data-close-modal>${t("close")}</button>
+      <button type="button" class="btn btn-primary" id="btnImprimir">${t("print")}</button>
+    </div>
+  `;
+  $("#btnImprimir").addEventListener("click", () => window.print());
+  abrirModal("#modalComprobante");
+}
+
+/* ==========================================================================
+   VISTA: ARQUEOS Y CORTES POR TERMINAL
+   ========================================================================== */
+async function renderCortes(){
+  state.cortes = await DB.getCortes();
+  const lista = enSucursal(state.cortes);
+
+  $("#main").innerHTML = `
+    <div class="panel panel-full">
+      <div class="panel-heading fade-in">
+        <div><p class="eyebrow-plain">KARMA · ${escapeHTML(state.sucursalFiltro === "todas" ? t("allBranches") : sucursalNombre(state.sucursalFiltro))}</p><h2>${t("cortesTitle")}</h2></div>
+      </div>
+      <p class="modal-desc" style="margin-top:-14px;">${t("cortesSub")}</p>
+
+      <div class="table-wrap fade-in fade-in--2">
+        <table class="data-table">
+          <thead><tr>
+            <th>${t("colDia")}</th><th>${t("colSucursal")}</th><th>${t("colCaja")}</th><th>${t("colCajeros")}</th>
+            <th>${t("colApertura")}</th><th>${t("colCorte")}</th><th>${t("colTickets")}</th>
+            <th>${t("colContado")}</th><th>${t("colCredito")}</th><th>${t("colEfectivo")}</th><th>${t("colTotal")}</th>
+          </tr></thead>
+          <tbody>
+            ${lista.map(c => `
+              <tr>
+                <td>${formatoFecha(c.dia)}</td>
+                <td>${escapeHTML(sucursalNombre(c.sucursalId))}</td>
+                <td>${t("cajaN").replace("{n}", c.caja ?? "—")}</td>
+                <td class="cell-muted">${escapeHTML(c.cajeros)}</td>
+                <td>${c.apertura}</td>
+                <td>${c.corte}</td>
+                <td>${c.tickets}</td>
+                <td>${formatoMoneda(c.contado)}</td>
+                <td>${formatoMoneda(c.credito)}</td>
+                <td>${formatoMoneda(c.efectivo)}</td>
+                <td><strong>${formatoMoneda(c.total)}</strong></td>
+              </tr>
+            `).join("") || `<tr><td colspan="11"><div class="empty-state"><strong>${t("noCortes")}</strong></div></td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+/* ==========================================================================
+   VISTA: AUDITORÍA DE ACTIVIDAD (AUDIT TRAIL)
+   ========================================================================== */
+async function renderAuditoria(recargar = true){
+  if (recargar) state.auditoria = await DB.getAuditoria();
+  const q = state.auditoriaQuery.trim().toLowerCase();
+  const lista = state.auditoria.filter(a => !q || `${a.usuario} ${a.accion} ${a.detalle}`.toLowerCase().includes(q));
+
+  $("#main").innerHTML = `
+    <div class="panel panel-full">
+      <div class="panel-heading fade-in">
+        <div><p class="eyebrow-plain">KARMA</p><h2>${t("auditoriaTitle")}</h2></div>
+      </div>
+      <p class="modal-desc" style="margin-top:-14px;">${t("auditoriaSub")}</p>
+
+      <div class="section-toolbar fade-in fade-in--1">
+        ${cajaBusqueda("inpBuscarAuditoria", t("searchAuditoria"), state.auditoriaQuery)}
+      </div>
+
+      <div class="table-wrap fade-in fade-in--2">
+        <table class="data-table">
+          <thead><tr><th>${t("colFecha")}</th><th>${t("colUsuario")}</th><th>${t("colAccion")}</th><th>${t("colDetalle")}</th></tr></thead>
+          <tbody>
+            ${lista.map(a => `
+              <tr>
+                <td class="cell-muted">${formatoFechaHora(a.fecha)}</td>
+                <td>${escapeHTML(a.usuario)}</td>
+                <td><span class="role-badge role-admin">${escapeHTML(a.accion)}</span></td>
+                <td>${escapeHTML(a.detalle)}</td>
+              </tr>
+            `).join("") || `<tr><td colspan="4"><div class="empty-state"><strong>${t("noAuditoria")}</strong></div></td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+  bindBusqueda("inpBuscarAuditoria", "auditoriaQuery", () => renderAuditoria(false));
+}
+
+/* ----- Piezas reutilizables de las vistas nuevas ----- */
+function badgeEstado(estado){
+  return estado === "activo"
+    ? `<span class="badge badge-ok"><span class="badge-dot"></span>${t("statusActive")}</span>`
+    : `<span class="badge badge-off"><span class="badge-dot"></span>${t("statusInactive")}</span>`;
+}
+// Caja de búsqueda con el mismo estilo que la de Inventario
+function cajaBusqueda(id, placeholder, valor){
+  return `
+    <div class="search-box" style="flex:0 0 380px; max-width:100%;">
+      <div class="search-wrap" style="background:var(--surface-2); border-color:var(--line); color:var(--text-muted);">
+        ${iconSearch()}
+        <input id="${id}" type="text" placeholder="${placeholder}" style="color:var(--text-main);" value="${escapeHTML(valor)}">
+      </div>
+    </div>`;
+}
+// Al escribir guarda el texto en state[clave] y redibuja la vista sin perder el foco del buscador
+function bindBusqueda(id, clave, render){
+  $("#" + id).addEventListener("input", (e) => {
+    state[clave] = e.target.value;
+    render();
+    const input = $("#" + id);
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  });
 }
 
 /* ==========================================================================
@@ -1583,7 +2090,8 @@ function abrirModalArticulo(){
         </div>
         <div class="form-field"><label>${t("fStockInicial")}</label><input type="number" min="0" name="stockActual" value="1"></div>
         <div class="form-field"><label>${t("fStockMin")}</label><input type="number" min="0" name="stockMinimo" value="2"></div>
-        <div class="form-field span-2"><label>${t("fPrecioVenta")} *</label><input type="number" min="0" name="precio" required></div>
+        <div class="form-field"><label>${t("fPrecioVenta")} *</label><input type="number" min="0" name="precio" required></div>
+        <div class="form-field"><label>${t("fCosto")}</label><input type="number" min="0" name="costo"></div>
       </div>
       <div class="form-actions">
         <button type="button" class="btn btn-ghost" data-close-modal>${t("cancel")}</button>
@@ -1601,11 +2109,13 @@ function abrirModalArticulo(){
     e.preventDefault();
     const fd = new FormData(form);
     const payload = {
+      tipo: fd.get("tipo"),
       sucursalId: fd.get("sucursalId"),
       producto: fd.get("producto").trim(),
       marca: fd.get("marca").trim(),
       categoria: fd.get("categoria").trim(),
       precio: Number(fd.get("precio")) || 0,
+      costo: fd.get("costo"),
       stockActual: Number(fd.get("stockActual")) || 0,
       stockMinimo: Number(fd.get("stockMinimo")) || 0,
     };
@@ -1632,6 +2142,9 @@ function iconAlert(){ return `<svg width="17" height="17" viewBox="0 0 24 24" fi
 function iconInfo(){ return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.6h.01"/></svg>`; }
 function iconPlus(){ return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>`; }
 function iconCheck(){ return `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 12.5l5 5L20 6.5"/></svg>`; }
+function iconChart(){ return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 20V4M4 20h16"/><path d="M7.5 15l4-4.5 3 3L20 7"/></svg>`; }
+function iconCard(){ return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h4"/></svg>`; }
+function iconSearch(){ return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.4-3.4"/></svg>`; }
 function iconErr(){ return `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 5l14 14M19 5L5 19"/></svg>`; }
 
 /* ==========================================================================
@@ -1669,9 +2182,108 @@ function toggleTema(){
   if (state.view === "dashboard") renderDashboard(); // redibuja gráficas con la paleta correcta
 }
 function toggleIdioma(){
-  state.lang = state.lang === "es" ? "en" : "es";
-  $$(".lang-op").forEach(el => el.classList.toggle("is-active", el.dataset.lang === state.lang));
+  aplicarIdioma(state.lang === "es" ? "en" : "es");
+  DB.setIdioma(state.lang).catch(() => {}); // se guarda en usuarios.idioma_pref del perfil
+  poblarSelectorSucursales();
   renderMain();
+}
+function aplicarIdioma(lang){
+  state.lang = lang;
+  document.documentElement.lang = lang;
+  $$(".lang-op").forEach(el => el.classList.toggle("is-active", el.dataset.lang === state.lang));
+}
+
+/* ==========================================================================
+   ATAJOS DE TECLADO Y CONSOLA RÁPIDA
+   ========================================================================== */
+// Vistas del panel con su tecla de función (las que no tienen tecla se abren desde la consola)
+const VISTAS = [
+  { vista:"dashboard",  nav:"navDashboard" },
+  { vista:"sucursales", nav:"navSucursales", tecla:"F2" },
+  { vista:"ventas",     nav:"navVentas",     tecla:"F3" },
+  { vista:"inventario", nav:"navInventario", tecla:"F4" },
+  { vista:"pedidos",    nav:"navPedidos",    tecla:"F6" },
+  { vista:"personal",   nav:"navPersonal",   tecla:"F7" },
+  { vista:"catalogo",   nav:"navCatalogo",   tecla:"F8" },
+  { vista:"cortes",     nav:"navCortes",     tecla:"F9" },
+  { vista:"auditoria",  nav:"navAuditoria",  tecla:"F10" },
+];
+
+function comandosConsola(){
+  return [
+    ...VISTAS.map(v => ({ texto:t(v.nav), atajo:v.tecla || "", ejecutar:() => irAVista(v.vista) })),
+    { texto:t("qaSucursal"), atajo:"", ejecutar:() => abrirModalSucursal() },
+    { texto:t("newGerente"), atajo:"", ejecutar:() => abrirModalPersonal() },
+    { texto:t("newModelo"), atajo:"", ejecutar:() => abrirModalModelo() },
+    { texto:t("newPedido"), atajo:"", ejecutar:() => abrirModalPedido() },
+    { texto:t("qaArticulo"), atajo:"", ejecutar:() => abrirModalArticulo() },
+    { texto:"ES / EN", atajo:"", ejecutar:toggleIdioma },
+    { texto:t("kHelp"), atajo:"F1", ejecutar:abrirAyuda },
+    { texto:t("logout"), atajo:"", ejecutar:cerrarSesion },
+  ];
+}
+
+function abrirAyuda(){
+  const filas = [
+    ["F1", t("kHelp")],
+    ["Ctrl + K", t("kConsole")],
+    ...VISTAS.filter(v => v.tecla).map(v => [v.tecla, t(v.nav)]),
+    ["Esc", t("close")],
+  ];
+  $("#modalAyudaContent").innerHTML = `
+    <h3 class="modal-title">${t("helpTitle")}</h3>
+    <p class="modal-desc">${t("helpDesc")}</p>
+    <div class="table-wrap">
+      <table class="data-table">
+        <tbody>${filas.map(([tecla, texto]) => `<tr><td><kbd class="kbd">${tecla}</kbd></td><td>${texto}</td></tr>`).join("")}</tbody>
+      </table>
+    </div>
+    <div class="form-actions"><button type="button" class="btn btn-ghost" data-close-modal>${t("close")}</button></div>
+  `;
+  cerrarModales();
+  abrirModal("#modalAyuda");
+}
+
+function abrirConsola(){
+  let seleccion = 0;
+  $("#modalConsolaContent").innerHTML = `
+    <h3 class="modal-title">${t("consoleTitle")}</h3>
+    <p class="modal-desc">${t("consoleHint")}</p>
+    <div class="form-field"><input type="text" id="inpConsola" placeholder="${t("consolePlaceholder")}" autocomplete="off"></div>
+    <div class="consola-lista" id="consolaLista"></div>
+  `;
+  const input = $("#inpConsola");
+  const visibles = () => comandosConsola().filter(c => c.texto.toLowerCase().includes(input.value.trim().toLowerCase()));
+  const ejecutar = (comando) => { cerrarModales(); comando.ejecutar(); };
+  const pintar = () => {
+    const lista = visibles();
+    $("#consolaLista").innerHTML = lista.map((c, i) => `
+      <button type="button" class="consola-item ${i === seleccion ? "is-active" : ""}" data-comando="${i}">
+        <span>${escapeHTML(c.texto)}</span>${c.atajo ? `<kbd class="kbd">${c.atajo}</kbd>` : ""}
+      </button>`).join("") || `<p class="alert-empty">${t("noResults")}</p>`;
+    $$("[data-comando]").forEach(b => b.addEventListener("click", () => ejecutar(lista[b.dataset.comando])));
+  };
+
+  input.addEventListener("input", () => { seleccion = 0; pintar(); });
+  input.addEventListener("keydown", (e) => {
+    const lista = visibles();
+    if (e.key === "ArrowDown"){ e.preventDefault(); seleccion = Math.min(seleccion + 1, lista.length - 1); pintar(); }
+    if (e.key === "ArrowUp"){ e.preventDefault(); seleccion = Math.max(seleccion - 1, 0); pintar(); }
+    if (e.key === "Enter" && lista[seleccion]) ejecutar(lista[seleccion]);
+  });
+
+  pintar();
+  cerrarModales();
+  abrirModal("#modalConsola");
+  input.focus();
+}
+
+function manejarAtajos(e){
+  if (e.key === "Escape"){ cerrarModales(); return; }
+  if (e.ctrlKey && e.key.toLowerCase() === "k"){ e.preventDefault(); abrirConsola(); return; }
+  if (e.key === "F1"){ e.preventDefault(); abrirAyuda(); return; }
+  const v = VISTAS.find(x => x.tecla === e.key);
+  if (v){ e.preventDefault(); irAVista(v.vista); }
 }
 function applyI18n(){
   $$("[data-i18n]").forEach(el => { el.textContent = t(el.dataset.i18n); });
@@ -1681,13 +2293,16 @@ function applyI18n(){
 /* ==========================================================================
    SESIÓN
    ========================================================================== */
-function cerrarSesion(){
+async function cerrarSesion(){
   const btn = $("#logoutBtn");
   btn.disabled = true;
-  mostrarToast(state.lang === "en" ? "Session closed" : "Sesión cerrada", "ok");
-  $("#statusSesion").textContent = state.lang === "en" ? "Closed" : "Cerrada";
-  $("#statusSesion").classList.remove("status-value--ok");
-  setTimeout(() => { btn.disabled = false; }, 1200);
+  try{
+    await fetch(`${AUTH_URL}?action=logout`, { method:"POST" });
+  }catch(err){
+    console.error("No se pudo cerrar la sesión en el servidor", err);
+  }
+  try{ localStorage.removeItem("karma_user"); }catch(_){ /* navegador sin almacenamiento */ }
+  window.location.replace(LOGIN_URL);
 }
 
 /* ==========================================================================
@@ -1713,7 +2328,8 @@ function initEventosGlobales(){
 
   $$(".modal-overlay").forEach(overlay => overlay.addEventListener("click", (e) => { if (e.target === overlay) cerrarModales(); }));
   document.addEventListener("click", (e) => { if (e.target.closest("[data-close-modal]")) cerrarModales(); });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") cerrarModales(); });
+  document.addEventListener("keydown", manejarAtajos);
+  $("#helpBtn").addEventListener("click", abrirAyuda);
 
   setInterval(actualizarReloj, 1000 * 30);
   actualizarReloj();
@@ -1724,6 +2340,12 @@ function initEventosGlobales(){
    ========================================================================== */
 document.addEventListener("DOMContentLoaded", async () => {
   initEventosGlobales();
+  // Sin sesión de Administrador General no se carga nada (api() redirige al login)
+  let admin;
+  try{ admin = await api("sesion"); }catch(_){ setSyncStatus(false); return; }
+  $("#statusAdmin").textContent = admin.nombre;
+  state.adminId = admin.id;
+  aplicarIdioma(admin.idioma === "en" ? "en" : "es"); // idioma guardado en el perfil
   await cargarDatos();
   poblarSelectorSucursales();
   renderMain();

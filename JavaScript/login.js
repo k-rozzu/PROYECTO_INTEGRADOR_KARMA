@@ -7,7 +7,7 @@ formulario.addEventListener("submit", async (event) => {
     const password = document.getElementById("password").value;
 
     try {
-        const respuesta = await fetch("/api/login", {
+        const respuesta = await fetch("PHP/Login/auth.php?action=login", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
@@ -31,10 +31,10 @@ formulario.addEventListener("submit", async (event) => {
             const rol = datos.usuario.rol;
 
             if (rol === "Cajero") {
-                window.location.href = "/PHP/PuntoDeVenta/index.php"; 
+                window.location.href = "PHP/PuntoDeVenta/index.php"; 
             } else if (rol === "Administrador General" || rol === "Gerente") {
                 // Redirige al Home 
-                window.location.href = "/Home/home.html"; 
+                window.location.href = "Home/home.html"; 
             } else {
                 alert("Tu rol no tiene una pantalla asignada aún.");
             }
