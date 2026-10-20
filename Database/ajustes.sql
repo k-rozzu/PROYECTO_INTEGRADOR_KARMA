@@ -198,6 +198,37 @@ UPDATE productos SET modelo_3d = 'assets/Modelos_3D/id41_KRM-CAT-DUC-01_DucatiPa
 -- Balata delantera Audi RS7 (id 10) — "Balata_3af92511c849988dda3f" por anaelsa2007mx, CC BY 4.0
 UPDATE productos SET modelo_3d = 'assets/Modelos_3D/idproducto10_idcategoria4_KRM-REF-BALATA-AUDI_balataDelanteraParaAudiRS7_2024_Negro grafito_refaccion.glb' WHERE codigo_barras = 'KRM-REF-BALATA-AUDI';
 
+-- Reutilización: los vehículos con la misma carrocería comparten el .glb y el visor lo pinta con su color_hex
+-- Deportivos de 2 puertas de Porsche (911 Carrera, Carrera S, Turbo, Targa, GT3, GT3 RS, 718 Cayman y Boxster) usan el 911
+UPDATE productos SET modelo_3d = 'assets/Modelos_3D/id2_KRM-P911-25_porsche911Carrera_2025_Negro Jeweled.glb'
+ WHERE codigo_barras IN ('KRM-P911-24', 'KRM-CAT-POR-01', 'KRM-CAT-POR-02', 'KRM-CAT-POR-03', 'KRM-CAT-POR-04',
+                         'KRM-CAT-POR-05', 'KRM-CAT-POR-06', 'KRM-CAT-POR-07', 'KRM-CAT-POR-08');
+-- Deportivas carenadas de Ducati (Panigale V4, V4 S y SuperSport 950) usan la Panigale
+UPDATE productos SET modelo_3d = 'assets/Modelos_3D/id41_KRM-CAT-DUC-01_DucatiPanigaleV2_2025_Gris Antracita.glb'
+ WHERE codigo_barras IN ('KRM-DPAN-24', 'KRM-CAT-DUC-02', 'KRM-CAT-DUC-03', 'KRM-CAT-DUC-15');
+
+-- Modelos agregados el 2026-10-19 (optimizados para el visor; créditos completos al final de vista_previa_3d.js)
+-- Porsche de 4 puertas (Taycan y Panamera) — "Porsche Taycan Turbo S (Project Cars 3)" por VuckyZ, CC BY 4.0
+UPDATE productos SET modelo_3d = 'assets/Modelos_3D/porsche_taycan.glb'
+ WHERE codigo_barras IN ('KRM-PTAY-25', 'KRM-CAT-POR-09', 'KRM-CAT-POR-10', 'KRM-CAT-POR-11', 'KRM-CAT-POR-12');
+-- Porsche SUV (Cayenne y Macan) — "2022-porsche-cayenne-turbo-gt" por 007, CC BY 4.0
+UPDATE productos SET modelo_3d = 'assets/Modelos_3D/porsche_cayenne.glb'
+ WHERE codigo_barras IN ('KRM-CAT-POR-13', 'KRM-CAT-POR-14', 'KRM-CAT-POR-15');
+-- Audi sedanes, sportback y RS6 (A3 a A8, RS3, RS5, RS6, RS7) — "2020 Audi RS7 Sportback" por Ddiaz Design, CC BY-NC-SA 4.0
+UPDATE productos SET modelo_3d = 'assets/Modelos_3D/audi_rs7.glb'
+ WHERE codigo_barras IN ('KRM-ARS7-24', 'KRM-CAT-AUDI-01', 'KRM-CAT-AUDI-02', 'KRM-CAT-AUDI-03', 'KRM-CAT-AUDI-04', 'KRM-CAT-AUDI-05',
+                         'KRM-CAT-AUDI-06', 'KRM-CAT-AUDI-11', 'KRM-CAT-AUDI-12', 'KRM-CAT-AUDI-13', 'KRM-CAT-AUDI-14');
+-- Audi SUV (Q3, Q5, Q7, Q8 y Q8 e-tron) — "2023 Audi Q5 quattro S line Premium Plus 45 TFSI" por Ddiaz Design, CC BY-NC-SA 4.0
+UPDATE productos SET modelo_3d = 'assets/Modelos_3D/audi_q5.glb'
+ WHERE codigo_barras IN ('KRM-CAT-AUDI-07', 'KRM-CAT-AUDI-08', 'KRM-CAT-AUDI-09', 'KRM-CAT-AUDI-10', 'KRM-AQ8E-25');
+-- Ducati naked (Monster, Streetfighter, Diavel y Scrambler) — "Ducati Monster" por Hallgeir Tyribakken, CC BY 4.0
+UPDATE productos SET modelo_3d = 'assets/Modelos_3D/ducati_monster.glb'
+ WHERE codigo_barras IN ('KRM-CAT-DUC-04', 'KRM-CAT-DUC-05', 'KRM-DSTR-25', 'KRM-CAT-DUC-10', 'KRM-CAT-DUC-09',
+                         'KRM-CAT-DUC-08', 'KRM-CAT-DUC-11', 'KRM-CAT-DUC-12');
+-- Ducati adventure (Multistrada, DesertX e Hypermotard) — "Ducati Desertx" por Nieve5677, CC BY 4.0
+UPDATE productos SET modelo_3d = 'assets/Modelos_3D/ducati_desertx.glb'
+ WHERE codigo_barras IN ('KRM-CAT-DUC-06', 'KRM-CAT-DUC-07', 'KRM-CAT-DUC-13', 'KRM-CAT-DUC-14');
+
 -- ===== 7. VERIFICACIÓN (opcional, solo muestra resultados) =====
 
 -- Vehículos que siguen sin VIN (debe salir 0)
