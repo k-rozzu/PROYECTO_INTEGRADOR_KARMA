@@ -66,19 +66,122 @@
       e.preventDefault();
       const msg = $("#rgMensaje");
       if (form.password.value !== form.confirmacion.value) return mensaje(msg, "Las contraseñas no coinciden.");
-      if (!form.acepta_privacidad.checked) return mensaje(msg, "Debes aceptar el aviso de privacidad para crear tu cuenta.");
       const boton = $("[type=submit]", form);
       boton.classList.add("cargando");
       mensaje(msg, "");
       const datos = Object.fromEntries(new FormData(form).entries());
-      datos.acepta_privacidad = form.acepta_privacidad.checked;
+      datos.notif_promociones = form.notif_promociones.checked;
       try {
-        await api("registro", { metodo: "POST", datos });
-        try { sessionStorage.setItem("karma_aviso", "¡Tu cuenta se creó correctamente! Bienvenido a KARMA."); } catch (_) {}
-        window.location.href = form.dataset.volver || "perfil.php";
+        // Paso 1: el servidor crea la solicitud y envía el correo; la cuenta todavía NO existe
+        const r = await api("registro", { metodo: "POST", datos });
+        form.password.value = form.confirmacion.value = "";
+        mostrarEspera(r);
       } catch (err) { mensaje(msg, err.message); }
       finally { boton.classList.remove("cargando"); }
     });
+    iniciarEspera(form);
+  }
+
+  // ===== REGISTRO · PASO 2: «Revisa tu correo» (esperando la aceptación desde el botón del correo) =====
+  let consulta = null, cuentaAtras = null, esperaSegundos = 0, reenviosRestantes = 1;
+
+  function mostrarPaso(espera) {
+    $("#rgPasoFormulario")?.classList.toggle("oculto", espera);
+    $("#rgPasoEspera")?.classList.toggle("oculto", !espera);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  function mostrarEspera(r) {
+    $("#rgEsperaEmail").textContent = r.email || "";
+    $("#rgEsperaVence").textContent = r.vence || "";
+    mensaje($("#rgEsperaMensaje"), "");
+    estadoEspera("Esperando tu confirmación…", "info");
+    mostrarPaso(true);
+    programarReenvio(r.reenviarEn ?? 60, r.reenviosRestantes ?? 0);
+    vigilar();
+  }
+  function estadoEspera(texto, tipo = "info") {
+    const caja = $("#rgEstado");
+    if (!caja) return;
+    caja.className = `estado-espera estado-espera--${tipo}`;
+    $("#rgEstadoTexto").textContent = texto;
+  }
+  // Botón «Reenviar correo» con cuenta regresiva (el servidor aplica los mismos límites)
+  function programarReenvio(segundos, restantes) {
+    esperaSegundos = Math.max(0, Number(segundos) || 0);
+    reenviosRestantes = Math.max(0, Number(restantes) || 0);
+    clearInterval(cuentaAtras);
+    const pintar = () => {
+      const boton = $("#rgReenviar");
+      if (!boton) return;
+      const etiqueta = $("span", boton);
+      if (reenviosRestantes <= 0) { boton.disabled = true; etiqueta.textContent = "Límite de reenvíos alcanzado"; return; }
+      boton.disabled = esperaSegundos > 0;
+      etiqueta.textContent = esperaSegundos > 0 ? `Reenviar correo (${esperaSegundos} s)` : "Reenviar correo";
+    };
+    pintar();
+    cuentaAtras = setInterval(() => { esperaSegundos = Math.max(0, esperaSegundos - 1); pintar(); if (!esperaSegundos) clearInterval(cuentaAtras); }, 1000);
+  }
+  // Consulta cada 5 s si ya se confirmó (también al volver a la pestaña, por ejemplo después de abrir Gmail)
+  function vigilar() {
+    clearInterval(consulta);
+    consulta = setInterval(revisarEstado, 5000);
+  }
+  async function revisarEstado() {
+    if (document.hidden || $("#rgPasoEspera")?.classList.contains("oculto")) return;
+    let r;
+    try { r = await api("registro_estado"); } catch (_) { return; }
+    if (r.estado === "pendiente") return;
+    clearInterval(consulta);
+    clearInterval(cuentaAtras);
+    if (r.estado === "completado" && r.sesion) {
+      estadoEspera("¡Registro confirmado! Entrando a tu cuenta…", "ok");
+      try { sessionStorage.setItem("karma_aviso", "¡Registro completado! Tu cuenta KARMA ya está activa."); } catch (_) {}
+      const form = $("#formRegistro");
+      setTimeout(() => { window.location.href = form?.dataset.volver || "perfil.php"; }, 900);
+    } else if (r.estado === "completado") {
+      estadoEspera("Tu registro se confirmó desde otro navegador o dispositivo.", "ok");
+      $("#rgEsperaAcciones").innerHTML = `<a class="btn btn--primario" href="login.php">Iniciar sesión</a>`;
+    } else {
+      estadoEspera("La solicitud ya no está vigente: no se creó ninguna cuenta.", "error");
+      mensaje($("#rgEsperaMensaje"), "Vuelve a llenar el formulario para recibir un correo nuevo.", "info");
+      $("#rgReenviar").disabled = true;
+      $("#rgOtroCorreo").textContent = "Volver al formulario";
+    }
+  }
+  function iniciarEspera(form) {
+    const panel = $("#rgPasoEspera");
+    if (!panel) return;
+    $("#rgReenviar").addEventListener("click", async () => {
+      const boton = $("#rgReenviar");
+      boton.classList.add("cargando");
+      mensaje($("#rgEsperaMensaje"), "");
+      try {
+        const r = await api("registro_reenviar", { metodo: "POST" });
+        mensaje($("#rgEsperaMensaje"), r.mensaje, "ok");
+        $("#rgEsperaVence").textContent = r.vence || "";
+        programarReenvio(r.reenviarEn, r.reenviosRestantes);
+      } catch (err) {
+        mensaje($("#rgEsperaMensaje"), err.message);
+        if (err.estado === 410) revisarEstado();
+      } finally { boton.classList.remove("cargando"); }
+    });
+    $("#rgOtroCorreo").addEventListener("click", async () => {
+      await api("registro_cancelar", { metodo: "POST" }).catch(() => {});
+      clearInterval(consulta);
+      clearInterval(cuentaAtras);
+      $("#rgOtroCorreo").textContent = "Usar otro correo";
+      mensaje($("#rgMensaje"), "");
+      mostrarPaso(false);
+      form.email.focus();
+    });
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) revisarEstado(); });
+    if (panel.dataset.activa === "1") {
+      // La página se recargó con una solicitud en curso: se consulta el estado real y los límites de reenvío
+      api("registro_estado").then(r => {
+        if (r.estado === "pendiente") { programarReenvio(r.reenviarEn, r.reenviosRestantes); vigilar(); }
+        else revisarEstado();
+      }).catch(() => vigilar());
+    }
   }
 
   // ===== PERFIL =====

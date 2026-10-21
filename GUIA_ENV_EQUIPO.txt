@@ -1,0 +1,102 @@
+GUÍA PARA CREAR EL ARCHIVO .env DE KARMA
+========================================
+
+El archivo .env guarda la configuración y las claves de las APIs del proyecto (correos con Brevo,
+traductor con DeepL y conexión del servidor de Node). Cada integrante debe tener su propio .env en su
+computadora. Esta guía SÍ está en GitHub, pero NO contiene las claves secretas: el repositorio es público
+y cualquiera podría usarlas.
+
+
+PASOS
+-----
+1. En la carpeta raíz del proyecto (donde están index.html, package.json y esta guía) crea un archivo
+   llamado exactamente  .env  (con el punto al inicio y sin .txt al final).
+   En el Bloc de notas: Guardar como > Tipo: «Todos los archivos» > Nombre: .env
+
+2. Copia en ese archivo todo el bloque que está al final de esta guía, desde «INICIO DEL .env»
+   hasta «FIN DEL .env».
+
+3. Sustituye cada valor que dice PEGA_AQUI_... por el dato real. Carolina te los comparte por un medio
+   privado (WhatsApp, Drive privado, USB). Nunca los pegues en esta guía ni en ningún archivo que se suba
+   a GitHub.
+
+4. Guarda el archivo. PHP lee el .env en cada petición, así que no hace falta reiniciar Apache.
+   Si usas el servidor de Node (carpeta backend), sí debes reiniciarlo.
+
+5. El .env ya está en .gitignore: Git lo ignora y no se sube. No lo quites de ahí.
+
+
+QUÉ USA CADA VARIABLE
+---------------------
+DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME
+    Solo los usa el servidor de Node (backend/db.js). El PHP del POS y del catálogo se conecta por su
+    cuenta a 127.0.0.1, usuario root, sin contraseña, base pos_multisede (para usar otra base se definen
+    las variables de sistema KARMA_DB_HOST, KARMA_DB_NAME, KARMA_DB_USER y KARMA_DB_PASS).
+
+BREVO_API_KEY, BREVO_REMITENTE_EMAIL, BREVO_REMITENTE_NOMBRE
+    Envío de correos: el ticket en PDF del Punto de Venta y el correo de confirmación de registro del
+    catálogo (con el Aviso de Privacidad y los Términos en PDF). El remitente debe ser el correo
+    verificado en la cuenta de Brevo a la que pertenece la clave.
+
+TRADUCTOR_PROVEEDOR, DEEPL_API_KEY, GOOGLE_TRANSLATE_API_KEY
+    Botón ES / EN de las páginas. Con deepl solo hace falta DEEPL_API_KEY (las claves del plan gratuito
+    terminan en «:fx»). GOOGLE_TRANSLATE_API_KEY solo se usa si TRADUCTOR_PROVEEDOR=google.
+
+KARMA_URL_PUBLICA
+    Dirección pública del proyecto para los enlaces del correo de registro, sin barra al final.
+    En sus computadoras déjala vacía: con localhost funciona sola. Al publicar el sitio es obligatoria
+    y debe empezar con https:// (ejemplo: https://www.tu-dominio.mx).
+
+KARMA_PROXY_HTTPS
+    Déjala vacía. Solo se pone 1 si el sitio publicado está detrás de un proxy que maneja el HTTPS.
+
+BREVO_MODO_PRUEBA
+    Déjala vacía. Con 1, Brevo revisa los correos de registro pero NO los entrega (sirve para hacer
+    pruebas sin llenar bandejas; solo funciona en localhost).
+
+
+PROBLEMAS COMUNES
+-----------------
+- «El correo aún no está configurado»: falta BREVO_API_KEY o BREVO_REMITENTE_EMAIL en el .env.
+- «Brevo rechazó el envío: Key not found»: la clave se copió mal o quedó el texto PEGA_AQUI_...
+- Brevo responde que la dirección IP no está reconocida: Brevo bloquea las IP nuevas que usan la clave.
+  La dueña de la cuenta debe autorizar esa IP en Brevo (Seguridad > IP autorizadas) o desactivar
+  ese bloqueo.
+- El registro del catálogo dice «Ocurrió un error inesperado» y el log de PHP menciona
+  KARMA_URL_PUBLICA: abriste el sitio con una dirección que no es localhost; ponla en el .env.
+- «Falta DEEPL_API_KEY en el archivo .env»: falta la clave del traductor.
+- El inicio de sesión del POS no conecta: revisa los DB_* y que el servidor de Node esté encendido.
+
+
+# ===== INICIO DEL .env (copia desde esta línea) =====
+
+# Base de datos (la usa el servidor de Node)
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=
+DB_NAME=pos_multisede
+
+# API BREVO (envío del ticket PDF y del correo de registro) — clave en brevo.com > SMTP & API > API Keys
+BREVO_API_KEY=PEGA_AQUI_LA_CLAVE_DE_BREVO
+# Correo remitente verificado en Brevo (Senders, Domains & Dedicated IPs > Senders)
+BREVO_REMITENTE_EMAIL=PEGA_AQUI_EL_CORREO_REMITENTE_VERIFICADO
+# Nombre que verá el cliente como remitente
+BREVO_REMITENTE_NOMBRE=KARMA Agencia de Autos
+
+# API DE TRADUCCIÓN — proveedor a usar: deepl (recomendado) o google
+TRADUCTOR_PROVEEDOR=deepl
+# Clave de DeepL (deepl.com/pro-api); las claves del plan gratuito terminan en ":fx"
+DEEPL_API_KEY=PEGA_AQUI_LA_CLAVE_DE_DEEPL
+# Clave de Google Cloud Translation (solo si TRADUCTOR_PROVEEDOR=google)
+GOOGLE_TRANSLATE_API_KEY=
+
+# REGISTRO DEL CATÁLOGO (correo de confirmación con el aviso de privacidad y los términos)
+# Dirección pública de la raíz del proyecto, sin barra final. Vacía = solo funciona en localhost.
+KARMA_URL_PUBLICA=
+# 1 solo si un proxy o balanceador maneja el HTTPS y envía el encabezado X-Forwarded-Proto: https
+KARMA_PROXY_HTTPS=
+# 1 = modo de prueba de Brevo para el registro: valida el correo pero NO lo entrega (solo en localhost)
+BREVO_MODO_PRUEBA=
+
+# ===== FIN DEL .env =====

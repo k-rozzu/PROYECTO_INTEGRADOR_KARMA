@@ -224,7 +224,7 @@ function apiValidarFechaCita(string $fecha): void {
 $accion = (string)($_GET['action'] ?? '');
 $metodo = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
-$accionesPost = ['set_sucursal', 'registro', 'login', 'logout', 'carrito_agregar', 'carrito_actualizar', 'carrito_eliminar',
+$accionesPost = ['set_sucursal', 'registro', 'registro_reenviar', 'registro_cancelar', 'login', 'logout', 'carrito_agregar', 'carrito_actualizar', 'carrito_eliminar',
     'carrito_vaciar', 'checkout', 'cancelar_pedido', 'agendar', 'cancelar_cita', 'solicitud', 'favorito',
     'perfil_actualizar', 'cambiar_password', 'notificaciones_leidas'];
 
@@ -311,6 +311,11 @@ try {
 
         // ---------- Cuenta: registro, login, logout ----------
         case 'registro': {
+            // Paso 1 del registro: se valida el formulario y se crea una SOLICITUD pendiente (no una cuenta).
+            // La cuenta solo se crea cuando la persona acepta el aviso y los términos desde el botón del correo
+            // (includes/registro_cuenta.php y confirmar_registro.php).
+            require_once __DIR__ . '/includes/registro_cuenta.php';
+            if (!catRegistroConexionSegura()) apiError('El registro solo está disponible con una conexión segura (HTTPS).', 403);
             apiLimite('registro', 5, 600);
             $d = apiEntrada();
             $nombres = apiTexto($d, 'nombres', 80, true, 'tu nombre');
@@ -320,7 +325,6 @@ try {
             $password = (string)($d['password'] ?? '');
             apiPasswordNueva($password);
             if ($password !== (string)($d['confirmacion'] ?? '')) throw new InvalidArgumentException('Las contraseñas no coinciden.');
-            if (empty($d['acepta_privacidad'])) throw new InvalidArgumentException('Debes aceptar el aviso de privacidad para crear tu cuenta.');
             $direccion = apiTexto($d, 'direccion', 255, false);
             $ciudad = apiTexto($d, 'ciudad', 100, false);
             $entidad = apiTexto($d, 'entidad_federativa', 80, false);
@@ -328,58 +332,68 @@ try {
             $idSucursal = (int)($d['id_sucursal_preferida'] ?? 0);
             if ($idSucursal && !catSucursalPorId($idSucursal)) throw new InvalidArgumentException('La sucursal preferida no es válida.');
             $marcaInteres = in_array($d['marca_interes'] ?? '', CAT_MARCAS, true) ? $d['marca_interes'] : null;
-            $notifPromos = !empty($d['notif_promociones']) ? 1 : 0;
-            $hash = password_hash($password, PASSWORD_DEFAULT);
-            $nombreCompleto = "{$nombres} {$apellidos}";
-
-            $pdo = db();
-            $pdo->beginTransaction();
             try {
-                $buscar = $pdo->prepare('SELECT id_cliente, password_hash, estado FROM clientes WHERE email = ? LIMIT 1 FOR UPDATE');
-                $buscar->execute([$email]);
-                $existente = $buscar->fetch(PDO::FETCH_ASSOC);
-                if ($existente && $existente['password_hash'] !== null) {
-                    $pdo->rollBack();
-                    apiError('Ya existe una cuenta con este correo. Inicia sesión o usa otro correo.', 409);
-                }
-                if ($existente && $existente['estado'] !== 'activo') {
-                    $pdo->rollBack();
-                    apiError('Este correo pertenece a un cliente inactivo. Acude a una sucursal para reactivarlo.', 409);
-                }
-                if ($existente) {
-                    // El cliente ya existía en el POS (crédito o venta en caja): se le crea su acceso en línea sin duplicarlo
-                    $up = $pdo->prepare("
-                        UPDATE clientes SET nombres = ?, apellidos = ?, password_hash = ?,
-                               celular = COALESCE(NULLIF(celular, ''), ?), direccion = COALESCE(NULLIF(direccion, ''), NULLIF(?, '')),
-                               ciudad = NULLIF(?, ''), entidad_federativa = NULLIF(?, ''), codigo_postal = NULLIF(?, ''),
-                               id_sucursal_preferida = ?, marca_interes = ?, notif_promociones = ?, fecha_registro = NOW()
-                         WHERE id_cliente = ?");
-                    $up->execute([$nombres, $apellidos, $hash, $celular, $direccion, $ciudad, $entidad, $cp,
-                                  $idSucursal ?: null, $marcaInteres, $notifPromos, $existente['id_cliente']]);
-                    $idCliente = (int)$existente['id_cliente'];
-                } else {
-                    // Cliente nuevo en la misma tabla `clientes` que usa el POS
-                    $ins = $pdo->prepare("
-                        INSERT INTO clientes (nombre, nombres, apellidos, email, celular, direccion, ciudad, entidad_federativa, codigo_postal,
-                                              id_sucursal_preferida, marca_interes, notif_promociones, password_hash, estado,
-                                              abonos_pagados, abonos_totales, fecha_registro)
-                        VALUES (?, ?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, ?, ?, ?, 'activo', 0, 0, NOW())");
-                    $ins->execute([$nombreCompleto, $nombres, $apellidos, $email, $celular, $direccion, $ciudad, $entidad, $cp,
-                                   $idSucursal ?: null, $marcaInteres, $notifPromos, $hash]);
-                    $idCliente = (int)$pdo->lastInsertId();
-                }
-                catNotificar($pdo, $idCliente, 'cuenta', '¡Bienvenido a KARMA!',
-                    'Tu cuenta quedó lista. Desde tu perfil puedes revisar pedidos, citas y vehículos de interés.', 'perfil.php');
-                $pdo->commit();
-            } catch (Throwable $e) {
-                if ($pdo->inTransaction()) $pdo->rollBack();
-                throw $e;
+                $resumen = catRegistroSolicitar([
+                    'nombres' => $nombres, 'apellidos' => $apellidos, 'email' => $email, 'celular' => $celular,
+                    'direccion' => $direccion, 'ciudad' => $ciudad, 'entidad_federativa' => $entidad, 'codigo_postal' => $cp,
+                    'id_sucursal_preferida' => $idSucursal ?: null, 'marca_interes' => $marcaInteres,
+                    'notif_promociones' => !empty($d['notif_promociones']) ? 1 : 0,
+                    'password_hash' => password_hash($password, PASSWORD_DEFAULT)
+                ]);
+            } catch (CatRegistroLimite $e) {
+                apiError($e->getMessage(), 429);
+            } catch (CatRegistroError $e) {
+                apiError($e->getMessage(), 502);
             }
-            session_regenerate_id(true);
-            $_SESSION['cliente_id'] = $idCliente;
-            if ($idSucursal) catEstablecerSucursal($idSucursal);
-            $cliente = catClienteActual(true);
-            apiOk(['cliente' => apiResumenCliente($cliente), 'mensaje' => 'Tu cuenta se creó correctamente.']);
+            // La sesión recuerda la solicitud para la pantalla «Revisa tu correo» (estado y reenvío); el navegador no recibe el id
+            $_SESSION['registro_pendiente'] = ['id' => $resumen['id'], 'email' => $email, 'nombre' => $nombres];
+            unset($resumen['id']);
+            apiOk(['pendiente' => true, 'email' => $email,
+                   'mensaje' => 'Te enviamos un correo para confirmar tu registro. Tu cuenta se activará cuando aceptes el aviso de privacidad y los términos desde ese correo.'] + $resumen);
+        }
+
+        case 'registro_estado': {
+            // La pantalla «Revisa tu correo» pregunta cada pocos segundos si la persona ya aceptó (solo su propia solicitud)
+            require_once __DIR__ . '/includes/registro_cuenta.php';
+            $pendiente = $_SESSION['registro_pendiente'] ?? null;
+            $sesion = catClienteActual() !== null;
+            if (!is_array($pendiente) || empty($pendiente['id'])) apiOk(['estado' => 'ninguno', 'sesion' => $sesion]);
+            try {
+                $resumen = catRegistroResumen(catRegistroFila(db(), (int)$pendiente['id']));
+            } catch (CatRegistroError $e) {
+                unset($_SESSION['registro_pendiente']);
+                apiOk(['estado' => 'ninguno', 'sesion' => $sesion]);
+            }
+            if ($resumen['estado'] !== 'pendiente') unset($_SESSION['registro_pendiente']);
+            unset($resumen['id']);
+            apiOk($resumen + ['sesion' => $sesion, 'email' => $pendiente['email']]);
+        }
+
+        case 'registro_reenviar': {
+            require_once __DIR__ . '/includes/registro_cuenta.php';
+            if (!catRegistroConexionSegura()) apiError('El registro solo está disponible con una conexión segura (HTTPS).', 403);
+            $pendiente = $_SESSION['registro_pendiente'] ?? null;
+            if (!is_array($pendiente) || empty($pendiente['id'])) apiError('No tienes una solicitud de registro en curso. Vuelve a llenar el formulario.', 404);
+            apiLimite('registro_reenvio', 6, 600);
+            try {
+                $resumen = catRegistroReenviar((int)$pendiente['id'], (string)$pendiente['email'], (string)$pendiente['nombre']);
+            } catch (CatRegistroLimite $e) {
+                apiError($e->getMessage(), 429);
+            } catch (CatRegistroError $e) {
+                if ($e->codigo === 'vencido') unset($_SESSION['registro_pendiente']);
+                apiError($e->getMessage(), $e->codigo === 'vencido' ? 410 : 502);
+            }
+            unset($resumen['id']);
+            apiOk($resumen + ['mensaje' => 'Te enviamos un nuevo correo. Usa el enlace del mensaje más reciente.']);
+        }
+
+        case 'registro_cancelar': {
+            // «Usar otro correo»: la solicitud se cancela y sus datos se borran de inmediato
+            require_once __DIR__ . '/includes/registro_cuenta.php';
+            $pendiente = $_SESSION['registro_pendiente'] ?? null;
+            if (is_array($pendiente) && !empty($pendiente['id'])) catRegistroCerrar(db(), (int)$pendiente['id']);
+            unset($_SESSION['registro_pendiente']);
+            apiOk(['mensaje' => 'Cancelamos tu solicitud de registro y eliminamos sus datos.']);
         }
 
         case 'login': {
@@ -396,6 +410,11 @@ try {
             $fila = $stmt->fetch(PDO::FETCH_ASSOC);
             $hash = ($fila['password_hash'] ?? null) ?: '$2y$12$hwYmuOlp6nD9GMMParLSaudYeryxz7nV8celMCqEe4ual5f/kf7z2';
             if (!$fila || empty($fila['password_hash']) || !password_verify($password, $hash)) {
+                // Una solicitud de registro sin confirmar nunca inicia sesión; si la contraseña coincide se le explica por qué
+                require_once __DIR__ . '/includes/registro_cuenta.php';
+                if (catRegistroPendienteConPassword($email, $password)) {
+                    apiError('Tu registro aún no está confirmado. Abre el correo que te enviamos y pulsa «' . CAT_REGISTRO_BOTON . '» para activar tu cuenta.', 403, ['pendiente' => true]);
+                }
                 $_SESSION['cat_login'] = ['n' => $intentos['n'] + 1, 't' => time()];
                 usleep(300000);
                 apiError('Correo o contraseña incorrectos.', 401);
@@ -814,11 +833,11 @@ try {
             $p = catProducto((int)($d['id_producto'] ?? 0));
             if (!$p) apiError('El producto no existe.', 404);
             $pdo = db();
-            $del = $pdo->prepare('DELETE FROM clientes_favoritos WHERE id_cliente = ? AND id_producto = ?');
+            $del = $pdo->prepare('DELETE FROM favoritos_catalogo WHERE id_cliente = ? AND id_producto = ?');
             $del->execute([(int)$cliente['id_cliente'], $p['id']]);
             $favorito = false;
             if ($del->rowCount() === 0) {
-                $pdo->prepare('INSERT INTO clientes_favoritos (id_cliente, id_producto) VALUES (?, ?)')->execute([(int)$cliente['id_cliente'], $p['id']]);
+                $pdo->prepare('INSERT INTO favoritos_catalogo (id_cliente, id_producto) VALUES (?, ?)')->execute([(int)$cliente['id_cliente'], $p['id']]);
                 $favorito = true;
             }
             apiOk(['favorito' => $favorito, 'mensaje' => $favorito ? "{$p['titulo']} se guardó en tus vehículos de interés." : 'Se quitó de tus vehículos de interés.']);

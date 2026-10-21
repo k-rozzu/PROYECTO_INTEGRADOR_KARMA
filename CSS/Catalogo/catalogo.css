@@ -18,6 +18,7 @@
     9. Tarjetas de producto                       20. Pie de página
    10. Catálogo: filtros y cuadrícula             21. Animaciones y accesibilidad
    11. Tarjetas de servicio y sucursal           22. Responsive
+                                                 20b. Documentos legales y registro por correo
    ===================================================================================== */
 
 /* ===== 1. TOKENS ===== */
@@ -1001,6 +1002,87 @@ dialog.modal[open] { animation: subir .3s var(--ease); }
 
 .galeria-creditos { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
 .galeria-creditos img { width: 100%; aspect-ratio: 16 / 10; object-fit: contain; border-radius: var(--radius-s); background: var(--c-foto-bg); }
+
+/* ===== 20b. DOCUMENTOS LEGALES Y REGISTRO CON CONFIRMACIÓN POR CORREO =====
+   privacidad.php / terminos.php (índice + secciones), registro.php («Revisa tu correo») y confirmar_registro.php */
+.legal-meta { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 14px; font-size: 13.5px; color: var(--c-text-2); }
+.legal-meta span { display: inline-flex; align-items: center; gap: 6px; }
+.documento-legal-rejilla { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 44px; align-items: start; }
+.indice-legal { position: sticky; top: calc(var(--header-h) + 20px); max-height: calc(100vh - var(--header-h) - 40px); overflow: auto; padding: 16px 18px; border: 1px solid var(--c-line); border-radius: var(--radius-m); background: var(--c-surface); font-size: 14px; }
+.indice-legal summary { cursor: pointer; font-family: var(--font-display); font-weight: 600; }
+.indice-legal ol { list-style: none; padding: 0; margin-top: 12px; display: grid; gap: 7px; counter-reset: legal; }
+.indice-legal li { counter-increment: legal; display: flex; gap: 8px; color: var(--c-text-2); line-height: 1.4; }
+.indice-legal li::before { content: counter(legal) "."; min-width: 20px; color: var(--c-text-3); font-variant-numeric: tabular-nums; }
+.indice-legal a:hover { color: var(--c-accent); }
+.documento-legal { max-width: 800px; font-size: 16px; line-height: 1.75; }
+.seccion-legal { padding-top: 30px; scroll-margin-top: calc(var(--header-h) + 16px); }
+.seccion-legal h2 { font-size: 22px; margin-bottom: 12px; }
+.seccion-legal h2 .num { color: var(--c-accent); }
+.seccion-legal h3 { font-size: 17px; margin: 18px 0 8px; }
+.seccion-legal p { color: var(--c-text-2); margin: 0 0 12px; }
+.seccion-legal ul, .seccion-legal ol { padding-left: 22px; margin: 0 0 14px; display: grid; gap: 8px; color: var(--c-text-2); }
+.seccion-legal strong { color: var(--c-text); }
+.seccion-legal a { color: var(--c-accent); font-weight: 500; }
+.seccion-legal a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.pendiente { padding: 1px 6px; border-radius: 4px; background: var(--c-warn-bg); color: var(--c-warn); font-weight: 600; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.notas-legales { margin-top: 36px; padding-top: 18px; border-top: 1px dashed var(--c-line-strong); }
+.nota-ficticia { margin: 0 0 8px; font-size: 13px; line-height: 1.6; color: var(--c-text-3); }
+.documento-legal sup { font-size: .7em; }
+
+.aviso-registro { display: flex; gap: 12px; padding: 14px 16px; border-radius: var(--radius-m); background: var(--c-primary-soft); font-size: 14px; color: var(--c-text-2); }
+.aviso-registro > .icono { color: var(--c-accent); margin-top: 2px; }
+.aviso-registro strong { display: block; margin-bottom: 2px; color: var(--c-text); }
+.registro-espera { display: grid; gap: 16px; animation: aparecer .4s var(--ease); }
+.registro-espera h1 { font-size: 30px; }
+.registro-espera > p { color: var(--c-text-2); }
+.icono-estado { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; }
+.icono-estado .icono-grande { width: 30px; height: 30px; }
+.icono-estado--info { background: var(--c-primary-soft); color: var(--c-accent); }
+.icono-estado--ok { background: var(--c-ok-bg); color: var(--c-ok); }
+.icono-estado--aviso { background: var(--c-warn-bg); color: var(--c-warn); }
+.icono-estado--error { background: var(--c-bad-bg); color: var(--c-bad); }
+.pasos-espera { list-style: none; padding: 0; display: grid; gap: 10px; counter-reset: paso; }
+.pasos-espera li { counter-increment: paso; display: flex; gap: 12px; align-items: flex-start; font-size: 14.5px; color: var(--c-text-2); }
+.pasos-espera li::before { content: counter(paso); flex: 0 0 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--c-primary); color: var(--c-on-primary); font-size: 13px; font-weight: 600; }
+.estado-espera { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border: 1px solid var(--c-line); border-radius: var(--radius-m); background: var(--c-surface-2); font-size: 14.5px; font-weight: 500; }
+.punto-espera { flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%; background: var(--c-accent); animation: latido 1.4s ease-in-out infinite; }
+.estado-espera--ok { border-color: transparent; background: var(--c-ok-bg); color: var(--c-ok); }
+.estado-espera--error { border-color: transparent; background: var(--c-bad-bg); color: var(--c-bad); }
+.estado-espera--ok .punto-espera, .estado-espera--error .punto-espera { background: currentColor; animation: none; }
+.nota-espera { font-size: 13.5px; }
+@keyframes latido { 0%, 100% { transform: scale(.7); opacity: .45; } 50% { transform: scale(1); opacity: 1; } }
+
+.confirmacion-caja { max-width: 720px; margin: 0 auto; display: grid; gap: 18px; padding: 28px; border: 1px solid var(--c-line); border-radius: var(--radius-l); background: var(--c-surface); box-shadow: var(--shadow-1); }
+.confirmacion-estado { justify-items: center; text-align: center; }
+.confirmacion-estado h2 { font-size: 24px; }
+.confirmacion-estado p { max-width: 560px; color: var(--c-text-2); }
+.datos-solicitud { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; margin: 0; padding: 16px 18px; border-radius: var(--radius-m); background: var(--c-surface-2); }
+.datos-solicitud dt { font-size: 12px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--c-text-3); }
+.datos-solicitud dd { margin: 2px 0 0; font-weight: 500; overflow-wrap: anywhere; }
+.titulo-confirmacion { font-size: 18px; }
+.documentos-aceptar { display: grid; gap: 10px; }
+.documento-aceptar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 14px 16px; border: 1px solid var(--c-line); border-radius: var(--radius-m); }
+.documento-aceptar .icono-doc { width: 26px; height: 26px; color: var(--c-accent); }
+.documento-aceptar strong { display: block; }
+.documento-aceptar span { display: block; font-size: 13px; color: var(--c-text-3); }
+.documento-aceptar .huella { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; }
+.al-aceptar { padding: 16px 18px; border-left: 3px solid var(--c-accent); border-radius: 0 var(--radius-m) var(--radius-m) 0; background: var(--c-primary-soft); font-size: 14.5px; }
+.al-aceptar .lista-check { margin-top: 10px; gap: 8px; }
+.boton-aceptar { min-height: 56px; padding-top: 12px; padding-bottom: 12px; line-height: 1.3; white-space: normal; text-align: center; }
+.formulario-reenvio { width: 100%; max-width: 480px; text-align: left; }
+@media (max-width: 1080px) {
+  .documento-legal-rejilla { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  .indice-legal { position: static; max-height: none; }
+}
+@media (max-width: 720px) {
+  .documento-legal { font-size: 15px; }
+  .seccion-legal h2 { font-size: 19px; }
+  .confirmacion-caja { padding: 20px; }
+  .datos-solicitud { grid-template-columns: minmax(0, 1fr); }
+  .documento-aceptar { grid-template-columns: auto minmax(0, 1fr); }
+  .documento-aceptar .enlace { grid-column: 2; }
+  .registro-espera h1 { font-size: 26px; }
+}
 
 /* ===== 21. ANIMACIONES Y ACCESIBILIDAD ===== */
 @keyframes girar { to { transform: rotate(360deg); } }

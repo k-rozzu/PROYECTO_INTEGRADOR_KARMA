@@ -272,6 +272,18 @@ function enviarTicketPorCorreo(string $email, string $nombre, array $ticket): ar
         'attachment' => [['name' => $nombreArchivo, 'content' => base64_encode($pdf)]]
     ];
 
+    // API BREVO: envío compartido con el registro del catálogo (misma llamada y mismos mensajes de error)
+    $envio = karmaBrevoEnviar($apiKey, $payload);
+    if (!$envio['ok']) {
+        return $envio;
+    }
+
+    return ['ok' => true, 'message' => 'El PDF con el ticket completo fue enviado a ' . $email . '.', 'id' => $envio['id']];
+}
+
+// API BREVO: manda un correo ya armado (remitente, destinatario, asunto, HTML y adjuntos en base64) y traduce la respuesta.
+// La usan el ticket del POS y el correo de confirmación de registro del catálogo. Regresa ['ok' => bool, 'message' => ..., 'id' => ...]
+function karmaBrevoEnviar(string $apiKey, array $payload): array {
     // API BREVO: llamada HTTPS con la clave en el encabezado "api-key"
     $ch = curl_init(KARMA_BREVO_URL);
     curl_setopt_array($ch, [
@@ -302,5 +314,5 @@ function enviarTicketPorCorreo(string $email, string $nombre, array $ticket): ar
         return ['ok' => false, 'message' => 'Brevo rechazó el envío: ' . $detalle];
     }
 
-    return ['ok' => true, 'message' => 'El PDF con el ticket completo fue enviado a ' . $email . '.', 'id' => $datos['messageId'] ?? null];
+    return ['ok' => true, 'message' => 'Brevo aceptó el correo.', 'id' => $datos['messageId'] ?? null];
 }
