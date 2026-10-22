@@ -3,7 +3,8 @@ declare(strict_types=1);
 /* KARMA · Catálogo — registro de clientes en dos pasos:
    1. Este formulario crea una SOLICITUD y envía al correo el Aviso de Privacidad y los Términos en PDF (api.php?action=registro).
    2. La cuenta (tabla `clientes`, contraseña con hash) se crea solo cuando la persona acepta desde el botón del correo
-      (confirmar_registro.php). Mientras tanto esta página muestra «Revisa tu correo» y consulta si ya confirmó. */
+      (confirmar_registro.php). Mientras tanto esta página muestra «Revisa tu correo» y consulta si ya confirmó.
+   3. Al aceptar, esta misma pestaña muestra «Registro completado» y lleva al inicio del catálogo; la pestaña que abrió el correo se cierra. */
 require_once __DIR__ . '/includes/layout.php';
 require_once __DIR__ . '/includes/legal.php';
 
@@ -105,6 +106,15 @@ $entidades = ['Aguascalientes', 'Baja California', 'Baja California Sur', 'Campe
           <button class="btn btn--secundario" type="button" id="rgReenviar"><?= icono('correo') ?> <span>Reenviar correo</span></button>
           <button class="btn btn--fantasma" type="button" id="rgOtroCorreo">Usar otro correo</button>
         </div>
+      </div>
+
+      <!-- PASO 3: aceptado desde el botón del correo en este navegador (la cuenta ya existe y la sesión quedó iniciada) -->
+      <div id="rgPasoListo" class="registro-espera oculto">
+        <span class="icono-estado icono-estado--ok"><?= icono('check-circulo', 'icono-grande') ?></span>
+        <h1>¡Registro completado!</h1>
+        <p>Aceptaste el Aviso de Privacidad y los Términos y Condiciones desde tu correo. Tu cuenta KARMA ya está activa y tu sesión quedó iniciada.</p>
+        <div class="estado-espera estado-espera--ok" role="status" aria-live="polite"><span class="punto-espera" aria-hidden="true"></span><span id="rgListoTexto">Te llevaremos al inicio del catálogo…</span></div>
+        <div class="fila fila--envolver"><a class="btn btn--primario" href="index.php">Ir al inicio ahora</a></div>
       </div>
 
     </div>

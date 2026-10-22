@@ -41,11 +41,21 @@ function confirmarLimite(string $clave, int $maximo, int $segundos): bool {
     return true;
 }
 
+// Respuesta de la aceptación enviada sin recargar (cuenta.js)
+function confirmarJson(bool $ok): never {
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['ok' => $ok]);
+    exit;
+}
+
 $token = trim((string)($metodo === 'POST' ? ($_POST['token'] ?? '') : ($_GET['token'] ?? '')));
 $vista = null;      // pantalla a mostrar
 $mensaje = '';      // detalle opcional de la pantalla
 $fila = null;       // solicitud del token (solo para la pantalla de confirmación)
 $expirada = false;  // la página estuvo abierta tanto tiempo que su token CSRF ya no coincide
+// Con JavaScript se acepta sin recargar: así esta pestaña (la que abrió el correo) puede cerrarse sola y dejar
+// a la persona en la página donde empezó el registro. Sin JavaScript el formulario funciona igual que siempre.
+$enPestana = $metodo === 'POST' && ($_POST['respuesta'] ?? '') === 'json';
 
 if ($metodo === 'POST') {
     if (!hash_equals(catCsrf(), (string)($_POST['csrf'] ?? ''))) {
@@ -64,6 +74,7 @@ if ($metodo === 'POST') {
                         try { catEstablecerSucursal($r['id_sucursal']); } catch (Throwable $e) { /* la sucursal pudo desactivarse */ }
                     }
                     $_SESSION['cat_aviso'] = '¡Registro completado! Aceptaste el Aviso de Privacidad y los Términos y Condiciones y tu cuenta KARMA ya está activa.';
+                    if ($enPestana) confirmarJson(true);
                     header('Location: index.php', true, 303);
                     exit;
                 case 'rechazar':
@@ -99,6 +110,17 @@ if ($metodo === 'POST') {
             error_log('[Catalogo confirmar_registro] ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
             $vista = 'error';
         }
+    }
+    // La aceptación sin recargar no se completó: el resultado queda en la sesión y la página se recarga para mostrarlo
+    if ($enPestana) {
+        $_SESSION['confirmar_resultado'] = ['token' => hash('sha256', $token), 'vista' => $vista, 'mensaje' => $mensaje, 'expirada' => $expirada];
+        confirmarJson(false);
+    }
+} elseif (isset($_SESSION['confirmar_resultado'])) {
+    $previo = $_SESSION['confirmar_resultado'];
+    unset($_SESSION['confirmar_resultado']);
+    if (is_array($previo) && hash_equals((string)$previo['token'], hash('sha256', $token))) {
+        [$vista, $mensaje, $expirada] = [$previo['vista'], (string)$previo['mensaje'], (bool)$previo['expirada']];
     }
 }
 
@@ -156,7 +178,7 @@ $pantallas = [
 
 <section class="seccion--compacta"><div class="contenedor contenedor--angosto">
 <?php if ($vista === 'confirmar'): ?>
-  <div class="confirmacion-caja">
+  <div class="confirmacion-caja" id="cfCaja">
     <?php if ($expirada): ?>
       <div class="mensaje-form mensaje-form--info"><?= icono('info') ?><span>La página estuvo abierta mucho tiempo. Revisa la información y vuelve a pulsar el botón para confirmar.</span></div>
     <?php endif; ?>
@@ -194,7 +216,7 @@ $pantallas = [
       </ul>
     </div>
 
-    <form method="post" action="confirmar_registro.php" class="formulario-aceptar">
+    <form method="post" action="confirmar_registro.php" class="formulario-aceptar" id="cfAceptar">
       <input type="hidden" name="csrf" value="<?= e(catCsrf()) ?>">
       <input type="hidden" name="token" value="<?= e($token) ?>">
       <input type="hidden" name="id_aviso" value="<?= (int)$fila['id_aviso'] ?>">
@@ -207,6 +229,14 @@ $pantallas = [
       <button class="btn btn--fantasma btn--bloque" type="submit" name="accion" value="rechazar">No acepto: cancelar mi solicitud y borrar mis datos</button>
     </form>
     <p class="texto-3" style="font-size:13px; text-align:center">Si no haces nada, tu cuenta no se creará y la solicitud se eliminará al vencer el enlace.</p>
+  </div>
+  <!-- Aceptado sin recargar (cuenta.js): se avisa a la página donde empezó el registro y esta pestaña se cierra -->
+  <div class="confirmacion-caja confirmacion-estado oculto" id="cfListo">
+    <span class="icono-estado icono-estado--ok"><?= icono('check-circulo', 'icono-grande') ?></span>
+    <h2>¡Registro completado!</h2>
+    <p>Aceptaste el Aviso de Privacidad y los Términos y Condiciones y tu cuenta KARMA ya está activa.</p>
+    <div class="estado-espera" id="cfListoEstado" role="status" aria-live="polite"><span class="punto-espera" aria-hidden="true"></span><span id="cfListoTexto">Avisando a la página donde iniciaste tu registro…</span></div>
+    <div class="fila fila--envolver oculto" id="cfListoAcciones" style="justify-content:center"><a class="btn btn--primario" href="index.php">Ir al inicio del catálogo</a></div>
   </div>
 
 <?php elseif ($vista === 'documentos'): ?>
@@ -248,4 +278,4 @@ $pantallas = [
   </div>
 <?php endif; ?>
 </div></section>
-<?php catPie(); ?>
+<?php catPie(['scripts' => ['cuenta.js']]); ?>
