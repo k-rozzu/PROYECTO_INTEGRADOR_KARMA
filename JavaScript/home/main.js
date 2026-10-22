@@ -86,6 +86,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadComponent('navbar.html', 'navbar-placeholder');
     await loadComponent('footer.html', 'footer-placeholder');
 
+    const enlaceGestion = document.querySelector('a[href*="admin.html"]');
+    if (enlaceGestion && usuario.rol === "Gerente") {
+        enlaceGestion.href = "/Home/gerente.html";
+    }
+
     // === 5. LÓGICA DE MODO OSCURO ===
     const themeSwitch = document.querySelector('.theme-switch__checkbox');
     
