@@ -13,6 +13,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 </head>
 <body>
+<!-- Aplica el tema guardado antes de dibujar la página (evita un destello claro) -->
+<script>try { if (localStorage.getItem("karma_tema") === "dark") document.body.classList.add("dark"); } catch (_) {}</script>
 
 <div class="app">
 
@@ -24,7 +26,7 @@
 
       <!-- Logo: al hacer clic regresa al Dashboard del gerente -->
       <button class="brand" id="logoHome" type="button" title="Ir al Dashboard" data-i18n-title="topHome">
-        <span class="brand-logo brand-logo--fallback" aria-hidden="true">K</span>
+        <img class="brand-logo" src="../assets/logo-karma.png" alt="" aria-hidden="true">
         <div class="brand-text">
           <span class="brand-name">KARMA</span>
           <span class="brand-slogan" data-i18n="brandSlogan">Panel de Gerencia</span>
@@ -154,6 +156,6 @@
 <!-- Región de toasts -->
 <div class="toast-stack" id="toastStack" aria-live="polite"></div>
 
-<script src="../JavaScript/dashboard/gerente-script.js"></script>
+<script src="../JavaScript/dashboard/gerente-script.js?v=2"></script>
 </body>
 </html>

@@ -360,50 +360,248 @@ body {
 .nav-btn-ghost:hover::after { width: 100%; left: 0; }
 
 /* =========================================================
+   TOKENS DEL CONTENIDO (misma paleta que el Panel de Administrador)
+   ========================================================= */
+body {
+    --font-display: 'Fraunces', Georgia, serif;
+    --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+
+    --bg: #F7F7F5;
+    --surface: #FFFFFF;
+    --surface-2: #F3F3F0;
+    --line: #E2E1DD;
+    --ink: #17181A;
+    --muted: #6E6E6C;
+    --accent: #9E1B2E;
+
+    /* Brillos de fondo y del liquid glass (marino y rojo muy tenues en claro) */
+    --glow-1: rgba(16, 33, 63, .07);
+    --glow-2: rgba(158, 27, 46, .05);
+    --glass-hi: rgba(255, 255, 255, .78);
+    --glass-lo: rgba(255, 255, 255, .42);
+    --glass-edge: rgba(255, 255, 255, .9);
+    --glass-border: rgba(23, 24, 26, .07);
+    --spec-bg: rgba(255, 255, 255, .62);
+
+    --shadow-card: 0 1px 2px rgba(23, 24, 26, .04), 0 22px 44px -28px rgba(16, 33, 63, .28);
+    --shadow-hover: 0 1px 2px rgba(23, 24, 26, .05), 0 30px 56px -30px rgba(16, 33, 63, .38);
+
+    background: var(--bg);
+}
+
+/* Modo oscuro: tonos del dashboard con acentos rojizos discretos */
+body.dark-mode {
+    --bg: #101012;
+    --surface: #17181B;
+    --surface-2: #1D1E21;
+    --line: #2B2C2F;
+    --ink: #F1F1EF;
+    --muted: #9A9B99;
+    --accent: #E2697A;
+
+    --glow-1: rgba(158, 27, 46, .16);
+    --glow-2: rgba(158, 27, 46, .09);
+    --glass-hi: rgba(34, 35, 39, .72);
+    --glass-lo: rgba(23, 24, 27, .38);
+    --glass-edge: rgba(255, 255, 255, .08);
+    --glass-border: rgba(255, 255, 255, .07);
+    --spec-bg: rgba(255, 255, 255, .035);
+
+    --shadow-card: 0 1px 0 rgba(255, 255, 255, .03) inset, 0 24px 48px -26px rgba(0, 0, 0, .75);
+    --shadow-hover: 0 1px 0 rgba(255, 255, 255, .04) inset, 0 30px 60px -26px rgba(158, 27, 46, .28);
+
+    color: var(--ink);
+}
+
+/* =========================================================
    CONTENIDO PRINCIPAL
    ========================================================= */
-main { flex-grow: 1; padding: 110px 2% 100px; background: #ffffff; }
-.main-content { width: 95%; max-width: 1600px; margin: 0 auto; }
-.main-title { font-size: 46px; font-weight: 700; margin-bottom: 40px; letter-spacing: -1px; color: #000000; }
-.section-subtitle { font-size: 36px; font-weight: 700; margin: 60px 0 40px 0; color: #333; border-top: 2px solid #f0f0f0; padding-top: 30px; }
+main {
+    flex-grow: 1;
+    padding: 128px 2% 120px;
+    font-family: var(--font-ui);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    background:
+        radial-gradient(1100px 560px at 88% -8%, var(--glow-1), transparent 62%),
+        radial-gradient(900px 520px at -12% 104%, var(--glow-2), transparent 60%),
+        var(--bg);
+    background-attachment: fixed;
+}
+.main-content { width: 95%; max-width: 1360px; margin: 0 auto; }
+
+.main-title,
+.section-subtitle {
+    font-family: var(--font-display);
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    color: var(--ink);
+    text-wrap: balance;
+}
+.main-title { font-size: clamp(32px, 3.6vw, 46px); margin-bottom: 36px; }
+.section-subtitle {
+    font-size: clamp(26px, 2.8vw, 36px);
+    margin: 72px 0 32px;
+    padding-top: 40px;
+    border-top: 1px solid var(--line);
+}
+/* Pequeña línea de acento sobre cada título */
+.main-title::before,
+.section-subtitle::before {
+    content: '';
+    display: block;
+    width: 32px;
+    height: 2px;
+    margin-bottom: 16px;
+    background: var(--accent);
+    border-radius: 2px;
+}
 
 /* =========================================================
    SECCIÓN 1: GIRATORIAS
    ========================================================= */
-.product-grid.top-sellers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px; }
-.top-sellers .card { position: relative; width: 100%; height: 380px; perspective: 2000px; }
-.top-sellers .content { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-.top-sellers .card:hover .content { transform: rotateY(180deg); }
-.top-sellers .face { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; -webkit-backface-visibility: hidden; border-radius: 20px; background: linear-gradient(145deg, #ffffff, #f4f4f4); border: 1px solid rgba(220, 220, 220, 0.9); box-shadow: 0 15px 30px rgba(0, 0, 0, 0.08), inset 0 0 15px rgba(255, 255, 255, 1); display: flex; flex-direction: column; padding: 25px; }
+.product-grid.top-sellers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+.top-sellers .card { position: relative; width: 100%; height: 380px; perspective: 2000px; outline: none; }
+.top-sellers .content {
+    position: relative; width: 100%; height: 100%;
+    transform-style: preserve-3d;
+    transition: transform .8s cubic-bezier(.2, .7, .2, 1);
+}
+.top-sellers .card:hover .content,
+.top-sellers .card:focus-visible .content { transform: rotateY(180deg); }
+.top-sellers .card:focus-visible .face { box-shadow: var(--shadow-card), 0 0 0 2px var(--accent); }
+
+.top-sellers .face {
+    position: absolute; inset: 0;
+    backface-visibility: hidden; -webkit-backface-visibility: hidden;
+    display: flex; flex-direction: column;
+    padding: 28px;
+    border-radius: 20px;
+    background: linear-gradient(160deg, var(--surface), var(--surface-2));
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-card);
+}
 .top-sellers .face-front { justify-content: space-between; align-items: center; }
-.top-sellers .car-title, .top-sellers .car-title-back { font-size: 22px; font-weight: bold; color: #111; text-align: center; }
+.top-sellers .car-title,
+.top-sellers .car-title-back {
+    font-family: var(--font-display);
+    font-size: 22px; font-weight: 500;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+    text-align: center;
+}
 .top-sellers .image-wrapper { flex-grow: 1; display: flex; justify-content: center; align-items: center; width: 100%; }
-.top-sellers .car-image { width: 100%; max-height: 160px; object-fit: contain; filter: drop-shadow(0 15px 10px rgba(0, 0, 0, 0.15)); transition: transform 0.4s ease; }
-.top-sellers .face-front:hover .car-image { transform: scale(1.10) translateZ(40px); }
-.top-sellers .hover-indicator { font-size: 12px; color: #666; background: rgba(200, 200, 200, 0.25); padding: 6px 16px; border-radius: 20px; margin-bottom: 5px; }
+.top-sellers .car-image {
+    width: 100%; max-height: 170px; object-fit: contain;
+    filter: drop-shadow(0 18px 14px rgba(0, 0, 0, .18));
+    transition: transform .5s cubic-bezier(.2, .7, .2, 1);
+}
+.top-sellers .card:hover .car-image { transform: scale(1.05); }
+.top-sellers .hover-indicator {
+    font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .08em;
+    color: var(--muted);
+    padding: 7px 14px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+}
+
 .top-sellers .face-back { transform: rotateY(180deg); justify-content: center; }
-.top-sellers .car-title-back { margin-bottom: 25px; border-bottom: 2px solid rgba(0,0,0,0.06); padding-bottom: 15px; }
-.top-sellers .car-info { width: 95%; margin: 0 auto; display: flex; flex-direction: column; gap: 15px; }
-.top-sellers .info-row { display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
-.top-sellers .info-row span { color: #666; }
-.top-sellers .info-row strong { color: #111; background: #f8f8f8; border-radius: 6px; border: 1px solid #eee; padding: 5px 8px; }
+.top-sellers .car-title-back { margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+.top-sellers .car-info { width: 100%; display: flex; flex-direction: column; gap: 12px; }
+.top-sellers .info-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; font-size: 13px; }
+.top-sellers .info-row span { color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-size: 11px; font-weight: 600; }
+.top-sellers .info-row strong {
+    color: var(--ink); font-weight: 600; text-align: right;
+    font-variant-numeric: tabular-nums;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 6px 10px;
+}
 
 /* =========================================================
-   SECCIÓN 2: LIQUID GLASS
+   SECCIÓN 2: LIQUID GLASS (sutil)
    ========================================================= */
-.product-grid.single-column { display: grid; grid-template-columns: 1fr; gap: 40px; }
-.card-glass { position: relative; width: 100%; border-radius: 24px; overflow: hidden; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08); transition: transform 0.4s ease, box-shadow 0.4s ease; }
-.card-glass:hover { transform: translateY(-5px); box-shadow: 0 30px 50px rgba(0, 0, 0, 0.12); }
-.glass-bg-shapes { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; background: #fdfdfd; }
-.shape { position: absolute; border-radius: 50%; filter: blur(50px); }
-.shape-1 { width: 350px; height: 350px; background: rgba(0, 0, 0, 0.04); top: -80px; left: -50px; }
-.shape-2 { width: 450px; height: 450px; background: rgba(0, 0, 0, 0.06); bottom: -120px; right: -50px; }
-.glass-front { position: relative; z-index: 2; width: 100%; padding: 40px 50px; background: linear-gradient(135deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.2)); backdrop-filter: blur(30px) saturate(140%); -webkit-backdrop-filter: blur(30px) saturate(140%); border: 1px solid rgba(255, 255, 255, 0.8); border-top: 1px solid #ffffff; border-left: 1px solid #ffffff; box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.8); display: flex; justify-content: space-between; align-items: center; }
-.glass-title { font-size: 38px; font-weight: bold; color: #111111; width: 40%; line-height: 1.2; }
-.glass-specs { width: 55%; display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
-.spec-item { display: flex; flex-direction: column; gap: 6px; background: rgba(255, 255, 255, 0.6); padding: 15px 20px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.8); box-shadow: 0 4px 10px rgba(0,0,0,0.02); }
-.spec-item span { color: #666666; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
-.spec-item strong { color: #111111; font-size: 20px; }
+.product-grid.single-column { display: grid; grid-template-columns: 1fr; gap: 24px; }
+.card-glass {
+    position: relative; width: 100%;
+    border-radius: 22px; overflow: hidden;
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-card);
+    transition: transform .4s cubic-bezier(.2, .7, .2, 1), box-shadow .4s ease;
+}
+.card-glass:hover { transform: translateY(-3px); box-shadow: var(--shadow-hover); }
+
+.glass-bg-shapes { position: absolute; inset: 0; z-index: 1; background: var(--surface-2); }
+.shape { position: absolute; border-radius: 50%; filter: blur(60px); transition: transform .8s cubic-bezier(.2, .7, .2, 1); }
+.shape-1 { width: 380px; height: 380px; top: -140px; left: -80px; background: var(--glow-1); }
+.shape-2 { width: 460px; height: 460px; bottom: -220px; right: -60px; background: var(--glow-2); }
+/* Los brillos se desplazan apenas al pasar el cursor: da sensación de vidrio sin distraer */
+.card-glass:hover .shape-1 { transform: translate(40px, 20px); }
+.card-glass:hover .shape-2 { transform: translate(-40px, -20px); }
+
+.glass-front {
+    position: relative; z-index: 2;
+    display: flex; justify-content: space-between; align-items: center; gap: 40px;
+    padding: 36px 44px;
+    background: linear-gradient(135deg, var(--glass-hi), var(--glass-lo));
+    backdrop-filter: blur(24px) saturate(140%);
+    -webkit-backdrop-filter: blur(24px) saturate(140%);
+    /* Borde interior luminoso que simula la refracción del vidrio */
+    box-shadow: inset 0 1px 0 var(--glass-edge), inset 0 0 0 1px var(--glass-border);
+}
+.glass-title {
+    width: 38%;
+    font-family: var(--font-display);
+    font-size: clamp(26px, 2.6vw, 34px);
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    color: var(--ink);
+}
+.glass-specs { width: 58%; display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+.spec-item {
+    display: flex; flex-direction: column; gap: 6px;
+    padding: 14px 18px;
+    background: var(--spec-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+}
+.spec-item span { color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; }
+.spec-item strong { color: var(--ink); font-size: 16px; font-weight: 600; line-height: 1.35; font-variant-numeric: tabular-nums; }
+
+/* Mensaje cuando no se pudieron cargar los productos */
+.products-error {
+    grid-column: 1 / -1;
+    padding: 28px;
+    color: var(--muted);
+    border: 1px dashed var(--line);
+    border-radius: 16px;
+    font-size: 14px;
+}
+
+/* Entrada escalonada de las tarjetas */
+@keyframes aparecer {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: none; }
+}
+.top-sellers .card,
+.card-glass { animation: aparecer .6s cubic-bezier(.2, .7, .2, 1) both; }
+.top-sellers .card:nth-child(2) { animation-delay: .08s; }
+.top-sellers .card:nth-child(3) { animation-delay: .16s; }
+.card-glass:nth-child(2) { animation-delay: .06s; }
+.card-glass:nth-child(3) { animation-delay: .12s; }
+.card-glass:nth-child(n+4) { animation-delay: .18s; }
+
+/* =========================================================
+   TRANSICIÓN DE MODO CLARO / OSCURO
+   (main.js revela el tema nuevo con un círculo que crece desde el switch)
+   ========================================================= */
+::view-transition-old(root),
+::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+::view-transition-new(root) { z-index: 2; }
 
 /* =========================================================
    FOOTER FIJO
@@ -411,113 +609,29 @@ main { flex-grow: 1; padding: 110px 2% 100px; background: #ffffff; }
 .fixed-footer { position: fixed; bottom: 0; left: 0; width: 100%; height: 40px; background-color: #000000; color: #ffffff; z-index: 100; box-shadow: 0 -2px 10px rgba(0,0,0,0.2); }
 .footer-content { max-width: 1600px; height: 100%; margin: 0 auto; padding: 0 30px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; letter-spacing: 0.5px; }
 
+
 /* =========================================================
    RESPONSIVE
    ========================================================= */
 @media (max-width: 1200px) {
     .product-grid.top-sellers { grid-template-columns: repeat(2, 1fr); }
-    .glass-front { flex-direction: column; align-items: flex-start; gap: 30px; padding: 30px; }
-    .glass-title { width: 100%; font-size: 32px; }
+    .glass-front { flex-direction: column; align-items: flex-start; gap: 24px; padding: 30px; }
+    .glass-title { width: 100%; }
     .glass-specs { width: 100%; }
 }
 @media (max-width: 768px) {
     .solid-navbar { height: auto; padding: 10px 0; }
     .navbar-content { flex-direction: column; gap: 15px; height: auto; }
     .logo-img { height: 35px; }
+    main { padding-top: 200px; }
     .product-grid.top-sellers { grid-template-columns: 1fr; }
-    .main-title { font-size: 32px; text-align: center;}
-    .section-subtitle { font-size: 28px; text-align: center;}
     .glass-specs { grid-template-columns: 1fr; gap: 10px; }
-    .spec-item { flex-direction: row; justify-content: space-between; align-items: center; padding: 12px 15px; }
+    .spec-item { flex-direction: row; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 15px; }
+    .spec-item strong { text-align: right; }
 }
 
-/* =========================================================
-   MODO OSCURO
-   ========================================================= */
-body.dark-mode {
-    background: #121212;
-    color: #e0e0e0;
-}
-
-body.dark-mode main {
-    background: #121212;
-}
-
-body.dark-mode .main-title {
-    color: #ffffff;
-}
-
-body.dark-mode .section-subtitle {
-    color: #ffffff;
-    border-top-color: #333333;
-}
-
-/* Tarjetas Giratorias Modo Oscuro */
-body.dark-mode .top-sellers .face {
-    background: linear-gradient(145deg, #1e1e1e, #121212);
-    border: 1px solid rgba(50, 50, 50, 0.9);
-    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(255, 255, 255, 0.05);
-}
-
-body.dark-mode .top-sellers .car-title, 
-body.dark-mode .top-sellers .car-title-back {
-    color: #ffffff;
-}
-
-body.dark-mode .top-sellers .car-title-back {
-    border-bottom: 2px solid rgba(255,255,255,0.1);
-}
-
-body.dark-mode .top-sellers .hover-indicator {
-    background: rgba(0, 0, 0, 0.4);
-    color: #aaaaaa;
-}
-
-body.dark-mode .top-sellers .info-row span {
-    color: #aaaaaa;
-}
-
-body.dark-mode .top-sellers .info-row strong {
-    color: #ffffff;
-    background: #2a2a2a;
-    border: 1px solid #444;
-}
-
-/* Tarjetas Glass Modo Oscuro */
-body.dark-mode .glass-bg-shapes {
-    background: #121212;
-}
-
-body.dark-mode .shape-1 {
-    background: rgba(255, 255, 255, 0.03);
-}
-
-body.dark-mode .shape-2 {
-    background: rgba(255, 255, 255, 0.05);
-}
-
-body.dark-mode .glass-front {
-    background: linear-gradient(135deg, rgba(30, 30, 30, 0.8), rgba(30, 30, 30, 0.3));
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-top: 1px solid rgba(255, 255, 255, 0.2);
-    border-left: 1px solid rgba(255, 255, 255, 0.2);
-    box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5);
-}
-
-body.dark-mode .glass-title {
-    color: #ffffff;
-}
-
-body.dark-mode .spec-item {
-    background: rgba(40, 40, 40, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-}
-
-body.dark-mode .spec-item span {
-    color: #aaaaaa;
-}
-
-body.dark-mode .spec-item strong {
-    color: #ffffff;
+/* Sin animaciones para quien las desactivó en su sistema */
+@media (prefers-reduced-motion: reduce) {
+    .top-sellers .card, .card-glass { animation: none; }
+    .top-sellers .content, .card-glass, .shape, .top-sellers .car-image { transition: none; }
 }

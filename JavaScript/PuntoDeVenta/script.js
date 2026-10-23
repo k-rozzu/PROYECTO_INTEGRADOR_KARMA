@@ -2659,7 +2659,10 @@ function actualizarReloj(){
 
 /* ===== 15. MODO OSCURO / IDIOMA / SESIÓN ===== */
 // Cambia entre modo claro y modo oscuro
-function toggleTema(){ document.body.classList.toggle("dark"); }
+function toggleTema(){
+  const oscuro = document.body.classList.toggle("dark");
+  localStorage.setItem("karma_tema", oscuro ? "dark" : "light"); // tema compartido con los demás módulos
+}
 
 // API DE TRADUCCIÓN: el botón ES / EN pide al traductor universal que cambie el idioma de toda la página
 function toggleIdioma(){

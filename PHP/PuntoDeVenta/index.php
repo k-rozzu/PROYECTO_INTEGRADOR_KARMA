@@ -32,6 +32,8 @@ $csrfPos = posTokenCsrf();
 </script>
 </head>
 <body>
+<!-- Aplica el tema guardado antes de dibujar la página (evita un destello claro) -->
+<script>try { if (localStorage.getItem("karma_tema") === "dark") document.body.classList.add("dark"); } catch (_) {}</script>
 
 <div class="app">
 
@@ -190,7 +192,7 @@ $csrfPos = posTokenCsrf();
 <!-- API DE TRADUCCIÓN: traductor universal (debe ir antes de script.js) -->
 <script src="../../JavaScript/Traduccion/traductor.js"></script>
 <!-- Lógica principal del punto de venta -->
-<script src="../../JavaScript/PuntoDeVenta/script.js"></script>
+<script src="../../JavaScript/PuntoDeVenta/script.js?v=2"></script>
 <!-- Autorización de empleado: cámara + lector QR (jsQR se carga solo al abrir el modal) y código manual; el servidor decide -->
 <script src="../../JavaScript/PuntoDeVenta/autorizacion_empleado.js"></script>
 <!-- Crédito automotriz: contrato, firma con el touchpad y visor del PDF -->

@@ -449,7 +449,7 @@ const DB = {
    ========================================================================== */
 const state = {
   view:"dashboard",              // dashboard | sucursales | personal | inventario | pedidos
-  lang:"es",
+  lang: localStorage.getItem("karma_idioma") === "en" ? "en" : "es", // idioma compartido con los demás módulos
   sucursalFiltro:"todas",        // filtro global de sucursal
   sucursales:[], usuarios:[], inventario:[], ventas:[], pedidos:[],
   sucursalesEstadoFiltro:"all",  // all | active | inactive (vista Sucursales)
@@ -1665,11 +1665,13 @@ function actualizarReloj(){
    TEMA / IDIOMA
    ========================================================================== */
 function toggleTema(){
-  document.body.classList.toggle("dark");
+  const oscuro = document.body.classList.toggle("dark");
+  localStorage.setItem("karma_tema", oscuro ? "dark" : "light"); // tema compartido con los demás módulos
   if (state.view === "dashboard") renderDashboard(); // redibuja gráficas con la paleta correcta
 }
 function toggleIdioma(){
   state.lang = state.lang === "es" ? "en" : "es";
+  localStorage.setItem("karma_idioma", state.lang);
   $$(".lang-op").forEach(el => el.classList.toggle("is-active", el.dataset.lang === state.lang));
   renderMain();
 }
@@ -1723,6 +1725,8 @@ function initEventosGlobales(){
    INICIALIZACIÓN
    ========================================================================== */
 document.addEventListener("DOMContentLoaded", async () => {
+  // Marca en el botón ES / EN el idioma guardado
+  $$(".lang-op").forEach(el => el.classList.toggle("is-active", el.dataset.lang === state.lang));
   initEventosGlobales();
   await cargarDatos();
   poblarSelectorSucursales();

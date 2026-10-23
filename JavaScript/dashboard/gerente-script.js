@@ -354,7 +354,7 @@ const DB = {
    ========================================================================== */
 const state = {
   view:"dashboard",
-  lang:"es",
+  lang: localStorage.getItem("karma_idioma") === "en" ? "en" : "es", // idioma compartido con los demás módulos
   sucursal: null,
   cajeros: [],
   cajas: [],
@@ -1344,12 +1344,14 @@ function attachEvents(){
     const op = e.target.closest(".lang-op");
     if (!op) return;
     state.lang = op.dataset.lang;
+    localStorage.setItem("karma_idioma", state.lang);
     renderMain();
   });
 
   // Tema claro / oscuro
   $("#themeToggle")?.addEventListener("click", () => {
-    document.body.classList.toggle("dark");
+    const oscuro = document.body.classList.toggle("dark");
+    localStorage.setItem("karma_tema", oscuro ? "dark" : "light"); // tema compartido con los demás módulos
   });
 
   // Cerrar sesión
