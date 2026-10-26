@@ -121,6 +121,38 @@ app.get("/api/productos", async (req, res) => {
     }
 });
 
+//Esta sección consulta los productos a la base de datos para la interfaz de gerente
+app.get("/api/gerente/productos", async (req, res) => {
+    try {
+        const sucursal = req.query.sucursal;
+
+        //Aqui se especifican los datos a consultar, en este caso la informacion de los productos de la sucursal del gerente que accede a la pagina
+        const [productos] = await pool.query(
+            `SELECT p.id_producto AS id,
+                    p.nombre,
+                    p.marca,
+                    p.tipo,
+                    c.nombre_categoria AS categoria,
+                    p.precio_base AS precio,
+                    i.stock_actual AS stockActual,
+                    i.stock_minimo AS stockMinimo
+             FROM inventarios i
+             JOIN productos p ON p.id_producto = i.id_producto
+             JOIN categorias c ON c.id_categoria = p.id_categoria
+             WHERE i.id_sucursal = ?`,
+            [sucursal]
+        );
+
+        // Devuelve el resultado en formato JSON
+        res.json(productos);
+    //Avisa si hay un error en la consulta y no muestra detalles del error por seguridad
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ mensaje: "Error al consultar los productos" });
+    }
+});
+
+//El puerto en el que se va a ejecturar el servidor:
 const PORT = 3000;
 
 app.listen(PORT, () => {
