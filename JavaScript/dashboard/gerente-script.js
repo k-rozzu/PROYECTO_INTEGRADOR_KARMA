@@ -310,9 +310,12 @@ const DB = {
     return true;
   },
   async getProductos(){
-    // PROD: return (await fetch(`${API_BASE}/sucursales/${SUCURSAL_ID}/productos`)).json();
-    await delay(80);
-    return SEED.productos.map(p => ({ ...p }));
+      const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
+      const sucursal = usuario?.id_sucursal;
+      const respuesta = await fetch(`${API_BASE}/gerente/productos?sucursal=${sucursal}`);
+      if (!respuesta.ok) throw new Error("No se pudieron cargar los productos");
+      const productos = await respuesta.json();
+      return productos.map(p => ({ ...p, precio: Number(p.precio) }));
   },
   async createProducto(payload){
     // PROD: return (await fetch(`${API_BASE}/productos`, { method:"POST", body:JSON.stringify(payload) })).json();

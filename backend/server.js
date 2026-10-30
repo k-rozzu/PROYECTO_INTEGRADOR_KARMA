@@ -50,6 +50,7 @@ app.post("/api/login", async (req, res) => {
                 u.correo,
                 u.password_hash,
                 u.estado,
+                u.id_sucursal,
                 r.nombre_rol
             FROM usuarios u
             INNER JOIN roles r ON u.id_rol = r.id_rol
@@ -88,7 +89,8 @@ app.post("/api/login", async (req, res) => {
                 id: usuario.id_usuario,
                 nombre: usuario.nombre,
                 correo: usuario.correo,
-                rol: usuario.nombre_rol
+                rol: usuario.nombre_rol,
+                id_sucursal: usuario.id_sucursal
             }
         });
 
@@ -131,7 +133,7 @@ app.get("/api/gerente/productos", async (req, res) => {
             `SELECT p.id_producto AS id,
                     p.nombre,
                     p.marca,
-                    p.tipo,
+                    CASE p.tipo WHEN 'auto' THEN 'vehiculo' ELSE p.tipo END AS tipo,
                     c.nombre_categoria AS categoria,
                     p.precio_base AS precio,
                     i.stock_actual AS stockActual,
