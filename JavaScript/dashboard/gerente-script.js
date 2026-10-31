@@ -328,11 +328,14 @@ const DB = {
     return respuesta.json();
   },
   async updateProducto(id, payload){
-    // PROD: return (await fetch(`${API_BASE}/productos/${id}`, { method:"PATCH", body:JSON.stringify(payload) })).json();
-    await delay(120);
-    const idx = SEED.productos.findIndex(p => p.id === id);
-    if (idx > -1) SEED.productos[idx] = { ...SEED.productos[idx], ...payload };
-    return SEED.productos[idx];
+    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
+    const respuesta = await fetch(`${API_BASE}/gerente/productos/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...payload, sucursal: usuario?.id_sucursal })
+    });
+    if (!respuesta.ok) throw new Error("No se pudo actualizar el producto");
+    return respuesta.json();
   },
   async deleteProducto(id){
     // PROD: return (await fetch(`${API_BASE}/productos/${id}`, { method:"DELETE" })).json();

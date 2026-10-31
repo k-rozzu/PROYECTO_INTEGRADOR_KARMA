@@ -133,6 +133,7 @@ app.get("/api/gerente/productos", async (req, res) => {
             `SELECT p.id_producto AS id,
                     p.nombre,
                     p.marca,
+                    p.descripcion,
                     CASE p.tipo WHEN 'auto' THEN 'vehiculo' ELSE p.tipo END AS tipo,
                     c.nombre_categoria AS categoria,
                     p.precio_base AS precio,
@@ -255,6 +256,79 @@ app.post("/api/gerente/productos", async (req, res) => {
         await conexion.rollback();
         console.error(error);
         res.status(500).json({ mensaje: "Error al crear el producto" });
+    } finally {
+        conexion.release();
+    }
+});
+
+//Edita un producto y su inventario en la sucursal del gerente
+app.patch("/api/gerente/productos/:id", async (req, res) => {
+    const idProducto = Number(req.params.id);
+    const { tipo, marca, nombre, idCategoria, precio, stockActual, stockMinimo, descripcion, sucursal } = req.body;
+
+    const tipoBD = { vehiculo: "auto", moto: "moto", refaccion: "refaccion" }[tipo];
+
+    const idCat = Number(idCategoria);
+    const precioNum = Number(precio);
+    const stock = Number(stockActual);
+    const minimo = Number(stockMinimo);
+    const idSucursal = Number(sucursal);
+
+    // Validaciones
+    if (!Number.isInteger(idProducto) || !Number.isInteger(idCat) || !Number.isInteger(idSucursal)) {
+        return res.status(400).json({ mensaje: "Datos inválidos" });
+    }
+    if (!tipoBD || !marca?.trim() || !nombre?.trim()) {
+        return res.status(400).json({ mensaje: "Faltan datos del producto" });
+    }
+    if (!(precioNum > 0)) {
+        return res.status(400).json({ mensaje: "El precio debe ser mayor a 0" });
+    }
+    if (!Number.isInteger(stock) || stock < 0 || !Number.isInteger(minimo) || minimo < 0) {
+        return res.status(400).json({ mensaje: "El stock debe ser un entero de 0 o más" });
+    }
+
+    const conexion = await pool.getConnection();
+    try {
+        await conexion.beginTransaction();
+
+        // El producto debe existir en el inventario de esta sucursal
+        const [existe] = await conexion.query(
+            "SELECT 1 FROM inventarios WHERE id_producto = ? AND id_sucursal = ?",
+            [idProducto, idSucursal]
+        );
+        if (existe.length === 0) {
+            await conexion.rollback();
+            return res.status(404).json({ mensaje: "Producto no encontrado en esta sucursal" });
+        }
+
+        await conexion.query(
+            `UPDATE productos
+             SET modelo = IF(modelo = nombre, ?, modelo),
+                 nombre = ?,
+                 marca = ?,
+                 id_categoria = ?,
+                 precio_base = ?,
+                 tipo = ?,
+                 descripcion = ?
+             WHERE id_producto = ?`,
+            [nombre.trim(), nombre.trim(), marca.trim(), idCat, precioNum, tipoBD, descripcion || null, idProducto]
+        );
+
+        await conexion.query(
+            `UPDATE inventarios
+             SET stock_actual = ?, stock_minimo = ?
+             WHERE id_producto = ? AND id_sucursal = ?`,
+            [stock, minimo, idProducto, idSucursal]
+        );
+
+        await conexion.commit();
+        res.json({ mensaje: "Producto actualizado" });
+
+    } catch (error) {
+        await conexion.rollback();
+        console.error(error);
+        res.status(500).json({ mensaje: "Error al actualizar el producto" });
     } finally {
         conexion.release();
     }
