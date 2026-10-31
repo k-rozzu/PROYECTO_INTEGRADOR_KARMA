@@ -318,11 +318,14 @@ const DB = {
       return productos.map(p => ({ ...p, id: String(p.id), precio: Number(p.precio) }));
   },
   async createProducto(payload){
-    // PROD: return (await fetch(`${API_BASE}/productos`, { method:"POST", body:JSON.stringify(payload) })).json();
-    await delay(130);
-    const nuevo = { id: uid("p"), ...payload };
-    SEED.productos.push(nuevo);
-    return nuevo;
+    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
+    const respuesta = await fetch(`${API_BASE}/gerente/productos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...payload, sucursal: usuario?.id_sucursal })
+    });
+    if (!respuesta.ok) throw new Error("No se pudo crear el producto");
+    return respuesta.json();
   },
   async updateProducto(id, payload){
     // PROD: return (await fetch(`${API_BASE}/productos/${id}`, { method:"PATCH", body:JSON.stringify(payload) })).json();
@@ -338,6 +341,11 @@ const DB = {
     if (idx > -1) SEED.productos.splice(idx, 1);
     return true;
   },
+  async getCategorias(){
+    const respuesta = await fetch(`${API_BASE}/gerente/categorias`);
+    if (!respuesta.ok) throw new Error("No se pudieron cargar las categorías");
+    return respuesta.json();
+  },
   async updateStock(id, nuevoStock){
     const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
     const respuesta = await fetch(`${API_BASE}/gerente/inventario/${id}/stock`, {
@@ -347,7 +355,7 @@ const DB = {
     });
     if (!respuesta.ok) throw new Error("No se pudo actualizar el stock");
     return respuesta.json();
-},
+  },
   async getVentas(){
     // PROD: return (await fetch(`${API_BASE}/sucursales/${SUCURSAL_ID}/ventas`)).json();
     await delay(90);
@@ -365,6 +373,7 @@ const state = {
   cajeros: [],
   cajas: [],
   productos: [],
+  categorias: [],
   ventas: [],
   productosFiltro:"all",  // all | vehiculo | moto | refaccion
   productosQuery:"",
@@ -382,9 +391,10 @@ const chartInstances = {};
 async function cargarDatos(){
   state.cargando = true;
   try{
-    const [sucursal, cajeros, cajas, productos, ventas] = await Promise.all([
-      DB.getSucursal(), DB.getCajeros(), DB.getCajas(), DB.getProductos(), DB.getVentas()
+    const [sucursal, cajeros, cajas, productos, ventas, categorias] = await Promise.all([
+      DB.getSucursal(), DB.getCajeros(), DB.getCajas(), DB.getProductos(), DB.getVentas(), DB.getCategorias()
     ]);
+    state.categorias = categorias;
     state.sucursal = sucursal;
     state.cajeros  = cajeros;
     state.cajas    = cajas;
@@ -1058,8 +1068,8 @@ function abrirModalProducto(id){
         <div class="form-field">
           <label for="fCategoria" data-i18n="fCategoria">${t("fCategoria")}</label>
           <select id="fCategoria">
-            ${["Autos deportivos","SUV de lujo","Motocicletas","Refacciones","Vehículos"].map(c=>
-              `<option value="${c}" ${(prod?.categoria||""===c)?"selected":""}>${c}</option>`
+            ${state.categorias.map(c =>
+              `<option value="${c.id}" ${c.nombre === prod?.categoria ? "selected" : ""}>${escapeHTML(c.nombre)}</option>`
             ).join("")}
           </select>
         </div>
@@ -1095,9 +1105,6 @@ function abrirModalProducto(id){
     });
   });
 
-  // Pre-seleccionar categoría
-  if (prod) $("#fCategoria").value = prod.categoria;
-
   // Submit
   $("#formProducto").addEventListener("submit", async e => {
     e.preventDefault();
@@ -1105,23 +1112,28 @@ function abrirModalProducto(id){
       tipo:        $("#fTipo").value,
       marca:       $("#fMarca").value.trim(),
       nombre:      $("#fModelo").value.trim(),
-      categoria:   $("#fCategoria").value,
+      idCategoria: $("#fCategoria").value,
       precio:      parseFloat($("#fPrecio").value),
       stockActual: parseInt($("#fStockInicial").value)||0,
       stockMinimo: parseInt($("#fStockMin").value)||2,
       descripcion: $("#fDescripcion").value.trim(),
     };
     if (!payload.marca || !payload.nombre || !payload.precio){ toast(t("required"), "err"); return; }
-    if (isNew){
-      await DB.createProducto(payload);
-      toast(t("toastProductoCreated"), "ok");
-    } else {
-      await DB.updateProducto(id, payload);
-      toast(t("toastProductoUpdated"), "ok");
+    try {
+      if (isNew){
+        await DB.createProducto(payload);
+        toast(t("toastProductoCreated"), "ok");
+      } else {
+        await DB.updateProducto(id, payload);
+        toast(t("toastProductoUpdated"), "ok");
+      }
+      state.productos = await DB.getProductos();
+      cerrarModales();
+      renderMain();
+    } catch (err) {
+      console.error(err);
+      toast("No se pudo guardar el producto", "err");
     }
-    state.productos = await DB.getProductos();
-    cerrarModales();
-    renderMain();
   });
 
   abrirModal("modalProducto");

@@ -188,6 +188,78 @@ app.patch("/api/gerente/inventario/:id/stock", async (req, res) => {
     }
 });
 
+//Devuelve las categorías reales para llenar el selector del formulario
+app.get("/api/gerente/categorias", async (req, res) => {
+    try {
+        const [categorias] = await pool.query(
+            "SELECT id_categoria AS id, nombre_categoria AS nombre FROM categorias ORDER BY nombre_categoria"
+        );
+        res.json(categorias);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ mensaje: "Error al consultar las categorías" });
+    }
+}); 
+
+//Crea un producto nuevo y su inventario en la sucursal del gerente
+app.post("/api/gerente/productos", async (req, res) => {
+    const { tipo, marca, nombre, idCategoria, precio, stockActual, stockMinimo, descripcion, sucursal } = req.body;
+
+    // El formulario manda "vehiculo", pero la base guarda "auto"
+    const tipoBD = { vehiculo: "auto", moto: "moto", refaccion: "refaccion" }[tipo];
+
+    const idCat = Number(idCategoria);
+    const precioNum = Number(precio);
+    const stock = Number(stockActual);
+    const minimo = Number(stockMinimo);
+    const idSucursal = Number(sucursal);
+
+    // Validaciones: el servidor no confía en lo que manda el navegador
+    if (!tipoBD || !marca?.trim() || !nombre?.trim()) {
+        return res.status(400).json({ mensaje: "Faltan datos del producto" });
+    }
+    if (!Number.isInteger(idCat) || !Number.isInteger(idSucursal)) {
+        return res.status(400).json({ mensaje: "Categoría o sucursal inválida" });
+    }
+    if (!(precioNum > 0)) {
+        return res.status(400).json({ mensaje: "El precio debe ser mayor a 0" });
+    }
+    if (!Number.isInteger(stock) || stock < 0 || !Number.isInteger(minimo) || minimo < 0) {
+        return res.status(400).json({ mensaje: "El stock debe ser un entero de 0 o más" });
+    }
+
+    const conexion = await pool.getConnection();
+    try {
+        await conexion.beginTransaction();
+
+        // codigo_barras es obligatorio y único, así que lo generamos
+        const codigoBarras = `KRM-${tipoBD.toUpperCase()}-${Date.now()}`;
+
+        const [producto] = await conexion.query(
+            `INSERT INTO productos
+                (id_categoria, codigo_barras, nombre, descripcion, precio_base, marca, modelo, tipo)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [idCat, codigoBarras, nombre.trim(), descripcion || null, precioNum, marca.trim(), nombre.trim(), tipoBD]
+        );
+
+        await conexion.query(
+            `INSERT INTO inventarios (id_sucursal, id_producto, stock_actual, stock_minimo)
+             VALUES (?, ?, ?, ?)`,
+            [idSucursal, producto.insertId, stock, minimo]
+        );
+
+        await conexion.commit();
+        res.status(201).json({ id: producto.insertId });
+
+    } catch (error) {
+        await conexion.rollback();
+        console.error(error);
+        res.status(500).json({ mensaje: "Error al crear el producto" });
+    } finally {
+        conexion.release();
+    }
+});
+
 //El puerto en el que se va a ejecturar el servidor:
 const PORT = 3000;
 
