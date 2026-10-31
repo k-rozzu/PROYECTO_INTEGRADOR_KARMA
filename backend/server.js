@@ -142,7 +142,7 @@ app.get("/api/gerente/productos", async (req, res) => {
              FROM inventarios i
              JOIN productos p ON p.id_producto = i.id_producto
              JOIN categorias c ON c.id_categoria = p.id_categoria
-             WHERE i.id_sucursal = ?`,
+             WHERE i.id_sucursal = ? AND i.estado = 'activo'`,
             [sucursal]
         );
 
@@ -173,7 +173,7 @@ app.patch("/api/gerente/inventario/:id/stock", async (req, res) => {
         const [resultado] = await pool.query(
             `UPDATE inventarios
              SET stock_actual = ?
-             WHERE id_producto = ? AND id_sucursal = ?`,
+             WHERE id_producto = ? AND id_sucursal = ? AND estado = 'activo'`,
             [stockActual, idProducto, sucursal]
         );
 
@@ -294,7 +294,7 @@ app.patch("/api/gerente/productos/:id", async (req, res) => {
 
         // El producto debe existir en el inventario de esta sucursal
         const [existe] = await conexion.query(
-            "SELECT 1 FROM inventarios WHERE id_producto = ? AND id_sucursal = ?",
+            "SELECT 1 FROM inventarios WHERE id_producto = ? AND id_sucursal = ? AND estado = 'activo'",
             [idProducto, idSucursal]
         );
         if (existe.length === 0) {
@@ -331,6 +331,35 @@ app.patch("/api/gerente/productos/:id", async (req, res) => {
         res.status(500).json({ mensaje: "Error al actualizar el producto" });
     } finally {
         conexion.release();
+    }
+});
+
+//Marca un producto como inactivo en la sucursal (no se borra nada)
+app.delete("/api/gerente/productos/:id", async (req, res) => {
+    try {
+        const idProducto = Number(req.params.id);
+        const idSucursal = Number(req.query.sucursal);
+
+        if (!Number.isInteger(idProducto) || !Number.isInteger(idSucursal)) {
+            return res.status(400).json({ mensaje: "Datos inválidos" });
+        }
+
+        const [resultado] = await pool.query(
+            `UPDATE inventarios
+             SET estado = 'inactivo'
+             WHERE id_producto = ? AND id_sucursal = ? AND estado = 'activo'`,
+            [idProducto, idSucursal]
+        );
+
+        if (resultado.affectedRows === 0) {
+            return res.status(404).json({ mensaje: "Producto no encontrado en esta sucursal" });
+        }
+
+        res.json({ mensaje: "Producto desactivado" });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ mensaje: "Error al desactivar el producto" });
     }
 });
 

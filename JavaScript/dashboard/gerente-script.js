@@ -338,11 +338,12 @@ const DB = {
     return respuesta.json();
   },
   async deleteProducto(id){
-    // PROD: return (await fetch(`${API_BASE}/productos/${id}`, { method:"DELETE" })).json();
-    await delay(110);
-    const idx = SEED.productos.findIndex(p => p.id === id);
-    if (idx > -1) SEED.productos.splice(idx, 1);
-    return true;
+    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
+    const respuesta = await fetch(`${API_BASE}/gerente/productos/${id}?sucursal=${usuario?.id_sucursal}`, {
+        method: "DELETE"
+    });
+    if (!respuesta.ok) throw new Error("No se pudo retirar el producto");
+    return respuesta.json();
   },
   async getCategorias(){
     const respuesta = await fetch(`${API_BASE}/gerente/categorias`);
@@ -1282,10 +1283,15 @@ function abrirModalVenta(ventaId){
    ========================================================================== */
 async function eliminarProducto(id){
   if (!confirm(t("confirmDelete"))) return;
-  await DB.deleteProducto(id);
-  state.productos = await DB.getProductos();
-  toast(t("toastProductoDeleted"), "ok");
-  renderMain();
+  try {
+    await DB.deleteProducto(id);
+    state.productos = await DB.getProductos();
+    toast(t("toastProductoDeleted"), "ok");
+    renderMain();
+  } catch (err) {
+    console.error(err);
+    toast("No se pudo eliminar el producto", "err");
+  }
 }
 
 /* ==========================================================================
