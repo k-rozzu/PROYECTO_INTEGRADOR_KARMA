@@ -315,7 +315,7 @@ const DB = {
       const respuesta = await fetch(`${API_BASE}/gerente/productos?sucursal=${sucursal}`);
       if (!respuesta.ok) throw new Error("No se pudieron cargar los productos");
       const productos = await respuesta.json();
-      return productos.map(p => ({ ...p, precio: Number(p.precio) }));
+      return productos.map(p => ({ ...p, id: String(p.id), precio: Number(p.precio) }));
   },
   async createProducto(payload){
     // PROD: return (await fetch(`${API_BASE}/productos`, { method:"POST", body:JSON.stringify(payload) })).json();
@@ -339,12 +339,15 @@ const DB = {
     return true;
   },
   async updateStock(id, nuevoStock){
-    // PROD: return (await fetch(`${API_BASE}/inventario/${id}/stock`, { method:"PATCH", body:JSON.stringify({ stockActual: nuevoStock }) })).json();
-    await delay(110);
-    const p = SEED.productos.find(x => x.id === id);
-    if (p) p.stockActual = nuevoStock;
-    return p;
-  },
+    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
+    const respuesta = await fetch(`${API_BASE}/gerente/inventario/${id}/stock`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stockActual: nuevoStock, sucursal: usuario?.id_sucursal })
+    });
+    if (!respuesta.ok) throw new Error("No se pudo actualizar el stock");
+    return respuesta.json();
+},
   async getVentas(){
     // PROD: return (await fetch(`${API_BASE}/sucursales/${SUCURSAL_ID}/ventas`)).json();
     await delay(90);

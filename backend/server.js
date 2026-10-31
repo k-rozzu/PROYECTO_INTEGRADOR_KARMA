@@ -154,6 +154,40 @@ app.get("/api/gerente/productos", async (req, res) => {
     }
 });
 
+//Actualiza el stock de un producto en la sucursal del gerente
+app.patch("/api/gerente/inventario/:id/stock", async (req, res) => {
+    try {
+        const idProducto = Number(req.params.id);
+        const stockActual = Number(req.body.stockActual);
+        const sucursal = Number(req.body.sucursal);
+
+        // El servidor valida los datos, no confía en lo que manda el navegador
+        if (!Number.isInteger(idProducto) || !Number.isInteger(stockActual) || !Number.isInteger(sucursal)) {
+            return res.status(400).json({ mensaje: "Datos inválidos" });
+        }
+        if (stockActual < 0) {
+            return res.status(400).json({ mensaje: "El stock no puede ser negativo" });
+        }
+
+        const [resultado] = await pool.query(
+            `UPDATE inventarios
+             SET stock_actual = ?
+             WHERE id_producto = ? AND id_sucursal = ?`,
+            [stockActual, idProducto, sucursal]
+        );
+
+        if (resultado.affectedRows === 0) {
+            return res.status(404).json({ mensaje: "Producto no encontrado en esta sucursal" });
+        }
+
+        res.json({ mensaje: "Stock actualizado" });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ mensaje: "Error al actualizar el stock" });
+    }
+});
+
 //El puerto en el que se va a ejecturar el servidor:
 const PORT = 3000;
 
