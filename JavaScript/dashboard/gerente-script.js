@@ -1,3 +1,26 @@
+/* ==========================================================================
+   PROTECCIÓN DE ACCESO: solo un Gerente con sesión puede ver este panel
+   ========================================================================== */
+function verificarAcceso(){
+  let usuario = null;
+  try { usuario = JSON.parse(localStorage.getItem("karma_user") || "null"); } catch (e) {}
+
+  // Sin sesión: al login
+  if (!usuario){
+    window.location.replace("/index.html");
+    return false;
+  }
+  // Con sesión, pero no es gerente de una sucursal: al Home
+  if (usuario.rol !== "Gerente" || !usuario.id_sucursal){
+    window.location.replace("/Home/home.html");
+    return false;
+  }
+  return true;
+}
+
+// También al llegar con el botón "Atrás" (el navegador puede mostrar la página guardada en caché)
+window.addEventListener("pageshow", () => { verificarAcceso(); });
+
 const $  = (sel, ctx = document) => ctx.querySelector(sel);
 const $$ = (sel, ctx = document) => Array.from(ctx.querySelectorAll(sel));
 
@@ -85,7 +108,7 @@ const I18N = {
     motivo:"Motivo del ajuste", motivoEntrada:"Entrada de mercancía",
     motivoSalida:"Corrección / salida", motivoInventario:"Toma de inventario", motivoOtro:"Otro",
     toastStockUpdated:"Existencias actualizadas correctamente",
-    hintDB:"Vista conectada a DB (mock) — lista para apuntar a tu API real.",
+    hintDB:"Existencias en vivo de tu sucursal.",
     critical:"Crítico", low:"Bajo", ok:"Suficiente",
 
     /* Cajas */
@@ -167,7 +190,7 @@ const I18N = {
     motivo:"Reason for adjustment", motivoEntrada:"Incoming stock",
     motivoSalida:"Correction / outgoing", motivoInventario:"Inventory count", motivoOtro:"Other",
     toastStockUpdated:"Stock updated successfully",
-    hintDB:"View connected to DB (mock) — ready to point to your real API.",
+    hintDB:"Live stock for your branch.",
     critical:"Critical", low:"Low", ok:"Sufficient",
 
     cajasTitle:"Register management", cajasSub:"Active and inactive checkout points at your branch",
@@ -1332,7 +1355,7 @@ function abrirModalVenta(ventaId){
           <tr>
             <td><strong>${escapeHTML(v.productoNombre)}</strong></td>
             <td>${escapeHTML(v.marca)}</td>
-            <td>1</td>
+            <td>${v.cantidad || 1}</td>
             <td style="font-weight:700;">${formatoMoneda(v.total)}</td>
           </tr>
         </tbody>
@@ -1452,7 +1475,10 @@ function attachEvents(){
 
   // Cerrar sesión
   $("#logoutBtn")?.addEventListener("click", () => {
-    if (confirm("¿Cerrar sesión?")) window.location.href = "/index.html";
+    if (confirm("¿Cerrar sesión?")) {
+      localStorage.removeItem("karma_user");
+      window.location.replace("/index.html");
+    }
   });
 
   // Cerrar modales: botones con data-close-modal o clic en overlay
@@ -1471,6 +1497,7 @@ function attachEvents(){
    INICIO
    ========================================================================== */
 (async function init(){
+  if (!verificarAcceso()) return;
   attachEvents();
   iniciarReloj();
   await cargarDatos();
