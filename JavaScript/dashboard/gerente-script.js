@@ -70,7 +70,7 @@ function etiquetaTipo(tipo){
 /*I18N — diccionario bilingüe ES / EN */
 const I18N = {
   es:{
-    topHome:"Ir al Dashboard", brandSlogan:"Panel de Gerencia",
+    topHome:"Ir al Inicio", brandSlogan:"Panel de Gerencia",
     logout:"Cerrar sesión", role:"Rol", roleGerente:"Gerente de Sede",
     navDashboard:"Dashboard", navProductos:"Productos", navInventario:"Inventario",
     navCajas:"Cajas", navVentas:"Ventas",
@@ -162,7 +162,7 @@ const I18N = {
     errSaveProducto:"No se pudo guardar el producto", errDeleteProducto:"No se pudo eliminar el producto",
   },
   en:{
-    topHome:"Go to Dashboard", brandSlogan:"Store Management Panel",
+    topHome:"Go to Home", brandSlogan:"Store Management Panel",
     logout:"Log out", role:"Role", roleGerente:"Store Manager",
     navDashboard:"Dashboard", navProductos:"Products", navInventario:"Inventory",
     navCajas:"Registers", navVentas:"Sales",
@@ -1461,8 +1461,9 @@ function applyI18n(){
     const key = el.dataset.i18nTitle;
     if (key) el.title = t(key);
   });
-  // Actualizar botón de idioma
-  $$(".lang-op").forEach(op => op.classList.toggle("is-active", op.dataset.lang === state.lang));
+  // Interruptor de idioma (marcado = inglés), igual que en el Home
+  const swIdioma = $("#langSwitch");
+  if (swIdioma) swIdioma.checked = (state.lang === "en");
 }
 
 /* ==========================================================================
@@ -1489,23 +1490,35 @@ function attachEvents(){
     btn.addEventListener("click", () => { state.view = btn.dataset.view; renderMain(); });
   });
 
-  // Logo → Dashboard
-  $("#logoHome")?.addEventListener("click", () => { state.view = "dashboard"; renderMain(); });
+  // El logo KARMA es un enlace normal a /Home/home.html (no necesita JavaScript)
 
-  // Cambio de idioma
-  $("#langToggle")?.addEventListener("click", e => {
-    const op = e.target.closest(".lang-op");
-    if (!op) return;
-    state.lang = op.dataset.lang;
+  // Interruptor de idioma (marcado = inglés)
+  $("#langSwitch")?.addEventListener("change", e => {
+    state.lang = e.target.checked ? "en" : "es";
     localStorage.setItem("karma_lang", state.lang);
     renderMain();
   });
 
-  // Tema claro / oscuro (se recuerda al recargar y se comparte con el Home)
-  $("#themeToggle")?.addEventListener("click", () => {
-    const oscuro = document.body.classList.toggle("dark");
-    localStorage.setItem("karma_theme", oscuro ? "dark" : "light");
+  // Interruptor de tema (marcado = oscuro). Se recuerda al recargar y se comparte con el Home
+  $("#themeSwitch")?.addEventListener("change", e => {
+    document.body.classList.toggle("dark", e.target.checked);
+    localStorage.setItem("karma_theme", e.target.checked ? "dark" : "light");
     if (state.view === "dashboard") renderMain();   // redibuja las gráficas con los colores del tema
+  });
+
+  // Menú de perfil (igual que en el Home)
+  const perfil = $("#profileDropdown");
+  const perfilBtn = $("#profileTrigger");
+  perfilBtn?.addEventListener("click", e => {
+    e.stopPropagation();
+    const abierto = perfil.classList.toggle("open");
+    perfilBtn.setAttribute("aria-expanded", String(abierto));
+  });
+  document.addEventListener("click", e => {
+    if (!e.target.closest(".profile-dropdown-container")) {
+      perfil?.classList.remove("open");
+      perfilBtn?.setAttribute("aria-expanded", "false");
+    }
   });
 
   // Cerrar sesión
@@ -1524,7 +1537,11 @@ function attachEvents(){
 
   // Cerrar modales con Escape
   document.addEventListener("keydown", e => {
-    if (e.key === "Escape") cerrarModales();
+    if (e.key === "Escape") {
+      cerrarModales();
+      perfil?.classList.remove("open");
+      perfilBtn?.setAttribute("aria-expanded", "false");
+    }
   });
 }
 
@@ -1534,6 +1551,14 @@ function attachEvents(){
 (async function init(){
   if (!verificarAcceso()) return;
   if (localStorage.getItem("karma_theme") === "dark") document.body.classList.add("dark");
+  const swTema = $("#themeSwitch");
+  if (swTema) swTema.checked = document.body.classList.contains("dark");
+  const swIdioma = $("#langSwitch");
+  if (swIdioma) swIdioma.checked = (state.lang === "en");
+  let usuario = null;
+  try { usuario = JSON.parse(localStorage.getItem("karma_user") || "null"); } catch (e) {}
+  const nombreMenu = $("#navUserName");
+  if (nombreMenu && usuario && usuario.nombre) nombreMenu.textContent = usuario.nombre;
   attachEvents();
   iniciarReloj();
   await cargarDatos();
