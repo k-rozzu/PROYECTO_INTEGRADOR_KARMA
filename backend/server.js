@@ -363,6 +363,50 @@ app.delete("/api/gerente/productos/:id", async (req, res) => {
     }
 });
 
+//Devuelve las ventas de la sucursal del gerente (una fila por producto vendido)
+app.get("/api/gerente/ventas", async (req, res) => {
+    try {
+        const sucursal = Number(req.query.sucursal);
+
+        if (!Number.isInteger(sucursal)) {
+            return res.status(400).json({ mensaje: "Sucursal inválida" });
+        }
+
+        const [ventas] = await pool.query(
+            `SELECT CONCAT('V', v.id_venta, '-', d.id_detalle) AS id,
+                    v.fecha_hora AS fecha,
+                    u.id_usuario AS cajeroId,
+                    u.nombre AS cajeroNombre,
+                    p.id_producto AS productoId,
+                    p.nombre AS productoNombre,
+                    p.marca,
+                    d.subtotal_linea AS total,
+                    d.cantidad,
+                    CASE
+                        WHEN m.nombre_metodo = 'Efectivo' THEN 'efectivo'
+                        WHEN m.nombre_metodo LIKE 'Tarjeta%' THEN 'tarjeta'
+                        WHEN m.nombre_metodo = 'Transferencia' THEN 'transferencia'
+                        ELSE LOWER(m.nombre_metodo)
+                    END AS metodoPago
+             FROM ventas v
+             JOIN detalle_ventas d ON d.id_venta = v.id_venta
+             JOIN productos p ON p.id_producto = d.id_producto
+             JOIN usuarios u ON u.id_usuario = v.id_usuario
+             JOIN metodos_pago m ON m.id_metodo_pago = v.id_metodo_pago
+             WHERE v.id_sucursal = ?
+               AND v.fecha_hora >= DATE_SUB(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL 5 MONTH)
+             ORDER BY v.fecha_hora DESC`,
+            [sucursal]
+        );
+
+        res.json(ventas);
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ mensaje: "Error al consultar las ventas" });
+    }
+});
+
 //El puerto en el que se va a ejecturar el servidor:
 const PORT = 3000;
 

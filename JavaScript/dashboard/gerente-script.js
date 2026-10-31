@@ -361,9 +361,11 @@ const DB = {
     return respuesta.json();
   },
   async getVentas(){
-    // PROD: return (await fetch(`${API_BASE}/sucursales/${SUCURSAL_ID}/ventas`)).json();
-    await delay(90);
-    return SEED.ventas.map(v => ({ ...v }));
+    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
+    const respuesta = await fetch(`${API_BASE}/gerente/ventas?sucursal=${usuario?.id_sucursal}`);
+    if (!respuesta.ok) throw new Error("No se pudieron cargar las ventas");
+    const ventas = await respuesta.json();
+    return ventas.map(v => ({ ...v, total: Number(v.total) }));
   },
 };
 
