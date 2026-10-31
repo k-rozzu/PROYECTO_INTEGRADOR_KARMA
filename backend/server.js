@@ -407,6 +407,224 @@ app.get("/api/gerente/ventas", async (req, res) => {
     }
 });
 
+//Datos de la sucursal del gerente
+app.get("/api/gerente/sucursal", async (req, res) => {
+    try {
+        const sucursal = Number(req.query.sucursal);
+        if (!Number.isInteger(sucursal)) {
+            return res.status(400).json({ mensaje: "Sucursal inválida" });
+        }
+
+        const [filas] = await pool.query(
+            "SELECT id_sucursal AS id, nombre, direccion, telefono, estado FROM sucursales WHERE id_sucursal = ?",
+            [sucursal]
+        );
+        if (filas.length === 0) {
+            return res.status(404).json({ mensaje: "Sucursal no encontrada" });
+        }
+
+        res.json(filas[0]);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ mensaje: "Error al consultar la sucursal" });
+    }
+});
+
+//Cajeros de la sucursal del gerente
+app.get("/api/gerente/cajeros", async (req, res) => {
+    try {
+        const sucursal = Number(req.query.sucursal);
+        if (!Number.isInteger(sucursal)) {
+            return res.status(400).json({ mensaje: "Sucursal inválida" });
+        }
+
+        const [cajeros] = await pool.query(
+            `SELECT u.id_usuario AS id, u.nombre, u.correo, u.estado
+             FROM usuarios u
+             JOIN roles r ON r.id_rol = u.id_rol
+             WHERE r.nombre_rol = 'Cajero' AND u.id_sucursal = ?`,
+            [sucursal]
+        );
+
+        res.json(cajeros);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ mensaje: "Error al consultar los cajeros" });
+    }
+});
+
+//Revisa que el cajero sea válido para la sucursal y no tenga ya otra caja. Devuelve el mensaje de error, o null si todo está bien
+async function validarCajero(idCajero, idSucursal, idCajaActual) {
+    const [cajero] = await pool.query(
+        `SELECT 1
+         FROM usuarios u
+         JOIN roles r ON r.id_rol = u.id_rol
+         WHERE u.id_usuario = ? AND u.id_sucursal = ? AND r.nombre_rol = 'Cajero' AND u.estado = 'activo'`,
+        [idCajero, idSucursal]
+    );
+    if (cajero.length === 0) {
+        return "El cajero no pertenece a esta sucursal o está inactivo";
+    }
+
+    const [otra] = await pool.query(
+        "SELECT numero_caja FROM cajas WHERE id_usuario_asignado = ? AND id_caja <> ?",
+        [idCajero, idCajaActual]
+    );
+    if (otra.length > 0) {
+        return `Ese cajero ya está asignado a la Caja ${otra[0].numero_caja}`;
+    }
+
+    return null;
+}
+
+//Cajas de la sucursal, con su cajero asignado
+app.get("/api/gerente/cajas", async (req, res) => {
+    try {
+        const sucursal = Number(req.query.sucursal);
+        if (!Number.isInteger(sucursal)) {
+            return res.status(400).json({ mensaje: "Sucursal inválida" });
+        }
+
+        const [cajas] = await pool.query(
+            `SELECT c.id_caja AS id,
+                    CONCAT('Caja ', c.numero_caja) AS nombre,
+                    CASE WHEN c.estado = 'mantenimiento' THEN 'inactivo' ELSE 'activo' END AS estado,
+                    c.id_usuario_asignado AS cajeroId
+             FROM cajas c
+             WHERE c.id_sucursal = ?
+             ORDER BY c.numero_caja`,
+            [sucursal]
+        );
+
+        res.json(cajas);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ mensaje: "Error al consultar las cajas" });
+    }
+});
+
+//Crea una caja nueva en la sucursal (queda cerrada), con cajero opcional
+app.post("/api/gerente/cajas", async (req, res) => {
+    try {
+        const numero = Number(req.body.numero);
+        const sucursal = Number(req.body.sucursal);
+        const cajeroId = (req.body.cajeroId === null || req.body.cajeroId === undefined || req.body.cajeroId === "")
+            ? null
+            : Number(req.body.cajeroId);
+
+        if (!Number.isInteger(numero) || numero < 1 || !Number.isInteger(sucursal)) {
+            return res.status(400).json({ mensaje: "El número de caja debe ser un entero mayor a 0" });
+        }
+        if (cajeroId !== null && !Number.isInteger(cajeroId)) {
+            return res.status(400).json({ mensaje: "Cajero inválido" });
+        }
+
+        const [existe] = await pool.query(
+            "SELECT 1 FROM cajas WHERE id_sucursal = ? AND numero_caja = ?",
+            [sucursal, numero]
+        );
+        if (existe.length > 0) {
+            return res.status(409).json({ mensaje: `Ya existe la Caja ${numero} en esta sucursal` });
+        }
+
+        if (cajeroId !== null) {
+            const error = await validarCajero(cajeroId, sucursal, 0);
+            if (error) return res.status(409).json({ mensaje: error });
+        }
+
+        const [resultado] = await pool.query(
+            "INSERT INTO cajas (id_sucursal, numero_caja, id_usuario_asignado) VALUES (?, ?, ?)",
+            [sucursal, numero, cajeroId]
+        );
+
+        res.status(201).json({ id: resultado.insertId });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ mensaje: "Error al crear la caja" });
+    }
+});
+
+//Activa o desactiva una caja (desactivar = mantenimiento)
+app.patch("/api/gerente/cajas/:id/estado", async (req, res) => {
+    try {
+        const idCaja = Number(req.params.id);
+        const sucursal = Number(req.body.sucursal);
+        const estado = req.body.estado;
+
+        if (!Number.isInteger(idCaja) || !Number.isInteger(sucursal) || !["activo", "inactivo"].includes(estado)) {
+            return res.status(400).json({ mensaje: "Datos inválidos" });
+        }
+
+        const [filas] = await pool.query(
+            "SELECT estado FROM cajas WHERE id_caja = ? AND id_sucursal = ?",
+            [idCaja, sucursal]
+        );
+        if (filas.length === 0) {
+            return res.status(404).json({ mensaje: "Caja no encontrada en esta sucursal" });
+        }
+
+        const actual = filas[0].estado;
+
+        if (estado === "inactivo") {
+            if (actual === "abierta") {
+                return res.status(409).json({ mensaje: "La caja está abierta. Pide que la cierren antes de desactivarla." });
+            }
+            await pool.query(
+                "UPDATE cajas SET estado = 'mantenimiento' WHERE id_caja = ? AND id_sucursal = ?",
+                [idCaja, sucursal]
+            );
+        } else if (actual === "mantenimiento") {
+            await pool.query(
+                "UPDATE cajas SET estado = 'cerrada' WHERE id_caja = ? AND id_sucursal = ?",
+                [idCaja, sucursal]
+            );
+        }
+
+        res.json({ mensaje: "Estado actualizado" });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ mensaje: "Error al actualizar la caja" });
+    }
+});
+
+//Asigna (o quita) el cajero de una caja
+app.patch("/api/gerente/cajas/:id/cajero", async (req, res) => {
+    try {
+        const idCaja = Number(req.params.id);
+        const sucursal = Number(req.body.sucursal);
+        const cajeroId = (req.body.cajeroId === null || req.body.cajeroId === undefined || req.body.cajeroId === "")
+            ? null
+            : Number(req.body.cajeroId);
+
+        if (!Number.isInteger(idCaja) || !Number.isInteger(sucursal) || (cajeroId !== null && !Number.isInteger(cajeroId))) {
+            return res.status(400).json({ mensaje: "Datos inválidos" });
+        }
+
+        const [caja] = await pool.query(
+            "SELECT 1 FROM cajas WHERE id_caja = ? AND id_sucursal = ?",
+            [idCaja, sucursal]
+        );
+        if (caja.length === 0) {
+            return res.status(404).json({ mensaje: "Caja no encontrada en esta sucursal" });
+        }
+
+        if (cajeroId !== null) {
+            const error = await validarCajero(cajeroId, sucursal, idCaja);
+            if (error) return res.status(409).json({ mensaje: error });
+        }
+
+        await pool.query(
+            "UPDATE cajas SET id_usuario_asignado = ? WHERE id_caja = ? AND id_sucursal = ?",
+            [cajeroId, idCaja, sucursal]
+        );
+
+        res.json({ mensaje: "Cajero asignado" });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ mensaje: "Error al asignar el cajero" });
+    }
+});
+
 //El puerto en el que se va a ejecturar el servidor:
 const PORT = 3000;
 

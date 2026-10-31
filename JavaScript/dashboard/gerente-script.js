@@ -92,10 +92,12 @@ const I18N = {
     cajasTitle:"Gestión de cajas", cajasSub:"Puntos de cobro activos e inactivos de tu sucursal",
     newCaja:"Nueva caja", colCaja:"Caja", colCajero:"Cajero asignado", colEstado:"Estado",
     formCajaNewTitle:"Registrar caja", formCajaDesc:"Asigna un nombre y cajero a la nueva caja.",
-    fNombreCaja:"Nombre / número de caja", fCajeroAsignado:"Cajero asignado",
+    fNombreCaja:"Número de caja", fCajeroAsignado:"Cajero asignado",
     statusActive:"Activa", statusInactive:"Inactiva",
     deactivate:"Desactivar", activate:"Activar",
     toastCajaCreated:"Caja registrada correctamente",
+    assignCajero:"Asignar cajero",
+    toastCajaAsignada:"Cajero asignado correctamente",
     toastCajaStatus:"Estado de la caja actualizado",
     toastCajaDeleted:"Caja eliminada",
     confirmDeleteCaja:"¿Eliminar esta caja? Esta acción no se puede deshacer.",
@@ -171,10 +173,12 @@ const I18N = {
     cajasTitle:"Register management", cajasSub:"Active and inactive checkout points at your branch",
     newCaja:"New register", colCaja:"Register", colCajero:"Assigned cashier", colEstado:"Status",
     formCajaNewTitle:"Register checkout", formCajaDesc:"Assign a name and cashier to the new register.",
-    fNombreCaja:"Register name / number", fCajeroAsignado:"Assigned cashier",
+    fNombreCaja:"Register number", fCajeroAsignado:"Assigned cashier",
     statusActive:"Active", statusInactive:"Inactive",
     deactivate:"Deactivate", activate:"Activate",
     toastCajaCreated:"Register created successfully",
+    assignCajero:"Assign cashier",
+    toastCajaAsignada:"Cashier assigned successfully",
     toastCajaStatus:"Register status updated",
     toastCajaDeleted:"Register deleted",
     confirmDeleteCaja:"Delete this register? This action cannot be undone.",
@@ -276,38 +280,62 @@ const SEED = (() => {
 
 const DB = {
   async getSucursal(){
-    // PROD: return (await fetch(`${API_BASE}/sucursales/${SUCURSAL_ID}`)).json();
-    await delay(60);
-    return { ...SEED.sucursal };
+    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
+    const respuesta = await fetch(`${API_BASE}/gerente/sucursal?sucursal=${usuario?.id_sucursal}`);
+    if (!respuesta.ok) throw new Error("No se pudo cargar la sucursal");
+    return respuesta.json();
   },
   async getCajeros(){
-    // PROD: return (await fetch(`${API_BASE}/sucursales/${SUCURSAL_ID}/cajeros`)).json();
-    await delay(60);
-    return SEED.cajeros.map(c => ({ ...c }));
+    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
+    const respuesta = await fetch(`${API_BASE}/gerente/cajeros?sucursal=${usuario?.id_sucursal}`);
+    if (!respuesta.ok) throw new Error("No se pudieron cargar los cajeros");
+    return respuesta.json();
   },
   async getCajas(){
-    // PROD: return (await fetch(`${API_BASE}/sucursales/${SUCURSAL_ID}/cajas`)).json();
-    await delay(70);
-    return SEED.cajas.map(c => ({ ...c }));
+    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
+    const respuesta = await fetch(`${API_BASE}/gerente/cajas?sucursal=${usuario?.id_sucursal}`);
+    if (!respuesta.ok) throw new Error("No se pudieron cargar las cajas");
+    const cajas = await respuesta.json();
+    return cajas.map(c => ({ ...c, id: String(c.id) }));
   },
   async createCaja(payload){
-    // PROD: return (await fetch(`${API_BASE}/cajas`, { method:"POST", body:JSON.stringify(payload) })).json();
-    await delay(120);
-    const nueva = { id: uid("c"), estado:"activo", ...payload };
-    SEED.cajas.push(nueva);
-    return nueva;
+    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
+    const respuesta = await fetch(`${API_BASE}/gerente/cajas`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ numero: payload.numero, cajeroId: payload.cajeroId, sucursal: usuario?.id_sucursal })
+    });
+    if (!respuesta.ok) {
+        const error = await respuesta.json().catch(() => ({}));
+        throw new Error(error.mensaje || "No se pudo crear la caja");
+    }
+    return respuesta.json();
   },
   async setCajaEstado(id, estado){
-    await delay(100);
-    const c = SEED.cajas.find(x => x.id === id);
-    if (c) c.estado = estado;
-    return c;
+    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
+    const respuesta = await fetch(`${API_BASE}/gerente/cajas/${id}/estado`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ estado, sucursal: usuario?.id_sucursal })
+    });
+    if (!respuesta.ok) {
+        const error = await respuesta.json().catch(() => ({}));
+        throw new Error(error.mensaje || "No se pudo cambiar el estado de la caja");
+    }
+    return respuesta.json();
   },
-  async deleteCaja(id){
-    await delay(100);
-    const idx = SEED.cajas.findIndex(x => x.id === id);
-    if (idx > -1) SEED.cajas.splice(idx, 1);
-    return true;
+  async asignarCajero(idCaja, cajeroId){
+    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
+    const respuesta = await fetch(`${API_BASE}/gerente/cajas/${idCaja}/cajero`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cajeroId, sucursal: usuario?.id_sucursal })
+    });
+    if (!respuesta.ok) {
+        const error = await respuesta.json().catch(() => ({}));
+        throw new Error(error.mensaje || "No se pudo asignar el cajero");
+    }
+    return respuesta.json();
   },
   async getProductos(){
       const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
@@ -680,7 +708,6 @@ function renderDashboard(){
         <div class="info-item"><span class="info-item-label">Nombre</span><span class="info-item-value">${escapeHTML(state.sucursal?.nombre||"")}</span></div>
         <div class="info-item"><span class="info-item-label">Dirección</span><span class="info-item-value">${escapeHTML(state.sucursal?.direccion||"")}</span></div>
         <div class="info-item"><span class="info-item-label">Teléfono</span><span class="info-item-value">${escapeHTML(state.sucursal?.telefono||"")}</span></div>
-        <div class="info-item"><span class="info-item-label">Correo</span><span class="info-item-value">${escapeHTML(state.sucursal?.email||"")}</span></div>
         <div class="info-item"><span class="info-item-label">Estado</span><span class="info-item-value">
           ${state.sucursal?.estado === "activo"
             ? `<span class="badge badge-ok"><span class="badge-dot"></span>Activa</span>`
@@ -945,40 +972,38 @@ function renderCajas(){
               ${cajero ? `<span class="caja-meta" style="font-size:11px;color:var(--text-faint);">${escapeHTML(cajero.correo)}</span>` : ""}
             </div>
             <div class="caja-card-footer">
+              <button class="btn-table btn-sm" data-assign-caja="${escapeHTML(c.id)}">${t("assignCajero")}</button>
               <button class="btn-table btn-sm" data-toggle-caja="${escapeHTML(c.id)}" data-estado="${c.estado}">
                 ${activa ? t("deactivate") : t("activate")}
               </button>
-              <button class="btn-table-danger btn-sm" data-delete-caja="${escapeHTML(c.id)}" data-i18n="delete">Eliminar</button>
             </div>
           </div>`;
         }).join("")}
     </div>
   </div>`;
 
-  $("#btnNuevaCaja")?.addEventListener("click", abrirModalCaja);
+  $("#btnNuevaCaja")?.addEventListener("click", () => abrirModalCaja());
   $$("[data-caja-filtro]").forEach(btn => {
     btn.addEventListener("click", () => { state.cajasFiltro = btn.dataset.cajaFiltro; renderCajas(); });
+  });
+  $$("[data-assign-caja]").forEach(btn => {
+    btn.addEventListener("click", () => abrirModalAsignarCajero(btn.dataset.assignCaja));
   });
   $$("[data-toggle-caja]").forEach(btn => {
     btn.addEventListener("click", async () => {
       const nuevoEstado = btn.dataset.estado === "activo" ? "inactivo" : "activo";
-      await DB.setCajaEstado(btn.dataset.toggleCaja, nuevoEstado);
-      state.cajas = await DB.getCajas();
-      toast(t("toastCajaStatus"), "ok");
-      renderCajas();
-    });
-  });
-  $$("[data-delete-caja]").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      if (!confirm(t("confirmDeleteCaja"))) return;
-      await DB.deleteCaja(btn.dataset.deleteCaja);
-      state.cajas = await DB.getCajas();
-      toast(t("toastCajaDeleted"), "ok");
-      renderCajas();
+      try {
+        await DB.setCajaEstado(btn.dataset.toggleCaja, nuevoEstado);
+        state.cajas = await DB.getCajas();
+        toast(t("toastCajaStatus"), "ok");
+        renderCajas();
+      } catch (err) {
+        console.error(err);
+        toast(err.message, "err");
+      }
     });
   });
 }
-
 /* ==========================================================================
    VISTA: VENTAS
    ========================================================================== */
@@ -1210,8 +1235,8 @@ function abrirModalCaja(){
     <form id="formCaja" autocomplete="off">
       <div class="form-grid cols-1">
         <div class="form-field">
-          <label for="fNombreCaja" data-i18n="fNombreCaja">${t("fNombreCaja")}</label>
-          <input type="text" id="fNombreCaja" placeholder="Ej: Caja 4" required>
+          <label for="fNumeroCaja" data-i18n="fNombreCaja">${t("fNombreCaja")}</label>
+          <input type="number" id="fNumeroCaja" min="1" step="1" placeholder="Ej: 4" required>
         </div>
         <div class="form-field">
           <label for="fCajeroAsignado" data-i18n="fCajeroAsignado">${t("fCajeroAsignado")}</label>
@@ -1229,18 +1254,62 @@ function abrirModalCaja(){
 
   $("#formCaja").addEventListener("submit", async e => {
     e.preventDefault();
-    const nombre = $("#fNombreCaja").value.trim();
-    if (!nombre){ toast(t("required"), "err"); return; }
-    await DB.createCaja({ nombre, cajeroId: $("#fCajeroAsignado").value || null });
-    state.cajas = await DB.getCajas();
-    toast(t("toastCajaCreated"), "ok");
-    cerrarModales();
-    renderMain();
+    const numero = parseInt($("#fNumeroCaja").value, 10);
+    if (!(numero > 0)){ toast(t("required"), "err"); return; }
+    try {
+      await DB.createCaja({ numero, cajeroId: $("#fCajeroAsignado").value || null });
+      state.cajas = await DB.getCajas();
+      toast(t("toastCajaCreated"), "ok");
+      cerrarModales();
+      renderMain();
+    } catch (err) {
+      console.error(err);
+      toast(err.message, "err");
+    }
   });
 
   abrirModal("modalCaja");
 }
 
+function abrirModalAsignarCajero(cajaId){
+  const caja = state.cajas.find(c => c.id === cajaId);
+  if (!caja) return;
+
+  $("#modalCajaContent").innerHTML = `
+    <h2 class="modal-title">${t("assignCajero")}</h2>
+    <p class="modal-desc">${escapeHTML(caja.nombre)}</p>
+    <form id="formAsignarCajero" autocomplete="off">
+      <div class="form-grid cols-1">
+        <div class="form-field">
+          <label for="fCajeroAsignado" data-i18n="fCajeroAsignado">${t("fCajeroAsignado")}</label>
+          <select id="fCajeroAsignado">
+            <option value="">— Sin asignar —</option>
+            ${state.cajeros.map(c => `<option value="${c.id}" ${c.id === caja.cajeroId ? "selected" : ""}>${escapeHTML(c.nombre)}</option>`).join("")}
+          </select>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" data-close-modal data-i18n="cancel">${t("cancel")}</button>
+        <button type="submit" class="btn btn-primary" data-i18n="save">${t("save")}</button>
+      </div>
+    </form>`;
+
+  $("#formAsignarCajero").addEventListener("submit", async e => {
+    e.preventDefault();
+    try {
+      await DB.asignarCajero(cajaId, $("#fCajeroAsignado").value || null);
+      state.cajas = await DB.getCajas();
+      toast(t("toastCajaAsignada"), "ok");
+      cerrarModales();
+      renderMain();
+    } catch (err) {
+      console.error(err);
+      toast(err.message, "err");
+    }
+  });
+
+  abrirModal("modalCaja");
+}
 /* ==========================================================================
    MODAL: DETALLE DE VENTA
    ========================================================================== */
