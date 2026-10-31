@@ -5,7 +5,15 @@
 window.addEventListener('pageshow', function (event) {
     if (!localStorage.getItem("karma_user")) {
         window.location.replace("/index.html");
+        return;
     }
+    // Si la página vino de la caché, recárgala para leer el tema e idioma actuales
+    if (event.persisted) window.location.reload();
+});
+
+// Si el tema o el idioma cambian en otra pestaña (por ejemplo el panel de gerente), recarga para reflejarlo
+window.addEventListener('storage', function (event) {
+    if (event.key === 'karma_theme' || event.key === 'karma_lang') window.location.reload();
 });
 
 // Función para cargar un archivo HTML en un contenedor
@@ -45,7 +53,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             "engine": "Motor",
             "displacement": "Cilindraje",
             "detail": "Detalle",
-            "logout": "Cerrar Sesión"
+            "logout": "Cerrar Sesión",
+            "role_Gerente": "Gerente",
+            "role_Cajero": "Cajero",
+            "role_Admin_General": "Administrador General"
         },
         en: {
             "top_sellers": "Best Sellers:",
@@ -56,11 +67,22 @@ document.addEventListener('DOMContentLoaded', async () => {
             "engine": "Engine",
             "displacement": "Displacement",
             "detail": "Detail",
-            "logout": "Log Out"
+            "logout": "Log Out",
+            "role_Gerente": "Manager",
+            "role_Cajero": "Cashier",
+            "role_Admin_General": "General Administrator"
         }
     };
 
     let currentLang = localStorage.getItem('karma_lang') || 'es';
+
+    function mostrarUsuarioEnFooter() {
+        const footerUserInfo = document.getElementById('footer-user-info');
+        if (footerUserInfo) {
+            const rolTexto = translations[currentLang]["role_" + usuario.rol] || usuario.rol;
+            footerUserInfo.textContent = `${rolTexto}: ${usuario.nombre}`;
+        }
+    }
 
     function updateLanguage(lang) {
         document.querySelectorAll('[data-i18n]').forEach(el => {
@@ -75,7 +97,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
         });
-        
+        mostrarUsuarioEnFooter();
         // Volver a renderizar productos si ya están cargados para traducir sus etiquetas dinámicas
         if (document.getElementById('top-sellers-container') && document.getElementById('top-sellers-container').innerHTML !== '') {
             loadProducts();
@@ -113,11 +135,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // === MOSTRAR NOMBRE Y ROL DINÁMICO ===
-    const footerUserInfo = document.getElementById('footer-user-info');
-    if (footerUserInfo) {
-        footerUserInfo.textContent = `${usuario.rol}: ${usuario.nombre}`;
-    }
-    
+    mostrarUsuarioEnFooter();
+
     const navUserName = document.getElementById('nav-user-name');
     if (navUserName) {
         navUserName.textContent = usuario.nombre;
@@ -213,7 +232,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 // Generar tarjetas para Top Sellers (Giratorias)
                 topSellers.forEach(prod => {
-                    const imgSrc = prod.imagen_path || '/assets/home/porsche-911.png'; 
+                    const imgSrc = prod.imagen_path || '/assets/inventario/porsche-911.png'; 
                     
                     const cardHTML = `
                     <div class="card">

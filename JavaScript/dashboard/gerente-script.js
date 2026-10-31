@@ -19,7 +19,16 @@ function verificarAcceso(){
 }
 
 // También al llegar con el botón "Atrás" (el navegador puede mostrar la página guardada en caché)
-window.addEventListener("pageshow", () => { verificarAcceso(); });
+window.addEventListener("pageshow", (e) => {
+  if (!verificarAcceso()) return;
+  // Si el navegador restauró la página desde la caché (botón Atrás), recárgala para leer el tema e idioma actuales
+  if (e.persisted) window.location.reload();
+});
+
+// Si el tema o el idioma cambian en otra pestaña (por ejemplo el Home), recarga para reflejarlo
+window.addEventListener("storage", (e) => {
+  if (e.key === "karma_theme" || e.key === "karma_lang") window.location.reload();
+});
 
 const $  = (sel, ctx = document) => ctx.querySelector(sel);
 const $$ = (sel, ctx = document) => Array.from(ctx.querySelectorAll(sel));
@@ -48,7 +57,16 @@ function formatHora(iso){
   const d = new Date(iso);
   return d.toLocaleTimeString(state.lang === "es" ? "es-MX" : "en-US", { hour:"2-digit", minute:"2-digit" });
 }
-
+// Lee una variable CSS del tema actual (los gráficos no entienden var(--x))
+function cssVar(nombre, respaldo){
+  const valor = getComputedStyle(document.body).getPropertyValue(nombre).trim();
+  return valor || respaldo;
+}
+// Traduce el tipo de producto (vehiculo / moto / refaccion)
+function etiquetaTipo(tipo){
+  const claves = { vehiculo:"tipoVehiculo", moto:"tipoMoto", refaccion:"tipoRefaccion" };
+  return claves[tipo] ? t(claves[tipo]) : tipo;
+}
 /*I18N — diccionario bilingüe ES / EN */
 const I18N = {
   es:{
@@ -135,6 +153,13 @@ const I18N = {
     metodoEfectivo:"Efectivo", metodoTarjeta:"Tarjeta", metodoTransferencia:"Transferencia", metodoPaypal:"PayPal",
     noVentas:"Sin ventas en este periodo.",
     required:"Este campo es obligatorio",
+    loading:"Cargando…", noResults:"Sin resultados", noCajas:"Sin cajas",
+    noCajasHint:'Registra la primera caja con el botón "Nueva caja".',
+    cajasOf:"{a} de {b} cajas", transactions:"transacciones", unassigned:"— Sin asignar —",
+    lblNombre:"Nombre", lblDireccion:"Dirección", lblTelefono:"Teléfono", lblEstado:"Estado",
+    colCant:"Cant.", saleTotal:"Total de la venta", close:"Cerrar",
+    confirmLogout:"¿Cerrar sesión?", placeholderCaja:"Ej: 4",
+    errSaveProducto:"No se pudo guardar el producto", errDeleteProducto:"No se pudo eliminar el producto",
   },
   en:{
     topHome:"Go to Dashboard", brandSlogan:"Store Management Panel",
@@ -215,6 +240,13 @@ const I18N = {
     metodoEfectivo:"Cash", metodoTarjeta:"Card", metodoTransferencia:"Transfer", metodoPaypal:"PayPal",
     noVentas:"No sales in this period.",
     required:"This field is required",
+    loading:"Loading…", noResults:"No results", noCajas:"No registers",
+    noCajasHint:'Add your first register with the "New register" button.',
+    cajasOf:"{a} of {b} registers", transactions:"transactions", unassigned:"— Unassigned —",
+    lblNombre:"Name", lblDireccion:"Address", lblTelefono:"Phone", lblEstado:"Status",
+    colCant:"Qty.", saleTotal:"Sale total", close:"Close",
+    confirmLogout:"Log out?", placeholderCaja:"E.g. 4",
+    errSaveProducto:"Could not save the product", errDeleteProducto:"Could not delete the product",
   }
 };
 function t(key){
@@ -425,7 +457,7 @@ const DB = {
    ========================================================================== */
 const state = {
   view:"dashboard",
-  lang:"es",
+  lang: localStorage.getItem("karma_lang") === "en" ? "en" : "es",
   sucursal: null,
   cajeros: [],
   cajas: [],
@@ -565,16 +597,16 @@ function metodoBadge(m){
 function renderMain(){
   const main = $("#main");
   if (state.cargando){
-    main.innerHTML = `<div class="panel panel-full"><div class="empty-state"><strong>Cargando…</strong></div></div>`;
+    main.innerHTML = `<div class="panel panel-full"><div class="empty-state"><strong>${t("loading")}</strong></div></div>`;
     return;
   }
   $$(".sub-nav-btn").forEach(b => b.classList.toggle("is-active", b.dataset.view === state.view));
-  applyI18n();
   if      (state.view === "dashboard")  renderDashboard();
   else if (state.view === "productos")  renderProductos();
   else if (state.view === "inventario") renderInventario();
   else if (state.view === "cajas")      renderCajas();
   else if (state.view === "ventas")     renderVentas();
+  applyI18n();
 }
 
 /* ==========================================================================
@@ -668,7 +700,7 @@ function renderDashboard(){
         <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M6 6V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/></svg></div>
         <div class="kpi-label" data-i18n="kpiCajas">Cajas activas</div>
         <div class="kpi-value">${cajasActivas}</div>
-        <div class="kpi-sub"><span>${cajasActivas} de ${state.cajas.length} cajas</span></div>
+        <div class="kpi-sub"><span>${t("cajasOf").replace("{a}", cajasActivas).replace("{b}", state.cajas.length)}</span></div>
       </div>
     </div>
 
@@ -728,13 +760,13 @@ function renderDashboard(){
         <h3 data-i18n="sucursalInfoTitle">Información de la sucursal</h3>
       </div>
       <div class="info-grid">
-        <div class="info-item"><span class="info-item-label">Nombre</span><span class="info-item-value">${escapeHTML(state.sucursal?.nombre||"")}</span></div>
-        <div class="info-item"><span class="info-item-label">Dirección</span><span class="info-item-value">${escapeHTML(state.sucursal?.direccion||"")}</span></div>
-        <div class="info-item"><span class="info-item-label">Teléfono</span><span class="info-item-value">${escapeHTML(state.sucursal?.telefono||"")}</span></div>
-        <div class="info-item"><span class="info-item-label">Estado</span><span class="info-item-value">
+        <div class="info-item"><span class="info-item-label">${t("lblNombre")}</span><span class="info-item-value">${escapeHTML(state.sucursal?.nombre||"")}</span></div>
+        <div class="info-item"><span class="info-item-label">${t("lblDireccion")}</span><span class="info-item-value">${escapeHTML(state.sucursal?.direccion||"")}</span></div>
+        <div class="info-item"><span class="info-item-label">${t("lblTelefono")}</span><span class="info-item-value">${escapeHTML(state.sucursal?.telefono||"")}</span></div>
+        <div class="info-item"><span class="info-item-label">${t("lblEstado")}</span><span class="info-item-value">
           ${state.sucursal?.estado === "activo"
-            ? `<span class="badge badge-ok"><span class="badge-dot"></span>Activa</span>`
-            : `<span class="badge badge-off"><span class="badge-dot"></span>Inactiva</span>`}
+            ? `<span class="badge badge-ok"><span class="badge-dot"></span>${t("statusActive")}</span>`
+            : `<span class="badge badge-off"><span class="badge-dot"></span>${t("statusInactive")}</span>`}
         </span></div>
       </div>
     </div>
@@ -750,12 +782,12 @@ function renderDashboard(){
         labels,
         datasets:[
           { label:t("revenue"), data:ingresos, backgroundColor:"rgba(26,92,58,.75)", borderRadius:6, yAxisID:"y" },
-          { label:t("units"),   data:unidades, type:"line", borderColor:"var(--chart-red)", backgroundColor:"rgba(158,27,46,.12)", tension:.4, pointRadius:4, yAxisID:"y1" },
+          { label:t("units"),   data:unidades, type:"line", borderColor: cssVar("--chart-red", "#9e1b2e") , backgroundColor:"rgba(158,27,46,.12)", tension:.4, pointRadius:4, yAxisID:"y1" },
         ]
       },
       options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } },
         scales:{
-          y:{ position:"left", grid:{ color:"var(--chart-grid)" }, ticks:{ callback:v=>formatoMoneda(v) } },
+          y:{ position:"left", grid:{ color: cssVar("--chart-grid", "rgba(0,0,0,.08)") }, ticks:{ callback:v=>formatoMoneda(v) } },
           y1:{ position:"right", grid:{ drawOnChartArea:false }, ticks:{ stepSize:1 } }
         }
       }
@@ -836,10 +868,10 @@ function renderProductos(){
           <th data-i18n="colAcciones">Acciones</th>
         </tr></thead>
         <tbody>
-          ${lista.length === 0 ? `<tr><td colspan="6"><div class="empty-state"><strong>Sin resultados</strong></div></td></tr>` :
+          ${lista.length === 0 ? `<tr><td colspan="6"><div class="empty-state"><strong>${t("noResults")}</strong></div></td></tr>` :
             lista.map(p => `
             <tr>
-              <td><strong>${escapeHTML(p.nombre)}</strong><br><span class="cell-muted" style="font-size:11.5px;">${escapeHTML(p.tipo)}</span></td>
+              <td><strong>${escapeHTML(p.nombre)}</strong><br><span class="cell-muted" style="font-size:11.5px;">${escapeHTML(etiquetaTipo(p.tipo))}</span></td>
               <td>${escapeHTML(p.marca)}</td>
               <td>${escapeHTML(p.categoria)}</td>
               <td>${formatoMoneda(p.precio)}</td>
@@ -914,7 +946,7 @@ function renderInventario(){
           <th data-i18n="colAcciones">Acciones</th>
         </tr></thead>
         <tbody>
-          ${lista.length === 0 ? `<tr><td colspan="7"><div class="empty-state"><strong>Sin resultados</strong></div></td></tr>` :
+          ${lista.length === 0 ? `<tr><td colspan="7"><div class="empty-state"><strong>${t("noResults")}</strong></div></td></tr>` :
             lista.map(p => `
             <tr>
               <td><strong>${escapeHTML(p.nombre)}</strong></td>
@@ -976,7 +1008,7 @@ function renderCajas(){
     </div>
 
     <div class="cajas-grid fade-in fade-in--2">
-      ${lista.length === 0 ? `<div class="empty-state"><strong>Sin cajas</strong><span>Registra la primera caja con el botón "Nueva caja".</span></div>` :
+      ${lista.length === 0 ? `<div class="empty-state"><strong>${t("noCajas")}</strong><span>${t("noCajasHint")}</span></div>` :
         lista.map(c => {
           const cajero = cajeroPorId(c.cajeroId);
           const activa = c.estado === "activo";
@@ -1053,7 +1085,7 @@ function renderVentas(){
           `<button class="filter-pill ${state.ventasFiltro===v?"is-active":""}" data-ventas-filtro="${v}" data-i18n="${k}">${t(k)}</button>`
         ).join("")}
       </div>
-      <span style="font-size:12.5px;color:var(--text-muted);">${lista.length} transacciones</span>
+      <span style="font-size:12.5px;color:var(--text-muted);">${lista.length} ${t("transactions")}</span>
     </div>
 
     <div class="table-wrap fade-in fade-in--2">
@@ -1186,7 +1218,7 @@ function abrirModalProducto(id){
       renderMain();
     } catch (err) {
       console.error(err);
-      toast("No se pudo guardar el producto", "err");
+      toast(t("errSaveProducto"), "err");
     }
   });
 
@@ -1259,12 +1291,12 @@ function abrirModalCaja(){
       <div class="form-grid cols-1">
         <div class="form-field">
           <label for="fNumeroCaja" data-i18n="fNombreCaja">${t("fNombreCaja")}</label>
-          <input type="number" id="fNumeroCaja" min="1" step="1" placeholder="Ej: 4" required>
+          <input type="number" id="fNumeroCaja" min="1" step="1" placeholder="${t("placeholderCaja")}" required>
         </div>
         <div class="form-field">
           <label for="fCajeroAsignado" data-i18n="fCajeroAsignado">${t("fCajeroAsignado")}</label>
           <select id="fCajeroAsignado">
-            <option value="">— Sin asignar —</option>
+            <option value="">${t("unassigned")}</option>
             ${state.cajeros.map(c => `<option value="${c.id}">${escapeHTML(c.nombre)}</option>`).join("")}
           </select>
         </div>
@@ -1306,7 +1338,7 @@ function abrirModalAsignarCajero(cajaId){
         <div class="form-field">
           <label for="fCajeroAsignado" data-i18n="fCajeroAsignado">${t("fCajeroAsignado")}</label>
           <select id="fCajeroAsignado">
-            <option value="">— Sin asignar —</option>
+            <option value="">${t("unassigned")}</option>
             ${state.cajeros.map(c => `<option value="${c.id}" ${c.id === caja.cajeroId ? "selected" : ""}>${escapeHTML(c.nombre)}</option>`).join("")}
           </select>
         </div>
@@ -1343,14 +1375,14 @@ function abrirModalVenta(ventaId){
     <h2 class="modal-title" data-i18n="modalVentaTitle">${t("modalVentaTitle")}</h2>
     <p class="modal-desc" style="font-family:monospace;letter-spacing:.02em;">${escapeHTML(v.id)}</p>
     <div class="info-grid" style="margin-bottom:20px;">
-      <div class="info-item"><span class="info-item-label">Fecha</span><span class="info-item-value">${formatFecha(v.fecha)}</span></div>
-      <div class="info-item"><span class="info-item-label">Hora</span><span class="info-item-value">${formatHora(v.fecha)}</span></div>
-      <div class="info-item"><span class="info-item-label">Cajero</span><span class="info-item-value">${escapeHTML(v.cajeroNombre)}</span></div>
-      <div class="info-item"><span class="info-item-label">Método</span><span class="info-item-value">${metodoBadge(v.metodoPago)}</span></div>
+      <div class="info-item"><span class="info-item-label">${t("date")}</span><span class="info-item-value">${formatFecha(v.fecha)}</span></div>
+      <div class="info-item"><span class="info-item-label">${t("time")}</span><span class="info-item-value">${formatHora(v.fecha)}</span></div>
+      <div class="info-item"><span class="info-item-label">${t("colCajero")}</span><span class="info-item-value">${escapeHTML(v.cajeroNombre)}</span></div>
+      <div class="info-item"><span class="info-item-label">${t("colMetodo")}</span><span class="info-item-value">${metodoBadge(v.metodoPago)}</span></div>
     </div>
     <div class="table-wrap" style="margin-bottom:20px;">
       <table class="data-table">
-        <thead><tr><th>Producto</th><th>Marca</th><th>Cant.</th><th>Total</th></tr></thead>
+        <thead><tr><th>${t("colProducto")}</th><th>${t("colMarca")}</th><th>${t("colCant")}</th><th>${t("colTotal")}</th></tr></thead>
         <tbody>
           <tr>
             <td><strong>${escapeHTML(v.productoNombre)}</strong></td>
@@ -1362,11 +1394,11 @@ function abrirModalVenta(ventaId){
       </table>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:baseline;padding:16px;background:var(--surface-1);border-radius:var(--radius-md);border:1px solid var(--line);">
-      <span style="font-size:13px;color:var(--text-muted);">Total de la venta</span>
+      <span style="font-size:13px;color:var(--text-muted);">${t("saleTotal")}</span>
       <span style="font-family:var(--font-display);font-size:24px;font-weight:600;">${formatoMoneda(v.total)}</span>
     </div>
     <div class="form-actions">
-      <button type="button" class="btn btn-ghost" data-close-modal>Cerrar</button>
+      <button type="button" class="btn btn-ghost" data-close-modal>${t("close")}</button>
     </div>`;
 
   abrirModal("modalVenta");
@@ -1384,7 +1416,7 @@ async function eliminarProducto(id){
     renderMain();
   } catch (err) {
     console.error(err);
-    toast("No se pudo eliminar el producto", "err");
+    toast(t("errDeleteProducto"), "err");
   }
 }
 
@@ -1465,17 +1497,20 @@ function attachEvents(){
     const op = e.target.closest(".lang-op");
     if (!op) return;
     state.lang = op.dataset.lang;
+    localStorage.setItem("karma_lang", state.lang);
     renderMain();
   });
 
-  // Tema claro / oscuro
+  // Tema claro / oscuro (se recuerda al recargar y se comparte con el Home)
   $("#themeToggle")?.addEventListener("click", () => {
-    document.body.classList.toggle("dark");
+    const oscuro = document.body.classList.toggle("dark");
+    localStorage.setItem("karma_theme", oscuro ? "dark" : "light");
+    if (state.view === "dashboard") renderMain();   // redibuja las gráficas con los colores del tema
   });
 
   // Cerrar sesión
   $("#logoutBtn")?.addEventListener("click", () => {
-    if (confirm("¿Cerrar sesión?")) {
+    if (confirm(t("confirmLogout"))) {
       localStorage.removeItem("karma_user");
       window.location.replace("/index.html");
     }
@@ -1498,6 +1533,7 @@ function attachEvents(){
    ========================================================================== */
 (async function init(){
   if (!verificarAcceso()) return;
+  if (localStorage.getItem("karma_theme") === "dark") document.body.classList.add("dark");
   attachEvents();
   iniciarReloj();
   await cargarDatos();
