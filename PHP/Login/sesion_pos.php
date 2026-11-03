@@ -11,7 +11,8 @@ const POS_SESION = 'KARMAPOS';
 const POS_ROLES_PERMITIDOS = [
     'Cajero',
     'Gerente',
-    'Administrador General'
+    'Administrador General',
+    'Admin_General'
 ];
 // Abre la sesión del POS con cookie solo-HTTP y SameSite=Lax (protege contra robo de cookie y CSRF)
 function posIniciarSesion(): void {

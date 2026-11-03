@@ -60,7 +60,7 @@ formulario.addEventListener("submit", async (event) => {
 
             if (rol === "Cajero") {
                 window.location.href = "PHP/PuntoDeVenta/index.php";
-            } else if (rol === "Administrador General" || rol === "Gerente") {
+            } else if (rol === "Admin_General" || rol === "Administrador General" || rol === "Gerente") {
                 // Redirige al Home
                 window.location.href = "Home/home.html";
             } else {
