@@ -283,7 +283,7 @@ async function cargarProducto(producto, clave) {
     const ruta = new URL(producto.modelo3d, RAIZ).href;
     try {
       objeto = await cargarGLB(ruta);
-      pintarGLB(objeto, color);
+      pintarGLB(objeto, color, acabadoDePintura(producto));
     } catch (error) {
       console.warn("[Vista 3D] No se pudo cargar el modelo", ruta, error);
       objeto = null;
@@ -320,8 +320,18 @@ function cargarGLB(ruta) {
     .catch(error => { cacheGLB.delete(ruta); throw error; });
 }
 
+// Acabado de la pintura de autos y motos según el nombre del color de la BD (mate, blanco sólido o metálico);
+// con el acabado original del .glb los grises claros se veían blancos. Las refacciones conservan el suyo (null)
+function acabadoDePintura(producto) {
+  if (producto?.tipo !== "auto" && producto?.tipo !== "moto") return null;
+  const nombre = String(producto.color || "").toLowerCase();
+  if (nombre.includes("mate")) return { metalness: 0.05, roughness: 0.6, clearcoat: 0 };
+  if (nombre.includes("blanco")) return { metalness: 0.05, roughness: 0.2, clearcoat: 1 };
+  return { metalness: 0.6, roughness: 0.3, clearcoat: 1 };
+}
+
 // Pinta el .glb con el color de la BD: su material de pintura (sin molduras ni vidrios) o, si no hay, la pieza más grande
-function pintarGLB(objeto, color) {
+function pintarGLB(objeto, color, acabado) {
   const mallas = [];
   objeto.traverse(nodo => { if (nodo.isMesh) mallas.push(nodo); });
   const esPintura = material => MATERIAL_PINTURA.test(material?.name || "") && !MATERIAL_EXCLUIDO.test(material?.name || "");
@@ -341,6 +351,12 @@ function pintarGLB(objeto, color) {
       const copia = material.clone();
       copia.color.copy(color);
       copia.map = null;
+      if (acabado) {
+        copia.metalness = acabado.metalness;
+        copia.roughness = acabado.roughness;
+        copia.metalnessMap = copia.roughnessMap = null;
+        if ("clearcoat" in copia) { copia.clearcoat = acabado.clearcoat; copia.clearcoatRoughness = 0.06; }
+      }
       copia.needsUpdate = true;
       return copia;
     });
@@ -888,4 +904,24 @@ Ducati Panigale (Gris):
 
 Balata delantera para Audi:
 "Balata_3af92511c849988dda3f" (https://skfb.ly/oCM6H) by anaelsa2007mx is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).
+
+Los siguientes se modificaron para KARMA (materiales de pintura renombrados o coloreados, orientación y peso optimizado):
+
+Porsche Taycan y Panamera (porsche_taycan.glb):
+"Porsche Taycan Turbo S (Project Cars 3)" (https://sketchfab.com/3d-models/porsche-taycan-turbo-s-project-cars-3-05d7951204e84686ba12625c66d7a8b7) by VuckyZ is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).
+
+Porsche Cayenne y Macan (porsche_cayenne.glb):
+"2022-porsche-cayenne-turbo-gt" (https://sketchfab.com/3d-models/2022-porsche-cayenne-turbo-gt-85d9292939424769b0283a05064e5860) by 007 is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).
+
+Audi sedanes, sportback y RS6 (audi_rs7.glb):
+"2020 Audi RS7 Sportback" (https://sketchfab.com/3d-models/2020-audi-rs7-sportback-61dd9575a8c645558aa912042af0cfc1) by Ddiaz Design is licensed under CC Attribution-NonCommercial-ShareAlike (http://creativecommons.org/licenses/by-nc-sa/4.0/).
+
+Audi SUV Q3, Q5, Q7, Q8 y Q8 e-tron (audi_q5.glb):
+"2023 Audi Q5 quattro S line Premium Plus 45 TFSI" (https://sketchfab.com/3d-models/2023-audi-q5-quattro-s-line-premium-plus-45-tfsi-60fea790b21c48bcb379be2a6d2c1f81) by Ddiaz Design is licensed under CC Attribution-NonCommercial-ShareAlike (http://creativecommons.org/licenses/by-nc-sa/4.0/).
+
+Ducati naked: Monster, Streetfighter, Diavel y Scrambler (ducati_monster.glb):
+"Ducati Monster" (https://sketchfab.com/3d-models/ducati-monster-264e557c6d054ae2857aa88e1ef7ed45) by Hallgeir Tyribakken is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).
+
+Ducati adventure: DesertX, Multistrada e Hypermotard (ducati_desertx.glb):
+"Ducati Desertx" (https://sketchfab.com/3d-models/ducati-desertx-a70d69351e27484cac8d511e170a624f) by Nieve5677 is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).
 */

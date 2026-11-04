@@ -20,7 +20,7 @@ $csrfPos = posTokenCsrf();
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../../CSS/PuntoDeVenta/style.css">
+<link rel="stylesheet" href="../../CSS/PuntoDeVenta/style.css?v=2">
 <!-- Three.js (vista previa 3D) desde el CDN jsDelivr, versión fija para que no cambie sola -->
 <script type="importmap">
 {
@@ -200,6 +200,6 @@ $csrfPos = posTokenCsrf();
 <!-- Conceptos de caja: seguros, financiamiento, trámites, impuestos y posventa (pestaña «Servicios» del formulario de Venta) -->
 <script src="../../JavaScript/PuntoDeVenta/conceptos_caja.js"></script>
 <!-- Vista previa 3D (módulo de Three.js); si no carga, script.js muestra un aviso -->
-<script type="module" src="../../JavaScript/PuntoDeVenta/vista_previa_3d.js" onerror="window.KARMA_VISTA3D_FALLO = true; window.dispatchEvent(new Event('karma:vista3d-fallo'));"></script>
+<script type="module" src="../../JavaScript/PuntoDeVenta/vista_previa_3d.js?v=2" onerror="window.KARMA_VISTA3D_FALLO = true; window.dispatchEvent(new Event('karma:vista3d-fallo'));"></script>
 </body>
 </html>
