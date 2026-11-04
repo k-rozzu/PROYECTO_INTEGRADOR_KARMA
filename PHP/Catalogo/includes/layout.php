@@ -22,6 +22,13 @@ function catVersion(string $rutaRelativa): string {
     return CAT_RAIZ . $rutaRelativa . (is_file($archivo) ? '?v=' . filemtime($archivo) : '');
 }
 
+// Mensaje de una sola vez guardado en la sesión (ej. «registro completado» después de confirmar desde el correo)
+function catTomarAviso(): ?string {
+    $mensaje = $_SESSION['cat_aviso'] ?? null;
+    unset($_SESSION['cat_aviso']);
+    return is_string($mensaje) ? $mensaje : null;
+}
+
 function catCabecera(array $o = []): void {
     $titulo = $o['titulo'] ?? 'Concesionario';
     $descripcion = $o['descripcion'] ?? 'KARMA: concesionario de vehículos Audi, Porsche y motocicletas Ducati en Manzanillo y Colima. Modelos, refacciones, servicio, financiamiento y citas en línea.';
@@ -363,6 +370,7 @@ function catPie(array $o = []): void {
       'csrf' => catCsrf(),
       'sucursal' => ['id' => $sucursal['id_sucursal'], 'nombre' => $sucursal['nombre']],
       'cliente' => $cliente ? ['id' => (int)$cliente['id_cliente'], 'nombre' => catNombreCorto($cliente)] : null,
+      'aviso' => catTomarAviso(),
       'iconos' => CAT_ICONOS,
       'envioCosto' => CAT_ENVIO_COSTO,
       'envioGratisDesde' => CAT_ENVIO_GRATIS_DESDE,

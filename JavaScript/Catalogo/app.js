@@ -245,6 +245,7 @@
   }
   // Muestra el aviso pendiente después de recargar (por ejemplo, al cambiar de sucursal)
   function avisoPendiente() {
+    if (config.aviso) aviso(config.aviso, "ok");
     try {
       const m = sessionStorage.getItem("karma_aviso");
       if (m) { sessionStorage.removeItem("karma_aviso"); aviso(m, "info"); }

@@ -66,23 +66,211 @@
       e.preventDefault();
       const msg = $("#rgMensaje");
       if (form.password.value !== form.confirmacion.value) return mensaje(msg, "Las contraseñas no coinciden.");
-      if (!form.acepta_privacidad.checked) return mensaje(msg, "Debes aceptar el aviso de privacidad para crear tu cuenta.");
       const boton = $("[type=submit]", form);
       boton.classList.add("cargando");
       mensaje(msg, "");
       const datos = Object.fromEntries(new FormData(form).entries());
-      datos.acepta_privacidad = form.acepta_privacidad.checked;
+      datos.notif_promociones = form.notif_promociones.checked;
       try {
-        await api("registro", { metodo: "POST", datos });
-        try { sessionStorage.setItem("karma_aviso", "¡Tu cuenta se creó correctamente! Bienvenido a KARMA."); } catch (_) {}
-        window.location.href = form.dataset.volver || "perfil.php";
+        // Paso 1: el servidor crea la solicitud y envía el correo; la cuenta todavía NO existe
+        const r = await api("registro", { metodo: "POST", datos });
+        form.password.value = form.confirmacion.value = "";
+        mostrarEspera(r);
       } catch (err) { mensaje(msg, err.message); }
       finally { boton.classList.remove("cargando"); }
+    });
+    iniciarEspera(form);
+  }
+
+  // ===== REGISTRO · PASO 2: «Revisa tu correo» (esperando la aceptación desde el botón del correo) =====
+  let consulta = null, cuentaAtras = null, esperaSegundos = 0, reenviosRestantes = 1, listo = false;
+  // Canal entre pestañas: la que abre el botón del correo avisa a esta cuando se acepta
+  const CANAL_REGISTRO = "karma-registro";
+
+  function mostrarPaso(espera) {
+    $("#rgPasoFormulario")?.classList.toggle("oculto", espera);
+    $("#rgPasoEspera")?.classList.toggle("oculto", !espera);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  function mostrarEspera(r) {
+    $("#rgEsperaEmail").textContent = r.email || "";
+    $("#rgEsperaVence").textContent = r.vence || "";
+    mensaje($("#rgEsperaMensaje"), "");
+    estadoEspera("Esperando tu confirmación…", "info");
+    mostrarPaso(true);
+    programarReenvio(r.reenviarEn ?? 60, r.reenviosRestantes ?? 0);
+    vigilar();
+  }
+  function estadoEspera(texto, tipo = "info") {
+    const caja = $("#rgEstado");
+    if (!caja) return;
+    caja.className = `estado-espera estado-espera--${tipo}`;
+    $("#rgEstadoTexto").textContent = texto;
+  }
+  // Botón «Reenviar correo» con cuenta regresiva (el servidor aplica los mismos límites)
+  function programarReenvio(segundos, restantes) {
+    esperaSegundos = Math.max(0, Number(segundos) || 0);
+    reenviosRestantes = Math.max(0, Number(restantes) || 0);
+    clearInterval(cuentaAtras);
+    const pintar = () => {
+      const boton = $("#rgReenviar");
+      if (!boton) return;
+      const etiqueta = $("span", boton);
+      if (reenviosRestantes <= 0) { boton.disabled = true; etiqueta.textContent = "Límite de reenvíos alcanzado"; return; }
+      boton.disabled = esperaSegundos > 0;
+      etiqueta.textContent = esperaSegundos > 0 ? `Reenviar correo (${esperaSegundos} s)` : "Reenviar correo";
+    };
+    pintar();
+    cuentaAtras = setInterval(() => { esperaSegundos = Math.max(0, esperaSegundos - 1); pintar(); if (!esperaSegundos) clearInterval(cuentaAtras); }, 1000);
+  }
+  // Consulta cada 5 s si ya se confirmó (también al volver a la pestaña, por ejemplo después de abrir Gmail).
+  // forzar = consultar aunque la pestaña esté en segundo plano (cuando avisa la pestaña que abrió el correo)
+  function vigilar() {
+    clearInterval(consulta);
+    consulta = setInterval(revisarEstado, 5000);
+  }
+  async function revisarEstado(forzar = false) {
+    if (listo || (document.hidden && forzar !== true) || $("#rgPasoEspera")?.classList.contains("oculto")) return;
+    let r;
+    try { r = await api("registro_estado"); } catch (_) { return; }
+    if (r.estado === "pendiente" || listo) return;
+    clearInterval(consulta);
+    clearInterval(cuentaAtras);
+    if (r.estado === "completado" && r.sesion) {
+      mostrarListo();
+    } else if (r.estado === "completado") {
+      estadoEspera("Tu registro se confirmó desde otro navegador o dispositivo.", "ok");
+      $("#rgEsperaAcciones").innerHTML = `<a class="btn btn--primario" href="login.php">Iniciar sesión</a>`;
+    } else {
+      estadoEspera("La solicitud ya no está vigente: no se creó ninguna cuenta.", "error");
+      mensaje($("#rgEsperaMensaje"), "Vuelve a llenar el formulario para recibir un correo nuevo.", "info");
+      $("#rgReenviar").disabled = true;
+      $("#rgOtroCorreo").textContent = "Volver al formulario";
+    }
+  }
+  // Aceptado desde el correo en este navegador: esta pestaña (donde empezó el registro) lo muestra y luego lleva al inicio.
+  // La cuenta regresiva solo avanza con la pestaña a la vista, para que la persona alcance a ver la confirmación.
+  function mostrarListo() {
+    listo = true;
+    $("#rgPasoEspera").classList.add("oculto");
+    $("#rgPasoListo").classList.remove("oculto");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    const texto = $("#rgListoTexto");
+    let segundos = 5;
+    const pintar = () => { texto.textContent = `Te llevaremos al inicio del catálogo en ${segundos} s…`; };
+    pintar();
+    const reloj = setInterval(() => {
+      if (document.hidden) return;
+      if (--segundos > 0) return pintar();
+      clearInterval(reloj);
+      texto.textContent = "Abriendo el inicio del catálogo…";
+      window.location.replace("index.php");
+    }, 1000);
+  }
+  function iniciarEspera(form) {
+    const panel = $("#rgPasoEspera");
+    if (!panel) return;
+    $("#rgReenviar").addEventListener("click", async () => {
+      const boton = $("#rgReenviar");
+      boton.classList.add("cargando");
+      mensaje($("#rgEsperaMensaje"), "");
+      try {
+        const r = await api("registro_reenviar", { metodo: "POST" });
+        mensaje($("#rgEsperaMensaje"), r.mensaje, "ok");
+        $("#rgEsperaVence").textContent = r.vence || "";
+        programarReenvio(r.reenviarEn, r.reenviosRestantes);
+      } catch (err) {
+        mensaje($("#rgEsperaMensaje"), err.message);
+        if (err.estado === 410) revisarEstado();
+      } finally { boton.classList.remove("cargando"); }
+    });
+    $("#rgOtroCorreo").addEventListener("click", async () => {
+      await api("registro_cancelar", { metodo: "POST" }).catch(() => {});
+      clearInterval(consulta);
+      clearInterval(cuentaAtras);
+      $("#rgOtroCorreo").textContent = "Usar otro correo";
+      mensaje($("#rgMensaje"), "");
+      mostrarPaso(false);
+      form.email.focus();
+    });
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) revisarEstado(); });
+    // La pestaña del botón del correo avisa al aceptar. Esta responde «recibido» solo cuando ya muestra el registro
+    // completado; con esa respuesta aquella se cierra y la persona continúa aquí.
+    if ("BroadcastChannel" in window) {
+      const canal = new BroadcastChannel(CANAL_REGISTRO);
+      canal.addEventListener("message", async (e) => {
+        if (e.data?.tipo !== "confirmado") return;
+        await revisarEstado(true);
+        if (listo) canal.postMessage({ tipo: "recibido" });
+      });
+    }
+    if (panel.dataset.activa === "1") {
+      // La página se recargó con una solicitud en curso: se consulta el estado real y los límites de reenvío
+      api("registro_estado").then(r => {
+        if (r.estado === "pendiente") { programarReenvio(r.reenviarEn, r.reenviosRestantes); vigilar(); }
+        else revisarEstado();
+      }).catch(() => vigilar());
+    }
+  }
+
+  // ===== REGISTRO · PASO 3: página del botón del correo (confirmar_registro.php) =====
+  // Se acepta sin recargar. Si la página donde empezó el registro sigue abierta en este navegador, se le avisa (muestra el
+  // registro completado y lleva al inicio) y esta pestaña se cierra; si no, se va al inicio del catálogo como antes.
+  function avisarPaginaRegistro(espera = 2500) {
+    return new Promise((resolver) => {
+      if (!("BroadcastChannel" in window)) return resolver(false);
+      const canal = new BroadcastChannel(CANAL_REGISTRO);
+      const terminar = (ok) => { clearTimeout(limite); canal.close(); resolver(ok); };
+      const limite = setTimeout(() => terminar(false), espera);
+      canal.addEventListener("message", (e) => { if (e.data?.tipo === "recibido") terminar(true); });
+      canal.postMessage({ tipo: "confirmado" });
+    });
+  }
+  function iniciarConfirmacion() {
+    const form = $("#cfAceptar");
+    if (!form) return;
+    let enviando = false;
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (enviando) return;
+      enviando = true;
+      $("[type=submit]", form).classList.add("cargando");
+      const datos = new FormData(form);
+      datos.set("accion", "aceptar");
+      datos.set("respuesta", "json");
+      let r = null;
+      try {
+        const respuesta = await fetch(form.action, { method: "POST", body: datos, credentials: "same-origin", headers: { Accept: "application/json" } });
+        r = await respuesta.json();
+      } catch (_) {}
+      // No se completó (enlace vencido o ya usado, documentos nuevos…): la página se recarga y muestra el motivo
+      if (!r?.ok) { window.location.replace("confirmar_registro.php?token=" + encodeURIComponent(form.token.value)); return; }
+
+      $("#cfCaja").classList.add("oculto");
+      $("#cfListo").classList.remove("oculto");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      const texto = $("#cfListoTexto");
+      if (!(await avisarPaginaRegistro())) {
+        // La página del registro no está abierta en este navegador (otro dispositivo, o ya se cerró)
+        texto.textContent = "Abriendo el inicio del catálogo…";
+        window.location.replace("index.php");
+        return;
+      }
+      $("#cfListoEstado").classList.add("estado-espera--ok");
+      texto.textContent = "Listo. Te regresamos a la página donde iniciaste tu registro…";
+      setTimeout(() => {
+        window.close();
+        // Si el navegador no deja cerrarla (por ejemplo, si el enlace se pegó en una pestaña que ya tenía historial)
+        setTimeout(() => {
+          texto.textContent = "Tu registro continúa en la pestaña donde lo iniciaste: ya se actualizó y te llevará al inicio del catálogo. Puedes cerrar esta pestaña.";
+          $("#cfListoAcciones").classList.remove("oculto");
+        }, 500);
+      }, 1500);
     });
   }
 
   // ===== PERFIL =====
-  const pill = (clase, texto) => `<span class="estado-pill estado-pill--${clase}">${esc(texto)}</span>`;
+  const pill =(clase, texto) => `<span class="estado-pill estado-pill--${clase}">${esc(texto)}</span>`;
   let perfil = null;
 
   function pedidoHTML(o) {
@@ -240,6 +428,7 @@
   document.addEventListener("DOMContentLoaded", () => {
     iniciarLogin();
     iniciarRegistro();
+    iniciarConfirmacion();
     iniciarPerfil();
   });
 })();
