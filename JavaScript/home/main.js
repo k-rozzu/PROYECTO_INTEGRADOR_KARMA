@@ -130,8 +130,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadComponent('navbar.html', 'navbar-placeholder');
     await loadComponent('footer.html', 'footer-placeholder');
 
-    // Cada rol ve solo el panel que puede abrir: el Gerente el suyo y el Administrador el de administración
-    document.querySelector(usuario.rol === "Gerente" ? 'a[href*="admin.html"]' : 'a[href="gerente.html"]')?.remove();
+    // El Gerente no puede usar el panel de administración; el Administrador sí ve ambos paneles
+    if (usuario.rol === "Gerente") document.querySelector('a[href*="admin.html"]')?.remove();
 
     // === 5. LÓGICA DE MODO OSCURO ===
     const themeSwitch = document.querySelector('.theme-switch__checkbox');

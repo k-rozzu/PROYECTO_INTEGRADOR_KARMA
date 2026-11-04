@@ -1,6 +1,9 @@
 /* ==========================================================================
-   PROTECCIÓN DE ACCESO: solo un Gerente con sesión puede ver este panel
+   PROTECCIÓN DE ACCESO: Gerente o Administrador con sesión y sucursal asignada
    ========================================================================== */
+const ROLES_PANEL_GERENTE = ["Gerente", "Administrador General", "Admin_General"];
+let avisoAccesoMostrado = false;
+
 function verificarAcceso(){
   let usuario = null;
   try { usuario = JSON.parse(localStorage.getItem("karma_user") || "null"); } catch (e) {}
@@ -10,8 +13,14 @@ function verificarAcceso(){
     window.location.replace("../index.html");
     return false;
   }
-  // Con sesión, pero no es gerente de una sucursal: al Home
-  if (usuario.rol !== "Gerente" || !usuario.id_sucursal){
+  // Con sesión, pero sin permiso o sin sucursal: avisa y regresa al Home
+  if (!ROLES_PANEL_GERENTE.includes(usuario.rol) || !usuario.id_sucursal){
+    if (!avisoAccesoMostrado) {
+      avisoAccesoMostrado = true;
+      alert(ROLES_PANEL_GERENTE.includes(usuario.rol)
+        ? "Tu sesión no tiene sucursal asignada. Si ya tienes una, cierra sesión y vuelve a entrar."
+        : "Tu rol no puede abrir el panel de gerente.");
+    }
     window.location.replace("home.html");
     return false;
   }
