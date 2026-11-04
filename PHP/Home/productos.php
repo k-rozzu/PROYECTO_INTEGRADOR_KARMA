@@ -7,7 +7,15 @@ require_once dirname(__DIR__) . '/PuntoDeVenta/conexion.php';
 
 try {
     $productos = db()->query(
-        "SELECT id_producto, marca, modelo, motor, cilindraje, detalle, imagen_path FROM productos"
+        // La foto viene del catálogo (productos_web); vendidos y destacado sirven para elegir los "más vendidos"
+        "SELECT p.id_producto, p.tipo, p.marca, p.modelo, p.motor, p.cilindraje, p.detalle,
+                COALESCE(NULLIF(p.imagen_path, ''), CONCAT('/', NULLIF(pw.imagen, ''))) AS imagen_path,
+                COALESCE(pw.destacado, 0) AS destacado, COALESCE(dv.vendidos, 0) AS vendidos
+           FROM productos p
+           LEFT JOIN productos_web pw ON pw.id_producto = p.id_producto AND pw.publicado = 1
+           LEFT JOIN (SELECT id_producto, SUM(cantidad) AS vendidos FROM detalle_ventas GROUP BY id_producto) dv
+                  ON dv.id_producto = p.id_producto
+          ORDER BY p.id_producto"
     )->fetchAll();
     echo json_encode($productos, JSON_UNESCAPED_UNICODE);
 } catch (Throwable $e) {

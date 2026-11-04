@@ -230,6 +230,20 @@ UPDATE productos SET modelo_3d = 'assets/Modelos_3D/ducati_monster.glb'
 UPDATE productos SET modelo_3d = 'assets/Modelos_3D/ducati_desertx.glb'
  WHERE codigo_barras IN ('KRM-CAT-DUC-06', 'KRM-CAT-DUC-07', 'KRM-CAT-DUC-13', 'KRM-CAT-DUC-14');
 
+-- ===== 6.1 FOTOS DE LOS VEHÍCULOS QUE NO ESTÁN EN EL CATÁLOGO WEB (tarjetas del Home) =====
+-- Solo llena donde todavía no hay foto; se puede reimportar sin cambiar nada
+
+UPDATE productos SET imagen_path = '/assets/inventario/porsche taycan blanco carrara.png'
+ WHERE codigo_barras = 'KRM-PTAY-25' AND (imagen_path IS NULL OR imagen_path = '');
+UPDATE productos SET imagen_path = '/assets/inventario/audi-rs7-2024-gris-nardo.png'
+ WHERE codigo_barras = 'KRM-ARS7-24' AND (imagen_path IS NULL OR imagen_path = '');
+UPDATE productos SET imagen_path = '/assets/inventario/audi-e-tron-azul-ultra.png'
+ WHERE codigo_barras = 'KRM-AQ8E-25' AND (imagen_path IS NULL OR imagen_path = '');
+UPDATE productos SET imagen_path = '/assets/inventario/ducati-Panigale-V4-S-2024-rojo-ducati.png'
+ WHERE codigo_barras = 'KRM-DPAN-24' AND (imagen_path IS NULL OR imagen_path = '');
+UPDATE productos SET imagen_path = '/assets/inventario/ducati-streetfighter-v4-negro-mate.png'
+ WHERE codigo_barras = 'KRM-DSTR-25' AND (imagen_path IS NULL OR imagen_path = '');
+
 -- ===== 7. VERIFICACIÓN (opcional, solo muestra resultados) =====
 
 -- Vehículos que siguen sin VIN (debe salir 0)

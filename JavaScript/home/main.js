@@ -268,6 +268,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // === 4. CARGAR PRODUCTOS DESDE LA BASE DE DATOS NODE.JS ===
+    // Elige hasta 3 "más vendidos": un solo vehículo por modelo, con foto y ordenados por ventas (se suman sus variantes).
+    // Sin ventas reales usa los destacados del catálogo, sin repetir marca.
+    function elegirMasVendidos(productos) {
+        const porModelo = new Map();
+        productos.filter(p => p.tipo === 'auto' || p.tipo === 'moto').forEach(p => {
+            const clave = `${p.marca}|${p.modelo}`.toLowerCase();
+            const modelo = porModelo.get(clave);
+            const vendidos = Number(p.vendidos) + (modelo ? modelo.vendidos : 0);
+            const destacado = Number(p.destacado) || (modelo ? modelo.destacado : 0);
+            const base = modelo && (modelo.imagen_path || !p.imagen_path) ? modelo : p;
+            porModelo.set(clave, { ...base, vendidos, destacado });
+        });
+
+        const candidatos = [...porModelo.values()]
+            .filter(p => p.imagen_path)
+            .sort((a, b) => b.vendidos - a.vendidos || b.destacado - a.destacado);
+
+        const elegidos = [];
+        const marcas = new Set();
+        for (const p of candidatos) {
+            if (elegidos.length === 3) break;
+            if (!p.vendidos && marcas.has(p.marca)) continue;
+            elegidos.push(p);
+            marcas.add(p.marca);
+        }
+        return elegidos;
+    }
+
     async function loadProducts() {
         try {
             const response = await fetch('../PHP/Home/productos.php');
@@ -282,14 +310,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 topSellersContainer.innerHTML = '';
                 catalogContainer.innerHTML = '';
 
-                // Tomamos los primeros 3 para top sellers y el resto para el catálogo
-                const topSellers = productos.slice(0, 3);
-                const catalog = productos.slice(3);
+                // Los más vendidos van arriba y el resto de los productos en el catálogo
+                const topSellers = elegirMasVendidos(productos);
+                const idsTop = new Set(topSellers.map(p => p.id_producto));
+                const catalog = productos.filter(p => !idsTop.has(p.id_producto));
 
                 // Generar tarjetas para Top Sellers (Giratorias)
                 topSellers.forEach(prod => {
                     // En la BD las rutas empiezan con "/assets/...": se vuelven relativas a Home/ para que funcionen en cualquier carpeta
-                    const imgSrc = prod.imagen_path ? '..' + prod.imagen_path : '../assets/inventario/porsche-911.png';
+                    const imgSrc = '..' + prod.imagen_path;
                     
                     const cardHTML = `
                     <div class="card" tabindex="0">
