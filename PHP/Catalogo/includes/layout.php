@@ -51,7 +51,7 @@ function catCabecera(array $o = []): void {
 <meta name="description" content="<?= e($descripcion) ?>">
 <meta name="csrf-token" content="<?= e(catCsrf()) ?>">
 <meta name="theme-color" content="#10213f">
-<link rel="icon" href="<?= catAsset(CAT_LOGO) ?>">
+<link rel="icon" type="image/png" href="<?= catAsset('assets/favicon-karma.png') ?>">
 <script>
   // Aplica el tema guardado (o el del sistema) antes de pintar la página para evitar parpadeos
   (function () {

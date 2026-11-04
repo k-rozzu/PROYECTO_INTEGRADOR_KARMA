@@ -16,6 +16,7 @@ $csrfPos = posTokenCsrf();
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="karma-csrf" content="<?= htmlspecialchars($csrfPos, ENT_QUOTES) ?>">
 <title>KARMA · Punto de Venta — Cajero</title>
+<link rel="icon" type="image/png" href="../../assets/favicon-karma.png?v=1">
 <!-- Tipografías: Fraunces (display / elegante) + Inter (UI / datos) -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
