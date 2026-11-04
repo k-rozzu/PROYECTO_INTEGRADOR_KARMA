@@ -3,7 +3,7 @@
 -- Registro de clientes del Catálogo con aceptación expresa del Aviso de Privacidad y de los
 -- Términos y Condiciones desde el correo de confirmación.
 --
--- Se aplica sobre la base elegida (va después de catalogo_estructura.sql):
+-- Importar en phpMyAdmin DESPUÉS de catalogo_estructura.sql, o desde la terminal:
 --     mysql -uroot --default-character-set=utf8mb4 pos_multisede < catalogo_registro_aceptacion.sql
 --
 -- SEGURO DE REIMPORTAR: no hay DROP TABLE / DROP DATABASE / DELETE ni cambios a columnas existentes.
@@ -20,6 +20,8 @@
 -- =====================================================================================
 
 SET NAMES utf8mb4;
+
+USE pos_multisede;
 
 -- ===== 1. VERSIONES DE LOS DOCUMENTOS LEGALES =====
 -- El texto vive en PHP/Catalogo/includes/legal.php; la primera vez que se envía una versión se guarda aquí
@@ -261,8 +263,4 @@ CREATE EVENT ev_registros_pendientes_vencidos
     END$$
 DELIMITER ;
 
--- Verificación rápida (solo muestra resultados)
-SELECT TABLE_NAME AS tabla_registro
-  FROM information_schema.TABLES
- WHERE TABLE_SCHEMA = DATABASE()
-   AND TABLE_NAME IN ('documentos_legales', 'registros_pendientes', 'aceptaciones_documentos');
+-- Sin SELECT de verificación sobre information_schema: en phpMyAdmin hace que todo el script falle con #1044
