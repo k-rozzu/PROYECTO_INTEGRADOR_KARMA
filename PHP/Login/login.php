@@ -111,7 +111,8 @@ try {
             'id' => (int)$usuario['id_usuario'],
             'nombre' => $usuario['nombre'],
             'correo' => $usuario['correo'],
-            'rol' => $usuario['nombre_rol']
+            'rol' => $usuario['nombre_rol'],
+            'id_sucursal' => $usuario['id_sucursal'] !== null ? (int)$usuario['id_sucursal'] : null
         ]
     ]);
 } catch (Throwable $e) {

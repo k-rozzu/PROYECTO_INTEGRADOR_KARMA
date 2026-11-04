@@ -18,7 +18,15 @@ try {
 window.addEventListener('pageshow', function (event) {
     if (!localStorage.getItem("karma_user")) {
         window.location.replace("../index.html");
+        return;
     }
+    // Si la página vino de la caché, recárgala para leer el tema e idioma actuales
+    if (event.persisted) window.location.reload();
+});
+
+// Si el tema o el idioma cambian en otra pestaña (por ejemplo el panel de gerente), recarga para reflejarlo
+window.addEventListener('storage', function (event) {
+    if (event.key === CLAVE_TEMA || event.key === CLAVE_IDIOMA) window.location.reload();
 });
 
 // Función para cargar un archivo HTML en un contenedor
@@ -63,7 +71,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             "displacement": "Cilindraje",
             "detail": "Detalle",
             "logout": "Cerrar Sesión",
-            "load_error": "No se pudieron cargar los vehículos. Revisa la conexión con el servidor e inténtalo de nuevo."
+            "load_error": "No se pudieron cargar los vehículos. Revisa la conexión con el servidor e inténtalo de nuevo.",
+            "role_Gerente": "Gerente",
+            "role_Cajero": "Cajero",
+            "role_Administrador General": "Administrador General",
+            "role_Admin_General": "Administrador General"
         },
         en: {
             "top_sellers": "Best sellers",
@@ -76,11 +88,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             "displacement": "Displacement",
             "detail": "Detail",
             "logout": "Log Out",
-            "load_error": "The vehicles could not be loaded. Check the server connection and try again."
+            "load_error": "The vehicles could not be loaded. Check the server connection and try again.",
+            "role_Gerente": "Manager",
+            "role_Cajero": "Cashier",
+            "role_Administrador General": "General Administrator",
+            "role_Admin_General": "General Administrator"
         }
     };
 
     let currentLang = localStorage.getItem(CLAVE_IDIOMA) === 'en' ? 'en' : 'es';
+
+    function mostrarUsuarioEnFooter() {
+        const footerUserInfo = document.getElementById('footer-user-info');
+        if (footerUserInfo) {
+            const rolTexto = translations[currentLang]["role_" + usuario.rol] || usuario.rol;
+            footerUserInfo.textContent = `${rolTexto}: ${usuario.nombre}`;
+        }
+    }
 
     function updateLanguage(lang) {
         document.querySelectorAll('[data-i18n]').forEach(el => {
@@ -95,7 +119,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
         });
-        
+        mostrarUsuarioEnFooter();
         // Volver a renderizar productos si ya están cargados para traducir sus etiquetas dinámicas
         if (document.getElementById('top-sellers-container') && document.getElementById('top-sellers-container').innerHTML !== '') {
             loadProducts();
@@ -105,6 +129,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // === 1. Cargar Navbar y Footer y esperar a que terminen ===
     await loadComponent('navbar.html', 'navbar-placeholder');
     await loadComponent('footer.html', 'footer-placeholder');
+
+    // Cada rol ve solo el panel que puede abrir: el Gerente el suyo y el Administrador el de administración
+    document.querySelector(usuario.rol === "Gerente" ? 'a[href*="admin.html"]' : 'a[href="gerente.html"]')?.remove();
 
     // === 5. LÓGICA DE MODO OSCURO ===
     const themeSwitch = document.querySelector('.theme-switch__checkbox');
@@ -146,11 +173,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // === MOSTRAR NOMBRE Y ROL DINÁMICO ===
-    const footerUserInfo = document.getElementById('footer-user-info');
-    if (footerUserInfo) {
-        footerUserInfo.textContent = `${usuario.rol}: ${usuario.nombre}`;
-    }
-    
+    mostrarUsuarioEnFooter();
+
     const navUserName = document.getElementById('nav-user-name');
     if (navUserName) {
         navUserName.textContent = usuario.nombre;

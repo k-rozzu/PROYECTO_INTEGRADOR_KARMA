@@ -1,3 +1,35 @@
+/* ==========================================================================
+   PROTECCIÓN DE ACCESO: solo un Gerente con sesión puede ver este panel
+   ========================================================================== */
+function verificarAcceso(){
+  let usuario = null;
+  try { usuario = JSON.parse(localStorage.getItem("karma_user") || "null"); } catch (e) {}
+
+  // Sin sesión: al login
+  if (!usuario){
+    window.location.replace("../index.html");
+    return false;
+  }
+  // Con sesión, pero no es gerente de una sucursal: al Home
+  if (usuario.rol !== "Gerente" || !usuario.id_sucursal){
+    window.location.replace("home.html");
+    return false;
+  }
+  return true;
+}
+
+// También al llegar con el botón "Atrás" (el navegador puede mostrar la página guardada en caché)
+window.addEventListener("pageshow", (e) => {
+  if (!verificarAcceso()) return;
+  // Si el navegador restauró la página desde la caché (botón Atrás), recárgala para leer el tema e idioma actuales
+  if (e.persisted) window.location.reload();
+});
+
+// Si el tema o el idioma cambian en otra pestaña (por ejemplo el Home), recarga para reflejarlo
+window.addEventListener("storage", (e) => {
+  if (e.key === "karma_tema" || e.key === "karma_idioma") window.location.reload();
+});
+
 const $  = (sel, ctx = document) => ctx.querySelector(sel);
 const $$ = (sel, ctx = document) => Array.from(ctx.querySelectorAll(sel));
 
@@ -25,11 +57,20 @@ function formatHora(iso){
   const d = new Date(iso);
   return d.toLocaleTimeString(state.lang === "es" ? "es-MX" : "en-US", { hour:"2-digit", minute:"2-digit" });
 }
-
+// Lee una variable CSS del tema actual (los gráficos no entienden var(--x))
+function cssVar(nombre, respaldo){
+  const valor = getComputedStyle(document.body).getPropertyValue(nombre).trim();
+  return valor || respaldo;
+}
+// Traduce el tipo de producto (vehiculo / moto / refaccion)
+function etiquetaTipo(tipo){
+  const claves = { vehiculo:"tipoVehiculo", moto:"tipoMoto", refaccion:"tipoRefaccion" };
+  return claves[tipo] ? t(claves[tipo]) : tipo;
+}
 /*I18N — diccionario bilingüe ES / EN */
 const I18N = {
   es:{
-    topHome:"Ir al Dashboard", brandSlogan:"Panel de Gerencia",
+    topHome:"Ir al Inicio", brandSlogan:"Panel de Gerencia",
     logout:"Cerrar sesión", role:"Rol", roleGerente:"Gerente de Sede",
     navDashboard:"Dashboard", navProductos:"Productos", navInventario:"Inventario",
     navCajas:"Cajas", navVentas:"Ventas",
@@ -85,17 +126,19 @@ const I18N = {
     motivo:"Motivo del ajuste", motivoEntrada:"Entrada de mercancía",
     motivoSalida:"Corrección / salida", motivoInventario:"Toma de inventario", motivoOtro:"Otro",
     toastStockUpdated:"Existencias actualizadas correctamente",
-    hintDB:"Vista conectada a DB (mock) — lista para apuntar a tu API real.",
+    hintDB:"Existencias en vivo de tu sucursal.",
     critical:"Crítico", low:"Bajo", ok:"Suficiente",
 
     /* Cajas */
     cajasTitle:"Gestión de cajas", cajasSub:"Puntos de cobro activos e inactivos de tu sucursal",
     newCaja:"Nueva caja", colCaja:"Caja", colCajero:"Cajero asignado", colEstado:"Estado",
     formCajaNewTitle:"Registrar caja", formCajaDesc:"Asigna un nombre y cajero a la nueva caja.",
-    fNombreCaja:"Nombre / número de caja", fCajeroAsignado:"Cajero asignado",
+    fNombreCaja:"Número de caja", fCajeroAsignado:"Cajero asignado",
     statusActive:"Activa", statusInactive:"Inactiva",
     deactivate:"Desactivar", activate:"Activar",
     toastCajaCreated:"Caja registrada correctamente",
+    assignCajero:"Asignar cajero",
+    toastCajaAsignada:"Cajero asignado correctamente",
     toastCajaStatus:"Estado de la caja actualizado",
     toastCajaDeleted:"Caja eliminada",
     confirmDeleteCaja:"¿Eliminar esta caja? Esta acción no se puede deshacer.",
@@ -110,9 +153,16 @@ const I18N = {
     metodoEfectivo:"Efectivo", metodoTarjeta:"Tarjeta", metodoTransferencia:"Transferencia", metodoPaypal:"PayPal",
     noVentas:"Sin ventas en este periodo.",
     required:"Este campo es obligatorio",
+    loading:"Cargando…", noResults:"Sin resultados", noCajas:"Sin cajas",
+    noCajasHint:'Registra la primera caja con el botón "Nueva caja".',
+    cajasOf:"{a} de {b} cajas", transactions:"transacciones", unassigned:"— Sin asignar —",
+    lblNombre:"Nombre", lblDireccion:"Dirección", lblTelefono:"Teléfono", lblEstado:"Estado",
+    colCant:"Cant.", saleTotal:"Total de la venta", close:"Cerrar",
+    confirmLogout:"¿Cerrar sesión?", placeholderCaja:"Ej: 4",
+    errSaveProducto:"No se pudo guardar el producto", errDeleteProducto:"No se pudo eliminar el producto",
   },
   en:{
-    topHome:"Go to Dashboard", brandSlogan:"Store Management Panel",
+    topHome:"Go to Home", brandSlogan:"Store Management Panel",
     logout:"Log out", role:"Role", roleGerente:"Store Manager",
     navDashboard:"Dashboard", navProductos:"Products", navInventario:"Inventory",
     navCajas:"Registers", navVentas:"Sales",
@@ -165,16 +215,18 @@ const I18N = {
     motivo:"Reason for adjustment", motivoEntrada:"Incoming stock",
     motivoSalida:"Correction / outgoing", motivoInventario:"Inventory count", motivoOtro:"Other",
     toastStockUpdated:"Stock updated successfully",
-    hintDB:"View connected to DB (mock) — ready to point to your real API.",
+    hintDB:"Live stock for your branch.",
     critical:"Critical", low:"Low", ok:"Sufficient",
 
     cajasTitle:"Register management", cajasSub:"Active and inactive checkout points at your branch",
     newCaja:"New register", colCaja:"Register", colCajero:"Assigned cashier", colEstado:"Status",
     formCajaNewTitle:"Register checkout", formCajaDesc:"Assign a name and cashier to the new register.",
-    fNombreCaja:"Register name / number", fCajeroAsignado:"Assigned cashier",
+    fNombreCaja:"Register number", fCajeroAsignado:"Assigned cashier",
     statusActive:"Active", statusInactive:"Inactive",
     deactivate:"Deactivate", activate:"Activate",
     toastCajaCreated:"Register created successfully",
+    assignCajero:"Assign cashier",
+    toastCajaAsignada:"Cashier assigned successfully",
     toastCajaStatus:"Register status updated",
     toastCajaDeleted:"Register deleted",
     confirmDeleteCaja:"Delete this register? This action cannot be undone.",
@@ -188,6 +240,13 @@ const I18N = {
     metodoEfectivo:"Cash", metodoTarjeta:"Card", metodoTransferencia:"Transfer", metodoPaypal:"PayPal",
     noVentas:"No sales in this period.",
     required:"This field is required",
+    loading:"Loading…", noResults:"No results", noCajas:"No registers",
+    noCajasHint:'Add your first register with the "New register" button.',
+    cajasOf:"{a} of {b} registers", transactions:"transactions", unassigned:"— Unassigned —",
+    lblNombre:"Name", lblDireccion:"Address", lblTelefono:"Phone", lblEstado:"Status",
+    colCant:"Qty.", saleTotal:"Sale total", close:"Close",
+    confirmLogout:"Log out?", placeholderCaja:"E.g. 4",
+    errSaveProducto:"Could not save the product", errDeleteProducto:"Could not delete the product",
   }
 };
 function t(key){
@@ -202,7 +261,8 @@ const MESES = {
 /* ==========================================================================
    CAPA DE DATOS (DB) — seed en memoria, lista para reemplazar por fetch()
    ========================================================================== */
-const API_BASE = "/api";
+// El panel se abre desde Apache, pero su API vive en el servidor Node (backend/server.js, puerto 3000)
+const API_BASE = `http://${window.location.hostname}:3000/api`;
 
 /* ---- Sucursal actual del gerente (en producción vendría del JWT / sesión) ---- */
 const SUCURSAL_ID = "s1";
@@ -276,76 +336,120 @@ const SEED = (() => {
 
 const DB = {
   async getSucursal(){
-    // PROD: return (await fetch(`${API_BASE}/sucursales/${SUCURSAL_ID}`)).json();
-    await delay(60);
-    return { ...SEED.sucursal };
+    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
+    const respuesta = await fetch(`${API_BASE}/gerente/sucursal?sucursal=${usuario?.id_sucursal}`);
+    if (!respuesta.ok) throw new Error("No se pudo cargar la sucursal");
+    return respuesta.json();
   },
   async getCajeros(){
-    // PROD: return (await fetch(`${API_BASE}/sucursales/${SUCURSAL_ID}/cajeros`)).json();
-    await delay(60);
-    return SEED.cajeros.map(c => ({ ...c }));
+    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
+    const respuesta = await fetch(`${API_BASE}/gerente/cajeros?sucursal=${usuario?.id_sucursal}`);
+    if (!respuesta.ok) throw new Error("No se pudieron cargar los cajeros");
+    return respuesta.json();
   },
   async getCajas(){
-    // PROD: return (await fetch(`${API_BASE}/sucursales/${SUCURSAL_ID}/cajas`)).json();
-    await delay(70);
-    return SEED.cajas.map(c => ({ ...c }));
+    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
+    const respuesta = await fetch(`${API_BASE}/gerente/cajas?sucursal=${usuario?.id_sucursal}`);
+    if (!respuesta.ok) throw new Error("No se pudieron cargar las cajas");
+    const cajas = await respuesta.json();
+    return cajas.map(c => ({ ...c, id: String(c.id) }));
   },
   async createCaja(payload){
-    // PROD: return (await fetch(`${API_BASE}/cajas`, { method:"POST", body:JSON.stringify(payload) })).json();
-    await delay(120);
-    const nueva = { id: uid("c"), estado:"activo", ...payload };
-    SEED.cajas.push(nueva);
-    return nueva;
+    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
+    const respuesta = await fetch(`${API_BASE}/gerente/cajas`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ numero: payload.numero, cajeroId: payload.cajeroId, sucursal: usuario?.id_sucursal })
+    });
+    if (!respuesta.ok) {
+        const error = await respuesta.json().catch(() => ({}));
+        throw new Error(error.mensaje || "No se pudo crear la caja");
+    }
+    return respuesta.json();
   },
   async setCajaEstado(id, estado){
-    await delay(100);
-    const c = SEED.cajas.find(x => x.id === id);
-    if (c) c.estado = estado;
-    return c;
+    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
+    const respuesta = await fetch(`${API_BASE}/gerente/cajas/${id}/estado`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ estado, sucursal: usuario?.id_sucursal })
+    });
+    if (!respuesta.ok) {
+        const error = await respuesta.json().catch(() => ({}));
+        throw new Error(error.mensaje || "No se pudo cambiar el estado de la caja");
+    }
+    return respuesta.json();
   },
-  async deleteCaja(id){
-    await delay(100);
-    const idx = SEED.cajas.findIndex(x => x.id === id);
-    if (idx > -1) SEED.cajas.splice(idx, 1);
-    return true;
+  async asignarCajero(idCaja, cajeroId){
+    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
+    const respuesta = await fetch(`${API_BASE}/gerente/cajas/${idCaja}/cajero`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cajeroId, sucursal: usuario?.id_sucursal })
+    });
+    if (!respuesta.ok) {
+        const error = await respuesta.json().catch(() => ({}));
+        throw new Error(error.mensaje || "No se pudo asignar el cajero");
+    }
+    return respuesta.json();
   },
   async getProductos(){
-    // PROD: return (await fetch(`${API_BASE}/sucursales/${SUCURSAL_ID}/productos`)).json();
-    await delay(80);
-    return SEED.productos.map(p => ({ ...p }));
+      const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
+      const sucursal = usuario?.id_sucursal;
+      const respuesta = await fetch(`${API_BASE}/gerente/productos?sucursal=${sucursal}`);
+      if (!respuesta.ok) throw new Error("No se pudieron cargar los productos");
+      const productos = await respuesta.json();
+      return productos.map(p => ({ ...p, id: String(p.id), precio: Number(p.precio) }));
   },
   async createProducto(payload){
-    // PROD: return (await fetch(`${API_BASE}/productos`, { method:"POST", body:JSON.stringify(payload) })).json();
-    await delay(130);
-    const nuevo = { id: uid("p"), ...payload };
-    SEED.productos.push(nuevo);
-    return nuevo;
+    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
+    const respuesta = await fetch(`${API_BASE}/gerente/productos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...payload, sucursal: usuario?.id_sucursal })
+    });
+    if (!respuesta.ok) throw new Error("No se pudo crear el producto");
+    return respuesta.json();
   },
   async updateProducto(id, payload){
-    // PROD: return (await fetch(`${API_BASE}/productos/${id}`, { method:"PATCH", body:JSON.stringify(payload) })).json();
-    await delay(120);
-    const idx = SEED.productos.findIndex(p => p.id === id);
-    if (idx > -1) SEED.productos[idx] = { ...SEED.productos[idx], ...payload };
-    return SEED.productos[idx];
+    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
+    const respuesta = await fetch(`${API_BASE}/gerente/productos/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...payload, sucursal: usuario?.id_sucursal })
+    });
+    if (!respuesta.ok) throw new Error("No se pudo actualizar el producto");
+    return respuesta.json();
   },
   async deleteProducto(id){
-    // PROD: return (await fetch(`${API_BASE}/productos/${id}`, { method:"DELETE" })).json();
-    await delay(110);
-    const idx = SEED.productos.findIndex(p => p.id === id);
-    if (idx > -1) SEED.productos.splice(idx, 1);
-    return true;
+    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
+    const respuesta = await fetch(`${API_BASE}/gerente/productos/${id}?sucursal=${usuario?.id_sucursal}`, {
+        method: "DELETE"
+    });
+    if (!respuesta.ok) throw new Error("No se pudo retirar el producto");
+    return respuesta.json();
+  },
+  async getCategorias(){
+    const respuesta = await fetch(`${API_BASE}/gerente/categorias`);
+    if (!respuesta.ok) throw new Error("No se pudieron cargar las categorías");
+    return respuesta.json();
   },
   async updateStock(id, nuevoStock){
-    // PROD: return (await fetch(`${API_BASE}/inventario/${id}/stock`, { method:"PATCH", body:JSON.stringify({ stockActual: nuevoStock }) })).json();
-    await delay(110);
-    const p = SEED.productos.find(x => x.id === id);
-    if (p) p.stockActual = nuevoStock;
-    return p;
+    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
+    const respuesta = await fetch(`${API_BASE}/gerente/inventario/${id}/stock`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stockActual: nuevoStock, sucursal: usuario?.id_sucursal })
+    });
+    if (!respuesta.ok) throw new Error("No se pudo actualizar el stock");
+    return respuesta.json();
   },
   async getVentas(){
-    // PROD: return (await fetch(`${API_BASE}/sucursales/${SUCURSAL_ID}/ventas`)).json();
-    await delay(90);
-    return SEED.ventas.map(v => ({ ...v }));
+    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
+    const respuesta = await fetch(`${API_BASE}/gerente/ventas?sucursal=${usuario?.id_sucursal}`);
+    if (!respuesta.ok) throw new Error("No se pudieron cargar las ventas");
+    const ventas = await respuesta.json();
+    return ventas.map(v => ({ ...v, total: Number(v.total) }));
   },
 };
 
@@ -359,6 +463,7 @@ const state = {
   cajeros: [],
   cajas: [],
   productos: [],
+  categorias: [],
   ventas: [],
   productosFiltro:"all",  // all | vehiculo | moto | refaccion
   productosQuery:"",
@@ -376,9 +481,10 @@ const chartInstances = {};
 async function cargarDatos(){
   state.cargando = true;
   try{
-    const [sucursal, cajeros, cajas, productos, ventas] = await Promise.all([
-      DB.getSucursal(), DB.getCajeros(), DB.getCajas(), DB.getProductos(), DB.getVentas()
+    const [sucursal, cajeros, cajas, productos, ventas, categorias] = await Promise.all([
+      DB.getSucursal(), DB.getCajeros(), DB.getCajas(), DB.getProductos(), DB.getVentas(), DB.getCategorias()
     ]);
+    state.categorias = categorias;
     state.sucursal = sucursal;
     state.cajeros  = cajeros;
     state.cajas    = cajas;
@@ -492,16 +598,16 @@ function metodoBadge(m){
 function renderMain(){
   const main = $("#main");
   if (state.cargando){
-    main.innerHTML = `<div class="panel panel-full"><div class="empty-state"><strong>Cargando…</strong></div></div>`;
+    main.innerHTML = `<div class="panel panel-full"><div class="empty-state"><strong>${t("loading")}</strong></div></div>`;
     return;
   }
   $$(".sub-nav-btn").forEach(b => b.classList.toggle("is-active", b.dataset.view === state.view));
-  applyI18n();
   if      (state.view === "dashboard")  renderDashboard();
   else if (state.view === "productos")  renderProductos();
   else if (state.view === "inventario") renderInventario();
   else if (state.view === "cajas")      renderCajas();
   else if (state.view === "ventas")     renderVentas();
+  applyI18n();
 }
 
 /* ==========================================================================
@@ -595,7 +701,7 @@ function renderDashboard(){
         <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M6 6V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/></svg></div>
         <div class="kpi-label" data-i18n="kpiCajas">Cajas activas</div>
         <div class="kpi-value">${cajasActivas}</div>
-        <div class="kpi-sub"><span>${cajasActivas} de ${state.cajas.length} cajas</span></div>
+        <div class="kpi-sub"><span>${t("cajasOf").replace("{a}", cajasActivas).replace("{b}", state.cajas.length)}</span></div>
       </div>
     </div>
 
@@ -655,14 +761,13 @@ function renderDashboard(){
         <h3 data-i18n="sucursalInfoTitle">Información de la sucursal</h3>
       </div>
       <div class="info-grid">
-        <div class="info-item"><span class="info-item-label">Nombre</span><span class="info-item-value">${escapeHTML(state.sucursal?.nombre||"")}</span></div>
-        <div class="info-item"><span class="info-item-label">Dirección</span><span class="info-item-value">${escapeHTML(state.sucursal?.direccion||"")}</span></div>
-        <div class="info-item"><span class="info-item-label">Teléfono</span><span class="info-item-value">${escapeHTML(state.sucursal?.telefono||"")}</span></div>
-        <div class="info-item"><span class="info-item-label">Correo</span><span class="info-item-value">${escapeHTML(state.sucursal?.email||"")}</span></div>
-        <div class="info-item"><span class="info-item-label">Estado</span><span class="info-item-value">
+        <div class="info-item"><span class="info-item-label">${t("lblNombre")}</span><span class="info-item-value">${escapeHTML(state.sucursal?.nombre||"")}</span></div>
+        <div class="info-item"><span class="info-item-label">${t("lblDireccion")}</span><span class="info-item-value">${escapeHTML(state.sucursal?.direccion||"")}</span></div>
+        <div class="info-item"><span class="info-item-label">${t("lblTelefono")}</span><span class="info-item-value">${escapeHTML(state.sucursal?.telefono||"")}</span></div>
+        <div class="info-item"><span class="info-item-label">${t("lblEstado")}</span><span class="info-item-value">
           ${state.sucursal?.estado === "activo"
-            ? `<span class="badge badge-ok"><span class="badge-dot"></span>Activa</span>`
-            : `<span class="badge badge-off"><span class="badge-dot"></span>Inactiva</span>`}
+            ? `<span class="badge badge-ok"><span class="badge-dot"></span>${t("statusActive")}</span>`
+            : `<span class="badge badge-off"><span class="badge-dot"></span>${t("statusInactive")}</span>`}
         </span></div>
       </div>
     </div>
@@ -678,12 +783,12 @@ function renderDashboard(){
         labels,
         datasets:[
           { label:t("revenue"), data:ingresos, backgroundColor:"rgba(26,92,58,.75)", borderRadius:6, yAxisID:"y" },
-          { label:t("units"),   data:unidades, type:"line", borderColor:"var(--chart-red)", backgroundColor:"rgba(158,27,46,.12)", tension:.4, pointRadius:4, yAxisID:"y1" },
+          { label:t("units"),   data:unidades, type:"line", borderColor: cssVar("--chart-red", "#9e1b2e") , backgroundColor:"rgba(158,27,46,.12)", tension:.4, pointRadius:4, yAxisID:"y1" },
         ]
       },
       options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } },
         scales:{
-          y:{ position:"left", grid:{ color:"var(--chart-grid)" }, ticks:{ callback:v=>formatoMoneda(v) } },
+          y:{ position:"left", grid:{ color: cssVar("--chart-grid", "rgba(0,0,0,.08)") }, ticks:{ callback:v=>formatoMoneda(v) } },
           y1:{ position:"right", grid:{ drawOnChartArea:false }, ticks:{ stepSize:1 } }
         }
       }
@@ -764,10 +869,10 @@ function renderProductos(){
           <th data-i18n="colAcciones">Acciones</th>
         </tr></thead>
         <tbody>
-          ${lista.length === 0 ? `<tr><td colspan="6"><div class="empty-state"><strong>Sin resultados</strong></div></td></tr>` :
+          ${lista.length === 0 ? `<tr><td colspan="6"><div class="empty-state"><strong>${t("noResults")}</strong></div></td></tr>` :
             lista.map(p => `
             <tr>
-              <td><strong>${escapeHTML(p.nombre)}</strong><br><span class="cell-muted" style="font-size:11.5px;">${escapeHTML(p.tipo)}</span></td>
+              <td><strong>${escapeHTML(p.nombre)}</strong><br><span class="cell-muted" style="font-size:11.5px;">${escapeHTML(etiquetaTipo(p.tipo))}</span></td>
               <td>${escapeHTML(p.marca)}</td>
               <td>${escapeHTML(p.categoria)}</td>
               <td>${formatoMoneda(p.precio)}</td>
@@ -842,7 +947,7 @@ function renderInventario(){
           <th data-i18n="colAcciones">Acciones</th>
         </tr></thead>
         <tbody>
-          ${lista.length === 0 ? `<tr><td colspan="7"><div class="empty-state"><strong>Sin resultados</strong></div></td></tr>` :
+          ${lista.length === 0 ? `<tr><td colspan="7"><div class="empty-state"><strong>${t("noResults")}</strong></div></td></tr>` :
             lista.map(p => `
             <tr>
               <td><strong>${escapeHTML(p.nombre)}</strong></td>
@@ -904,7 +1009,7 @@ function renderCajas(){
     </div>
 
     <div class="cajas-grid fade-in fade-in--2">
-      ${lista.length === 0 ? `<div class="empty-state"><strong>Sin cajas</strong><span>Registra la primera caja con el botón "Nueva caja".</span></div>` :
+      ${lista.length === 0 ? `<div class="empty-state"><strong>${t("noCajas")}</strong><span>${t("noCajasHint")}</span></div>` :
         lista.map(c => {
           const cajero = cajeroPorId(c.cajeroId);
           const activa = c.estado === "activo";
@@ -923,40 +1028,38 @@ function renderCajas(){
               ${cajero ? `<span class="caja-meta" style="font-size:11px;color:var(--text-faint);">${escapeHTML(cajero.correo)}</span>` : ""}
             </div>
             <div class="caja-card-footer">
+              <button class="btn-table btn-sm" data-assign-caja="${escapeHTML(c.id)}">${t("assignCajero")}</button>
               <button class="btn-table btn-sm" data-toggle-caja="${escapeHTML(c.id)}" data-estado="${c.estado}">
                 ${activa ? t("deactivate") : t("activate")}
               </button>
-              <button class="btn-table-danger btn-sm" data-delete-caja="${escapeHTML(c.id)}" data-i18n="delete">Eliminar</button>
             </div>
           </div>`;
         }).join("")}
     </div>
   </div>`;
 
-  $("#btnNuevaCaja")?.addEventListener("click", abrirModalCaja);
+  $("#btnNuevaCaja")?.addEventListener("click", () => abrirModalCaja());
   $$("[data-caja-filtro]").forEach(btn => {
     btn.addEventListener("click", () => { state.cajasFiltro = btn.dataset.cajaFiltro; renderCajas(); });
+  });
+  $$("[data-assign-caja]").forEach(btn => {
+    btn.addEventListener("click", () => abrirModalAsignarCajero(btn.dataset.assignCaja));
   });
   $$("[data-toggle-caja]").forEach(btn => {
     btn.addEventListener("click", async () => {
       const nuevoEstado = btn.dataset.estado === "activo" ? "inactivo" : "activo";
-      await DB.setCajaEstado(btn.dataset.toggleCaja, nuevoEstado);
-      state.cajas = await DB.getCajas();
-      toast(t("toastCajaStatus"), "ok");
-      renderCajas();
-    });
-  });
-  $$("[data-delete-caja]").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      if (!confirm(t("confirmDeleteCaja"))) return;
-      await DB.deleteCaja(btn.dataset.deleteCaja);
-      state.cajas = await DB.getCajas();
-      toast(t("toastCajaDeleted"), "ok");
-      renderCajas();
+      try {
+        await DB.setCajaEstado(btn.dataset.toggleCaja, nuevoEstado);
+        state.cajas = await DB.getCajas();
+        toast(t("toastCajaStatus"), "ok");
+        renderCajas();
+      } catch (err) {
+        console.error(err);
+        toast(err.message, "err");
+      }
     });
   });
 }
-
 /* ==========================================================================
    VISTA: VENTAS
    ========================================================================== */
@@ -983,7 +1086,7 @@ function renderVentas(){
           `<button class="filter-pill ${state.ventasFiltro===v?"is-active":""}" data-ventas-filtro="${v}" data-i18n="${k}">${t(k)}</button>`
         ).join("")}
       </div>
-      <span style="font-size:12.5px;color:var(--text-muted);">${lista.length} transacciones</span>
+      <span style="font-size:12.5px;color:var(--text-muted);">${lista.length} ${t("transactions")}</span>
     </div>
 
     <div class="table-wrap fade-in fade-in--2">
@@ -1052,8 +1155,8 @@ function abrirModalProducto(id){
         <div class="form-field">
           <label for="fCategoria" data-i18n="fCategoria">${t("fCategoria")}</label>
           <select id="fCategoria">
-            ${["Autos deportivos","SUV de lujo","Motocicletas","Refacciones","Vehículos"].map(c=>
-              `<option value="${c}" ${(prod?.categoria||""===c)?"selected":""}>${c}</option>`
+            ${state.categorias.map(c =>
+              `<option value="${c.id}" ${c.nombre === prod?.categoria ? "selected" : ""}>${escapeHTML(c.nombre)}</option>`
             ).join("")}
           </select>
         </div>
@@ -1089,9 +1192,6 @@ function abrirModalProducto(id){
     });
   });
 
-  // Pre-seleccionar categoría
-  if (prod) $("#fCategoria").value = prod.categoria;
-
   // Submit
   $("#formProducto").addEventListener("submit", async e => {
     e.preventDefault();
@@ -1099,23 +1199,28 @@ function abrirModalProducto(id){
       tipo:        $("#fTipo").value,
       marca:       $("#fMarca").value.trim(),
       nombre:      $("#fModelo").value.trim(),
-      categoria:   $("#fCategoria").value,
+      idCategoria: $("#fCategoria").value,
       precio:      parseFloat($("#fPrecio").value),
       stockActual: parseInt($("#fStockInicial").value)||0,
       stockMinimo: parseInt($("#fStockMin").value)||2,
       descripcion: $("#fDescripcion").value.trim(),
     };
     if (!payload.marca || !payload.nombre || !payload.precio){ toast(t("required"), "err"); return; }
-    if (isNew){
-      await DB.createProducto(payload);
-      toast(t("toastProductoCreated"), "ok");
-    } else {
-      await DB.updateProducto(id, payload);
-      toast(t("toastProductoUpdated"), "ok");
+    try {
+      if (isNew){
+        await DB.createProducto(payload);
+        toast(t("toastProductoCreated"), "ok");
+      } else {
+        await DB.updateProducto(id, payload);
+        toast(t("toastProductoUpdated"), "ok");
+      }
+      state.productos = await DB.getProductos();
+      cerrarModales();
+      renderMain();
+    } catch (err) {
+      console.error(err);
+      toast(t("errSaveProducto"), "err");
     }
-    state.productos = await DB.getProductos();
-    cerrarModales();
-    renderMain();
   });
 
   abrirModal("modalProducto");
@@ -1186,13 +1291,13 @@ function abrirModalCaja(){
     <form id="formCaja" autocomplete="off">
       <div class="form-grid cols-1">
         <div class="form-field">
-          <label for="fNombreCaja" data-i18n="fNombreCaja">${t("fNombreCaja")}</label>
-          <input type="text" id="fNombreCaja" placeholder="Ej: Caja 4" required>
+          <label for="fNumeroCaja" data-i18n="fNombreCaja">${t("fNombreCaja")}</label>
+          <input type="number" id="fNumeroCaja" min="1" step="1" placeholder="${t("placeholderCaja")}" required>
         </div>
         <div class="form-field">
           <label for="fCajeroAsignado" data-i18n="fCajeroAsignado">${t("fCajeroAsignado")}</label>
           <select id="fCajeroAsignado">
-            <option value="">— Sin asignar —</option>
+            <option value="">${t("unassigned")}</option>
             ${state.cajeros.map(c => `<option value="${c.id}">${escapeHTML(c.nombre)}</option>`).join("")}
           </select>
         </div>
@@ -1205,18 +1310,62 @@ function abrirModalCaja(){
 
   $("#formCaja").addEventListener("submit", async e => {
     e.preventDefault();
-    const nombre = $("#fNombreCaja").value.trim();
-    if (!nombre){ toast(t("required"), "err"); return; }
-    await DB.createCaja({ nombre, cajeroId: $("#fCajeroAsignado").value || null });
-    state.cajas = await DB.getCajas();
-    toast(t("toastCajaCreated"), "ok");
-    cerrarModales();
-    renderMain();
+    const numero = parseInt($("#fNumeroCaja").value, 10);
+    if (!(numero > 0)){ toast(t("required"), "err"); return; }
+    try {
+      await DB.createCaja({ numero, cajeroId: $("#fCajeroAsignado").value || null });
+      state.cajas = await DB.getCajas();
+      toast(t("toastCajaCreated"), "ok");
+      cerrarModales();
+      renderMain();
+    } catch (err) {
+      console.error(err);
+      toast(err.message, "err");
+    }
   });
 
   abrirModal("modalCaja");
 }
 
+function abrirModalAsignarCajero(cajaId){
+  const caja = state.cajas.find(c => c.id === cajaId);
+  if (!caja) return;
+
+  $("#modalCajaContent").innerHTML = `
+    <h2 class="modal-title">${t("assignCajero")}</h2>
+    <p class="modal-desc">${escapeHTML(caja.nombre)}</p>
+    <form id="formAsignarCajero" autocomplete="off">
+      <div class="form-grid cols-1">
+        <div class="form-field">
+          <label for="fCajeroAsignado" data-i18n="fCajeroAsignado">${t("fCajeroAsignado")}</label>
+          <select id="fCajeroAsignado">
+            <option value="">${t("unassigned")}</option>
+            ${state.cajeros.map(c => `<option value="${c.id}" ${c.id === caja.cajeroId ? "selected" : ""}>${escapeHTML(c.nombre)}</option>`).join("")}
+          </select>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" data-close-modal data-i18n="cancel">${t("cancel")}</button>
+        <button type="submit" class="btn btn-primary" data-i18n="save">${t("save")}</button>
+      </div>
+    </form>`;
+
+  $("#formAsignarCajero").addEventListener("submit", async e => {
+    e.preventDefault();
+    try {
+      await DB.asignarCajero(cajaId, $("#fCajeroAsignado").value || null);
+      state.cajas = await DB.getCajas();
+      toast(t("toastCajaAsignada"), "ok");
+      cerrarModales();
+      renderMain();
+    } catch (err) {
+      console.error(err);
+      toast(err.message, "err");
+    }
+  });
+
+  abrirModal("modalCaja");
+}
 /* ==========================================================================
    MODAL: DETALLE DE VENTA
    ========================================================================== */
@@ -1227,30 +1376,30 @@ function abrirModalVenta(ventaId){
     <h2 class="modal-title" data-i18n="modalVentaTitle">${t("modalVentaTitle")}</h2>
     <p class="modal-desc" style="font-family:monospace;letter-spacing:.02em;">${escapeHTML(v.id)}</p>
     <div class="info-grid" style="margin-bottom:20px;">
-      <div class="info-item"><span class="info-item-label">Fecha</span><span class="info-item-value">${formatFecha(v.fecha)}</span></div>
-      <div class="info-item"><span class="info-item-label">Hora</span><span class="info-item-value">${formatHora(v.fecha)}</span></div>
-      <div class="info-item"><span class="info-item-label">Cajero</span><span class="info-item-value">${escapeHTML(v.cajeroNombre)}</span></div>
-      <div class="info-item"><span class="info-item-label">Método</span><span class="info-item-value">${metodoBadge(v.metodoPago)}</span></div>
+      <div class="info-item"><span class="info-item-label">${t("date")}</span><span class="info-item-value">${formatFecha(v.fecha)}</span></div>
+      <div class="info-item"><span class="info-item-label">${t("time")}</span><span class="info-item-value">${formatHora(v.fecha)}</span></div>
+      <div class="info-item"><span class="info-item-label">${t("colCajero")}</span><span class="info-item-value">${escapeHTML(v.cajeroNombre)}</span></div>
+      <div class="info-item"><span class="info-item-label">${t("colMetodo")}</span><span class="info-item-value">${metodoBadge(v.metodoPago)}</span></div>
     </div>
     <div class="table-wrap" style="margin-bottom:20px;">
       <table class="data-table">
-        <thead><tr><th>Producto</th><th>Marca</th><th>Cant.</th><th>Total</th></tr></thead>
+        <thead><tr><th>${t("colProducto")}</th><th>${t("colMarca")}</th><th>${t("colCant")}</th><th>${t("colTotal")}</th></tr></thead>
         <tbody>
           <tr>
             <td><strong>${escapeHTML(v.productoNombre)}</strong></td>
             <td>${escapeHTML(v.marca)}</td>
-            <td>1</td>
+            <td>${v.cantidad || 1}</td>
             <td style="font-weight:700;">${formatoMoneda(v.total)}</td>
           </tr>
         </tbody>
       </table>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:baseline;padding:16px;background:var(--surface-1);border-radius:var(--radius-md);border:1px solid var(--line);">
-      <span style="font-size:13px;color:var(--text-muted);">Total de la venta</span>
+      <span style="font-size:13px;color:var(--text-muted);">${t("saleTotal")}</span>
       <span style="font-family:var(--font-display);font-size:24px;font-weight:600;">${formatoMoneda(v.total)}</span>
     </div>
     <div class="form-actions">
-      <button type="button" class="btn btn-ghost" data-close-modal>Cerrar</button>
+      <button type="button" class="btn btn-ghost" data-close-modal>${t("close")}</button>
     </div>`;
 
   abrirModal("modalVenta");
@@ -1261,10 +1410,15 @@ function abrirModalVenta(ventaId){
    ========================================================================== */
 async function eliminarProducto(id){
   if (!confirm(t("confirmDelete"))) return;
-  await DB.deleteProducto(id);
-  state.productos = await DB.getProductos();
-  toast(t("toastProductoDeleted"), "ok");
-  renderMain();
+  try {
+    await DB.deleteProducto(id);
+    state.productos = await DB.getProductos();
+    toast(t("toastProductoDeleted"), "ok");
+    renderMain();
+  } catch (err) {
+    console.error(err);
+    toast(t("errDeleteProducto"), "err");
+  }
 }
 
 /* ==========================================================================
@@ -1308,8 +1462,9 @@ function applyI18n(){
     const key = el.dataset.i18nTitle;
     if (key) el.title = t(key);
   });
-  // Actualizar botón de idioma
-  $$(".lang-op").forEach(op => op.classList.toggle("is-active", op.dataset.lang === state.lang));
+  // Interruptor de idioma (marcado = inglés), igual que en el Home
+  const swIdioma = $("#langSwitch");
+  if (swIdioma) swIdioma.checked = (state.lang === "en");
 }
 
 /* ==========================================================================
@@ -1336,27 +1491,40 @@ function attachEvents(){
     btn.addEventListener("click", () => { state.view = btn.dataset.view; renderMain(); });
   });
 
-  // Logo → Dashboard
-  $("#logoHome")?.addEventListener("click", () => { state.view = "dashboard"; renderMain(); });
+  // El logo KARMA es un enlace normal a home.html (no necesita JavaScript)
 
-  // Cambio de idioma
-  $("#langToggle")?.addEventListener("click", e => {
-    const op = e.target.closest(".lang-op");
-    if (!op) return;
-    state.lang = op.dataset.lang;
+  // Interruptor de idioma (marcado = inglés)
+  $("#langSwitch")?.addEventListener("change", e => {
+    state.lang = e.target.checked ? "en" : "es";
     localStorage.setItem("karma_idioma", state.lang);
     renderMain();
   });
 
-  // Tema claro / oscuro
-  $("#themeToggle")?.addEventListener("click", () => {
-    const oscuro = document.body.classList.toggle("dark");
-    localStorage.setItem("karma_tema", oscuro ? "dark" : "light"); // tema compartido con los demás módulos
+  // Interruptor de tema (marcado = oscuro). Se recuerda al recargar y se comparte con el Home
+  $("#themeSwitch")?.addEventListener("change", e => {
+    document.body.classList.toggle("dark", e.target.checked);
+    localStorage.setItem("karma_tema", e.target.checked ? "dark" : "light");
+    if (state.view === "dashboard") renderMain();   // redibuja las gráficas con los colores del tema
+  });
+
+  // Menú de perfil (igual que en el Home)
+  const perfil = $("#profileDropdown");
+  const perfilBtn = $("#profileTrigger");
+  perfilBtn?.addEventListener("click", e => {
+    e.stopPropagation();
+    const abierto = perfil.classList.toggle("open");
+    perfilBtn.setAttribute("aria-expanded", String(abierto));
+  });
+  document.addEventListener("click", e => {
+    if (!e.target.closest(".profile-dropdown-container")) {
+      perfil?.classList.remove("open");
+      perfilBtn?.setAttribute("aria-expanded", "false");
+    }
   });
 
   // Cerrar sesión
   $("#logoutBtn")?.addEventListener("click", () => {
-    if (!confirm("¿Cerrar sesión?")) return;
+    if (!confirm(t("confirmLogout"))) return;
     // Igual que el Home: borra el usuario guardado y cierra la sesión PHP del Punto de Venta
     localStorage.removeItem("karma_user");
     fetch("../PHP/PuntoDeVenta/api.php?action=logout").finally(() => {
@@ -1372,7 +1540,11 @@ function attachEvents(){
 
   // Cerrar modales con Escape
   document.addEventListener("keydown", e => {
-    if (e.key === "Escape") cerrarModales();
+    if (e.key === "Escape") {
+      cerrarModales();
+      perfil?.classList.remove("open");
+      perfilBtn?.setAttribute("aria-expanded", "false");
+    }
   });
 }
 
@@ -1380,6 +1552,16 @@ function attachEvents(){
    INICIO
    ========================================================================== */
 (async function init(){
+  if (!verificarAcceso()) return;
+  if (localStorage.getItem("karma_tema") === "dark") document.body.classList.add("dark");
+  const swTema = $("#themeSwitch");
+  if (swTema) swTema.checked = document.body.classList.contains("dark");
+  const swIdioma = $("#langSwitch");
+  if (swIdioma) swIdioma.checked = (state.lang === "en");
+  let usuario = null;
+  try { usuario = JSON.parse(localStorage.getItem("karma_user") || "null"); } catch (e) {}
+  const nombreMenu = $("#navUserName");
+  if (nombreMenu && usuario && usuario.nombre) nombreMenu.textContent = usuario.nombre;
   attachEvents();
   iniciarReloj();
   await cargarDatos();
