@@ -283,7 +283,7 @@ const MESES = {
 /* ==========================================================================
    CAPA DE DATOS (DB) — API PHP en PHP/Dashboard/api.php (MySQL pos_multisede)
    ========================================================================== */
-const API_BASE = "../PHP/Dashboard/api.php"; // relativa a dasboard/admin.html
+const API_BASE = "../PHP/Dashboard/api.php"; // relativa a dashboard/admin.html
 const LOGOUT_URL = "../PHP/PuntoDeVenta/api.php?action=logout"; // cierra la sesión compartida del POS
 const LOGIN_URL = "../index.html";
 const HOME_URL = "../Home/home.html";

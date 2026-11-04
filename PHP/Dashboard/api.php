@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-/* API del Panel de Administrador General (dasboard/admin.html) */
+/* API del Panel de Administrador General (dashboard/admin.html) */
 header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/../PuntoDeVenta/conexion.php';
 require_once __DIR__ . '/../Login/sesion_pos.php';

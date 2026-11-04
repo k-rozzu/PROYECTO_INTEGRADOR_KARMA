@@ -1,4 +1,4 @@
--- KARMA / pos_multisede — dashboard_admin.sql: tablas y columnas que usa el Panel de Administrador (dasboard/admin.html).
+-- KARMA / pos_multisede — dashboard_admin.sql: tablas y columnas que usa el Panel de Administrador (dashboard/admin.html).
 -- Importar en phpMyAdmin DESPUÉS de pos_multisede.sql y cajero_extensiones.sql.
 -- Se puede importar varias veces sin duplicar nada (todo usa IF NOT EXISTS).
 
