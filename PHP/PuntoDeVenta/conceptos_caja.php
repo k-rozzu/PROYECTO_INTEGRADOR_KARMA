@@ -69,11 +69,12 @@ function conceptoCampos(?string $json): array {
 // funcionando sin la pestaña (disponible = false) en lugar de romper el bootstrap.
 function posCatalogoConceptosCaja(PDO $pdo, int $idSucursal): array {
     try {
+        // Los conceptos con base 'accesorio' no tienen cálculo (los accesorios se cobran en su propia sección) y no se ofrecen
         $stmt = $pdo->prepare("
             SELECT c.*
             FROM conceptos_caja c
             LEFT JOIN conceptos_caja_sucursal cs ON cs.id_concepto = c.id_concepto AND cs.id_sucursal = ?
-            WHERE c.activo = 1 AND COALESCE(cs.activo, 1) = 1 AND c.id_producto IS NOT NULL
+            WHERE c.activo = 1 AND COALESCE(cs.activo, 1) = 1 AND c.id_producto IS NOT NULL AND c.base_calculo <> 'accesorio'
             ORDER BY c.orden, c.nombre
         ");
         $stmt->execute([$idSucursal]);

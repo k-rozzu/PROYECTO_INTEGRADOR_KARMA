@@ -133,7 +133,8 @@ function datosVentaTicket(){
     conceptos: ticketItems.filter(it => it.esConcepto).map(it => it.payload),
     cliente: ticketItems[0]?.cliente || "",
     email: ticketItems[0]?.email || "",
-    celular: ticketItems[0]?.celular || ""
+    celular: ticketItems[0]?.celular || "",
+    rfc_ine: ticketItems[0]?.rfcIne || ""
   };
 }
 

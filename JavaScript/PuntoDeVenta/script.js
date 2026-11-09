@@ -15,6 +15,7 @@ let CLIENTES = [];
 let GARANTIAS = [];
 let WEBORDERS = [];
 let REFACCIONES = [];
+let ACCESORIOS = [];
 
 // Valores fijos del módulo de crédito: tasa anual, comisión por apertura y plazos
 const TASA_INTERES_ANUAL_DEFAULT = 18;
@@ -66,6 +67,7 @@ async function cargarDatosDB() {
     GARANTIAS = data.garantias || [];
     WEBORDERS = data.weborders || [];
     REFACCIONES = data.refacciones || [];
+    ACCESORIOS = data.accesorios || [];
     datosDBCargados = true;
 
     $("#statusCajero").textContent = CAJERO_ACTUAL;
@@ -105,6 +107,7 @@ async function refrescarDatosDB() {
   GARANTIAS = data.garantias || [];
   WEBORDERS = data.weborders || [];
   REFACCIONES = data.refacciones || [];
+  ACCESORIOS = data.accesorios || [];
   if (data.siguiente_ticket) ticketNumero = data.siguiente_ticket;
 }
 
@@ -115,8 +118,9 @@ let currentView = "venta";          // venta | inventario | clientes | garantias
 let searchQuery = "";               // texto actual del buscador (su uso cambia según la vista)
 
 // --- Estado del formulario de venta ---
-let formTipoArticulo = "Vehiculo";  // 'Vehiculo' | 'Credito' | 'Refaccion' — toggle dentro del propio formulario
-let borrador = {};                  // valores prellenados (ej. desde Web Orders → Continuar)
+let formTipoArticulo = "Vehiculo";  // 'Vehiculo' | 'Credito' | 'Servicios' | 'Refaccion' | 'Accesorio' — sección elegida en los cuadros
+let ventaSeccionAbierta = false;    // false = pantalla principal con los 5 cuadros; true = formulario de la sección elegida
+let borrador = {};                 // valores prellenados (ej. desde Web Orders → Continuar)
 let modoCotizacion = false;         // F5 — simula una venta sin guardarla en el ticket
 
 // --- Estado propio del módulo de Crédito ---
@@ -136,7 +140,7 @@ let ventaResultadosActivos = false; // true = se está mostrando la cuadrícula 
 let ventaResultadosQuery = "";
 
 // --- Estado de otras vistas ---
-let inventarioCategoria = null;     // null | 'Porsche' | 'Audi' | 'Ducati' | 'Refacciones'
+let inventarioCategoria = null;     // null | 'Porsche' | 'Audi' | 'Ducati' | 'Refacciones' | 'Accesorios'
 let webOrdersFiltro = "Todo";       // Todo | Porsche | Audi | Ducati | Refacciones
 
 /* ===== 3. HELPERS GENERALES ===== */
@@ -182,13 +186,41 @@ function bindTexto(id, key, panel){
   $(`#${id}`, panel)?.addEventListener("input", (e) => { borrador[key] = e.target.value; });
 }
 
-// Íconos de línea para los 4 tiles de categoría de Inventario
+// RFC / INE / CURP de las 5 secciones de cobro: longitud permitida (el dato puede ser ficticio)
+const RFC_INE_MIN = 13;
+const RFC_INE_MAX = 18;
+
+// Lee el RFC / INE / CURP de un campo sin espacios y en mayúsculas; si no tiene la longitud permitida lo señala y avisa
+function rfcIneCapturado(idInput, etiqueta){
+  const input = $(`#${idInput}`);
+  const valor = input.value.replace(/\s+/g, "").toUpperCase();
+  const n = [...valor].length;
+  if (n < RFC_INE_MIN || n > RFC_INE_MAX){
+    input.focus();
+    throw new Error(`Campo ${n < RFC_INE_MIN ? "incompleto" : "excedido"}: ${etiqueta} debe tener mínimo ${RFC_INE_MIN} y máximo ${RFC_INE_MAX} caracteres (escribiste ${n}).`);
+  }
+  return valor;
+}
+
+// Íconos de línea para los cuadros de categoría de Inventario y de Venta
 const ICONOS_TIPO = {
   Porsche: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 16l1.5-5.5A3 3 0 0 1 7.4 8h9.2a3 3 0 0 1 2.9 2.5L21 16"/><path d="M3 16h18v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-1H7v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-2Z"/><circle cx="7.5" cy="16" r="1.4"/><circle cx="16.5" cy="16" r="1.4"/></svg>`,
   Audi: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="12" r="3.4"/><circle cx="11" cy="12" r="3.4"/><circle cx="16" cy="12" r="3.4"/><circle cx="21" cy="12" r="3.4"/></svg>`,
   Ducati: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="5.5" cy="17" r="2.6"/><circle cx="18.5" cy="17" r="2.6"/><path d="M5.5 17l3-8h5l4 5h3M8.5 9h4"/></svg>`,
-  Refacciones: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14.7 6.3a4 4 0 0 1-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 1 5.4-5.4l-2.6 2.6-2-2 2.6-2.6Z"/></svg>`
+  Refacciones: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14.7 6.3a4 4 0 0 1-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 1 5.4-5.4l-2.6 2.6-2-2 2.6-2.6Z"/></svg>`,
+  Accesorios: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 8h12l1 12H5L6 8Z"/><path d="M9 11V6a3 3 0 0 1 6 0v5"/></svg>`,
+  Creditos: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10.5h18M7 15h4"/></svg>`,
+  Servicios: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3Z"/><path d="M9 12l2 2 4-4"/></svg>`
 };
+
+// Los 5 cuadros de la pantalla principal de Venta (tipo = sección del formulario)
+const SECCIONES_VENTA = [
+  { tipo: "Vehiculo", etiqueta: "Vehículos", icono: ICONOS_TIPO.Porsche },
+  { tipo: "Credito", etiqueta: "Créditos", icono: ICONOS_TIPO.Creditos },
+  { tipo: "Servicios", etiqueta: "Servicios", icono: ICONOS_TIPO.Servicios },
+  { tipo: "Refaccion", etiqueta: "Refacciones", icono: ICONOS_TIPO.Refacciones },
+  { tipo: "Accesorio", etiqueta: "Accesorios", icono: ICONOS_TIPO.Accesorios }
+];
 
 /* ===== 2b. INVENTARIO — cascada de vehículos: Marca → Modelo → Año → Color → Color interior → Motor → VIN ===== */
 
@@ -370,6 +402,23 @@ function recalcularCascadaRefaccion(){
   if (!piezas.some(p => String(p.id) === String(b.piezaId))) b.piezaId = piezas.length === 1 ? piezas[0].id : undefined;
 }
 
+/* ===== 2d. ACCESORIOS — cascada Marca → Accesorio; aplican a todos los modelos (mismos productos y existencias que el Catálogo) ===== */
+
+// Marcas con accesorios registrados
+function accMarcasDisponibles(){
+  return unicos(ACCESORIOS.map(a => a.marca));
+}
+// Accesorios de la marca elegida
+function accPiezasDisponibles(b){
+  return ACCESORIOS.filter(a => a.marca === b.marcaVehiculo);
+}
+// Tras cambiar de marca: autoselecciona si solo hay una opción y limpia lo que ya no aplica
+function recalcularCascadaAccesorio(){
+  const b = borrador;
+  const piezas = accPiezasDisponibles(b);
+  if (!piezas.some(p => String(p.id) === String(b.piezaId))) b.piezaId = piezas.length === 1 ? piezas[0].id : undefined;
+}
+
 /* ===== 3. NAVEGACIÓN ENTRE VISTAS ===== */
 
 // Cambia de pestaña: resetea estados temporales de UI y vuelve a dibujar todo
@@ -388,8 +437,11 @@ function setActiveView(view){
   renderMain();
 }
 
-// El logo "K" siempre regresa a Venta, sin importar en qué vista se esté
-function irAInicio(){ setActiveView("venta"); }
+// El logo "K" siempre regresa a los cuadros de Venta, sin importar en qué vista se esté
+function irAInicio(){
+  ventaSeccionAbierta = false;
+  setActiveView("venta");
+}
 
 // Cambia el texto de ayuda del buscador según la sección activa
 function actualizarPlaceholderBusqueda(){
@@ -476,8 +528,52 @@ function montarVistaPrevia3D(){
   else if (window.KARMA_VISTA3D_FALLO) caja.innerHTML = `<div class="vista3d-cargando">No se pudo cargar la librería 3D. Revisa tu conexión a internet.</div>`;
 }
 
-// Arma el HTML del formulario según el tipo elegido y si es cotización
+// Pantalla principal de Venta: los 5 cuadros que abren el formulario de cada sección
+function cuadrosVentaHTML(){
+  return `
+    <div class="venta-inicio">
+      <div class="panel-heading"><h2>${modoCotizacion ? "Cotización" : "Registrar venta"}</h2></div>
+      ${modoCotizacion ? `<div class="cotizacion-banner"><span>Modo cotización — esta venta no se guardará en el ticket</span></div>` : ""}
+      <div class="tipo-tiles tipo-tiles--venta">
+        ${SECCIONES_VENTA.map(s => `
+          <button class="tipo-tile" data-form-tipo="${s.tipo}" type="button">
+            <span class="tipo-tile-icon">${s.icono}</span>
+            <span class="tipo-tile-label">${s.etiqueta}</span>
+          </button>`).join("")}
+      </div>
+    </div>`;
+}
+
+// Chip con la sección abierta; su ✕ regresa a los cuadros (mismo patrón que Inventario)
+function chipSeccionVentaHTML(){
+  const seccion = SECCIONES_VENTA.find(s => s.tipo === formTipoArticulo);
+  return `
+    <div class="section-toolbar">
+      <div class="tipo-chip">Categoría: ${seccion.etiqueta}<button type="button" id="btnCambiarSeccionVenta" aria-label="Volver a los cuadros de Venta">✕</button></div>
+    </div>`;
+}
+
+// Abre el formulario de la sección elegida; cambiar de sección limpia lo capturado
+function abrirSeccionVenta(tipo){
+  if (tipo !== formTipoArticulo){
+    formTipoArticulo = tipo;
+    borrador = {};
+    mostrarTablaAmortizacion = false;
+  }
+  creditoTipoProducto = "Vehiculo";
+  ventaSeccionAbierta = true;
+  renderPanelVenta();
+}
+
+// Regresa a los 5 cuadros de la pantalla principal
+function cerrarSeccionVenta(){
+  ventaSeccionAbierta = false;
+  renderPanelVenta();
+}
+
+// Arma el HTML del formulario según la sección elegida y si es cotización
 function formularioVentaHTML(){
+  if (!ventaSeccionAbierta) return cuadrosVentaHTML();
   const b = borrador;
   return `
     <div class="panel-heading"><h2>${modoCotizacion ? "Cotización" : "Registrar venta"}</h2></div>
@@ -485,14 +581,10 @@ function formularioVentaHTML(){
     ${modoCotizacion ? `<div class="cotizacion-banner"><span>Modo cotización — esta venta no se guardará en el ticket</span></div>` : ""}
     ${b.articuloRef ? `<div class="hint-banner">Interés registrado en la web: <strong>${escapeHTML(b.articuloRef)}</strong>${b.colorRef ? " — " + escapeHTML(b.colorRef) : ""}</div>` : ""}
 
-    <!-- Toggle Vehículo / Crédito / Refacción: reemplaza los antiguos cuadros divisores -->
-    <div class="segmented tipo-articulo-toggle">
-      <button type="button" class="segmented-btn ${formTipoArticulo === "Vehiculo" ? "is-active" : ""}" data-form-tipo="Vehiculo">Vehículo</button>
-      <button type="button" class="segmented-btn ${formTipoArticulo === "Credito" ? "is-active" : ""}" data-form-tipo="Credito">Crédito</button>
-      <button type="button" class="segmented-btn ${formTipoArticulo === "Refaccion" ? "is-active" : ""}" data-form-tipo="Refaccion">Refacción</button>
-    </div>
+    ${chipSeccionVentaHTML()}
 
     ${formTipoArticulo === "Refaccion" ? camposRefaccionHTML()
+      : formTipoArticulo === "Accesorio" ? camposAccesorioHTML()
       : formTipoArticulo === "Credito" ? camposCreditoHTML()
       : camposVehiculoHTML()}
 
@@ -620,7 +712,7 @@ function camposVehiculoHTML(){
   return `
     <div class="form-grid">
       <div class="form-field"><label>Cliente</label><input type="text" id="inpCliente" value="${escapeHTML(b.cliente || "")}" placeholder="Nombre completo"></div>
-      <div class="form-field"><label>RFC / INE</label><input type="text" id="inpRfcIne" value="${escapeHTML(b.rfcIne || "")}" placeholder="Identificación"></div>
+      <div class="form-field"><label>RFC / INE</label><input type="text" id="inpRfcIne" value="${escapeHTML(b.rfcIne || "")}" placeholder="13 a 18 caracteres"></div>
       <div class="form-field"><label>Email</label><input type="email" id="inpEmail" value="${escapeHTML(b.email || "")}" placeholder="correo@ejemplo.com"></div>
       <div class="form-field"><label>Celular</label><input type="tel" id="inpCelular" value="${escapeHTML(b.celular || "")}" placeholder="10 dígitos"></div>
 
@@ -816,11 +908,98 @@ function camposRefaccionHTML(){
   return `
     <div class="form-grid">
       <div class="form-field span-2"><label>Cliente</label><input type="text" id="inpClienteP" value="${escapeHTML(b.cliente || "")}" placeholder="Nombre completo"></div>
-      <div class="form-field"><label>RFC / INE</label><input type="text" id="inpRfcIneP" value="${escapeHTML(b.rfcIne || "")}" placeholder="Identificación"></div>
+      <div class="form-field"><label>RFC / INE</label><input type="text" id="inpRfcIneP" value="${escapeHTML(b.rfcIne || "")}" placeholder="13 a 18 caracteres"></div>
       <div class="form-field"><label>Email</label><input type="email" id="inpEmailP" value="${escapeHTML(b.email || "")}" placeholder="correo@ejemplo.com"></div>
       <div class="form-field"><label>Celular</label><input type="tel" id="inpCelularP" value="${escapeHTML(b.celular || "")}" placeholder="10 dígitos"></div>
 
       ${selectoresRefaccionHTML(b)}
+    </div>
+  `;
+}
+
+// Código de barras + cascada de accesorio + existencia/precio + foto del Catálogo (los accesorios no llevan modelo 3D)
+function selectoresAccesorioHTML(b){
+  const marcas = accMarcasDisponibles();
+  const piezas = accPiezasDisponibles(b);
+  const match = piezas.find(p => String(p.id) === String(b.piezaId)) || null;
+  const matchCodigo = b.codigoBarras ? buscarPorCodigoBarras(b.codigoBarras, ACCESORIOS) : null;
+
+  return `
+    <div class="form-field span-2">
+      <label>Código de barras</label>
+      <input type="text" id="selAccCodigo" value="${escapeHTML(b.codigoBarras || "")}" placeholder="Escanea o escribe el código de barras" autocomplete="off">
+      ${!b.codigoBarras
+        ? `<div class="form-field-info">Al confirmarlo, autocompleta marca y accesorio.</div>`
+        : matchCodigo
+          ? `<div class="form-field-info form-field-info--ok">Código confirmado — ${escapeHTML(matchCodigo.nombre)}</div>`
+          : `<div class="form-field-info form-field-info--error">Ese código no coincide con ningún accesorio registrado.</div>`
+      }
+    </div>
+    <div class="form-field">
+      <label>Marca del vehículo</label>
+      <select id="selAccMarca">
+        <option value="">Selecciona…</option>
+        ${marcas.map(m => `<option value="${escapeHTML(m)}" ${b.marcaVehiculo === m ? "selected" : ""}>${escapeHTML(m)}</option>`).join("")}
+      </select>
+    </div>
+    <div class="form-field">
+      <label>Modelo compatible</label>
+      <select id="selAccModelo" disabled>
+        <option>${b.marcaVehiculo ? "Aplica a todos" : "Elige una marca primero"}</option>
+      </select>
+    </div>
+    <div class="form-field span-2">
+      <label>Accesorio</label>
+      <select id="selAccPieza" ${!piezas.length ? "disabled" : ""}>
+        <option value="">${piezas.length ? "Selecciona…" : "Elige una marca primero"}</option>
+        ${piezas.map(p => `<option value="${p.id}" ${String(b.piezaId) === String(p.id) ? "selected" : ""}>${escapeHTML(p.nombre)}</option>`).join("")}
+      </select>
+    </div>
+    <div class="form-field span-2">
+      ${match
+        ? `<div class="stock-price-box">
+             <div><span>Unidades disponibles</span><strong>${badgeStockHTML(match.unidades)}</strong></div>
+             <div><span>Precio</span><strong>${formatoMoneda(match.precio)}</strong></div>
+           </div>`
+        : `<div class="form-field-info">Elige marca y accesorio para ver existencia y precio.</div>`
+      }
+    </div>
+    ${match?.imagen ? `
+      <div class="form-field span-2">
+        <label>Imagen del accesorio</label>
+        <div class="accesorio-foto"><img src="../../${escapeHTML(match.imagen)}" alt="${escapeHTML(match.nombre)}"></div>
+      </div>` : ""}
+  `;
+}
+
+// Conecta el código de barras y los cajones de Accesorio; cambiar de marca limpia el accesorio y redibuja
+function bindSelectoresAccesorio(panel, onChange){
+  bindCodigoBarras("selAccCodigo", panel,
+    () => ACCESORIOS,
+    (m) => { borrador.marcaVehiculo = m.marca; borrador.piezaId = m.id; },
+    onChange);
+  $("#selAccMarca", panel)?.addEventListener("change", (e) => {
+    borrador.marcaVehiculo = e.target.value || undefined;
+    borrador.piezaId = undefined;
+    recalcularCascadaAccesorio(); onChange();
+  });
+  $("#selAccPieza", panel)?.addEventListener("change", (e) => {
+    borrador.piezaId = e.target.value || undefined;
+    onChange();
+  });
+}
+
+// Campos para la venta de un accesorio: cliente + cascada
+function camposAccesorioHTML(){
+  const b = borrador;
+  return `
+    <div class="form-grid">
+      <div class="form-field"><label>Cliente</label><input type="text" id="inpClienteA" value="${escapeHTML(b.cliente || "")}" placeholder="Nombre completo"></div>
+      <div class="form-field"><label>RFC / INE</label><input type="text" id="inpRfcIneA" value="${escapeHTML(b.rfcIne || "")}" placeholder="13 a 18 caracteres"></div>
+      <div class="form-field"><label>Email</label><input type="email" id="inpEmailA" value="${escapeHTML(b.email || "")}" placeholder="correo@ejemplo.com"></div>
+      <div class="form-field"><label>Celular</label><input type="tel" id="inpCelularA" value="${escapeHTML(b.celular || "")}" placeholder="10 dígitos"></div>
+
+      ${selectoresAccesorioHTML(b)}
     </div>
   `;
 }
@@ -942,7 +1121,7 @@ function camposCreditoHTML() {
         <label>RFC / CURP</label>
         <input type="text" id="inpRfcIneC"
           value="${escapeHTML(b.rfcIne || "")}"
-          placeholder="RFC (13) o CURP (18)"
+          placeholder="13 a 18 caracteres"
           autocapitalize="characters">
       </div>
 
@@ -1154,14 +1333,12 @@ function tablaAmortizacionHTML(calculo){
 function bindFormularioVenta(){
   const panel = $("#panelVenta");
 
-  // Toggle Vehículo / Crédito / Refacción
-  $$("[data-form-tipo]", panel).forEach(btn => btn.addEventListener("click", () => {
-    formTipoArticulo = btn.dataset.formTipo;
-    borrador = {};
-    creditoTipoProducto = "Vehiculo";
-    mostrarTablaAmortizacion = false;
-    renderPanelVenta();
-  }));
+  // Pantalla principal: cada cuadro abre el formulario de su sección
+  if (!ventaSeccionAbierta){
+    $$("[data-form-tipo]", panel).forEach(btn => btn.addEventListener("click", () => abrirSeccionVenta(btn.dataset.formTipo)));
+    return;
+  }
+  $("#btnCambiarSeccionVenta", panel)?.addEventListener("click", cerrarSeccionVenta);
 
   // Botones de acción: cambian según si estamos cotizando o registrando de verdad
   if (modoCotizacion){
@@ -1195,6 +1372,15 @@ function bindFormularioVenta(){
     bindTexto("inpEmailP", "email", panel);
     bindTexto("inpCelularP", "celular", panel);
     bindSelectoresRefaccion(panel, renderPanelVenta);
+  }
+
+  // Accesorio: textos del cliente + cascada del accesorio
+  if (formTipoArticulo === "Accesorio"){
+    bindTexto("inpClienteA", "cliente", panel);
+    bindTexto("inpRfcIneA", "rfcIne", panel);
+    bindTexto("inpEmailA", "email", panel);
+    bindTexto("inpCelularA", "celular", panel);
+    bindSelectoresAccesorio(panel, renderPanelVenta);
   }
 
   // Crédito (solo vehículos): mismos cajones + VIN, y cada cambio recalcula comisión, interés y mensualidad
@@ -1271,7 +1457,7 @@ async function guardarArticulo(){
       if (!cliente){ $("#inpClienteP").focus(); return; }
       email = $("#inpEmailP").value.trim();
       celular = $("#inpCelularP").value.trim();
-      rfcIne = $("#inpRfcIneP").value.trim();
+      rfcIne = rfcIneCapturado("inpRfcIneP", "RFC / INE");
 
       item = REFACCIONES.find(r => String(r.id) === String(borrador.piezaId));
       if (!item){
@@ -1298,6 +1484,30 @@ async function guardarArticulo(){
         lado: item.lado,
         motor: item.motor
       });
+    } else if (formTipoArticulo === "Accesorio"){
+      cliente = $("#inpClienteA").value.trim();
+      if (!cliente){ $("#inpClienteA").focus(); return; }
+      email = $("#inpEmailA").value.trim();
+      celular = $("#inpCelularA").value.trim();
+      rfcIne = rfcIneCapturado("inpRfcIneA", "RFC / INE");
+
+      item = ACCESORIOS.find(a => String(a.id) === String(borrador.piezaId));
+      if (!item) throw new Error("Elige el accesorio en el último cajón antes de guardarlo.");
+      if (item.unidades < 1) throw new Error("0 unidades disponibles: este accesorio no tiene existencia en el inventario de la sucursal.");
+
+      ticketIdCounter += 1;
+      ticketItems.push({
+        id: ticketIdCounter,
+        productoId: item.id,
+        esVehiculo: false,
+        articulo: item.nombre,
+        precioTotal: Number(item.precio || 0),
+        cantidad: 1,
+        cliente, email, celular, rfcIne,
+        pieza: item.nombre,
+        webOrderId: borrador.webOrderId || null,
+        marcaVehiculo: item.marca
+      });
     } else if (formTipoArticulo === "Credito"){
       // Un contrato por operación: un solo crédito por ticket
       if (ticketItems.some(it => it.esCredito)) throw new Error("Este ticket ya tiene un crédito. Concrétalo o quítalo (F4) antes de registrar otro: cada crédito lleva su propio contrato.");
@@ -1305,7 +1515,7 @@ async function guardarArticulo(){
       if (!cliente){ $("#inpClienteC").focus(); return; }
       email = $("#inpEmailC").value.trim();
       celular = $("#inpCelularC").value.trim();
-      rfcIne = $("#inpRfcIneC").value.trim().replace(/\s+/g, "").toUpperCase();
+      rfcIne = rfcIneCapturado("inpRfcIneC", "RFC / CURP");
 
       item = articuloDeBorrador(borrador);
       if (!item) throw new Error(MSG_COMPLETAR_VEHICULO);
@@ -1322,14 +1532,17 @@ async function guardarArticulo(){
       // Datos que el contrato necesita del acreditado
       const direccion = (borrador.direccion || "").trim();
       const identificacionNumero = (borrador.identificacionNumero || "").trim();
-      // Solo la estructura (letras y números en su lugar): se aceptan RFC y CURP ficticios
-      if (!/^([A-ZÑ&]{3,4}\d{6}[A-ZÑ\d]{3}|[A-ZÑ]{4}\d{6}[A-ZÑ\d]{8})$/.test(rfcIne)){
-        $("#inpRfcIneC").focus();
-        throw new Error("El RFC debe tener 12 o 13 caracteres (3 o 4 letras, 6 números y 3 letras o números) y la CURP 18 (4 letras, 6 números y 8 letras o números).");
-      }
       if (!direccion){ $("#inpDireccionC").focus(); throw new Error("El contrato necesita el domicilio particular del cliente."); }
       if (!identificacionNumero){ $("#inpIdNumeroC").focus(); throw new Error("Escribe el número o folio de la identificación oficial."); }
       if (email && !/^\S+@\S+\.\S+$/.test(email)) throw new Error("El correo electrónico del cliente no es válido.");
+
+      // La CURP / RFC no puede estar registrada con otro cliente: se revisa antes de cobrar el enganche
+      try {
+        await apiFetch("validar_curp", { method: "POST", body: JSON.stringify({ rfc_curp: rfcIne, nombre: cliente }) });
+      } catch (error) {
+        $("#inpRfcIneC").focus();
+        throw error;
+      }
 
       // El VIN elegido en la cajita debe coincidir con el registrado para este vehículo
       const vin = await validarVinEnServidor(item.id, $("#selVinC").value.trim());
@@ -1370,7 +1583,7 @@ async function guardarArticulo(){
       if (!cliente){ $("#inpCliente").focus(); return; }
       email = $("#inpEmail").value.trim();
       celular = $("#inpCelular").value.trim();
-      rfcIne = $("#inpRfcIne").value.trim();
+      rfcIne = rfcIneCapturado("inpRfcIne", "RFC / INE");
       item = articuloDeBorrador(borrador);
       if (!item) throw new Error(MSG_COMPLETAR_VEHICULO);
       if (item.unidades < 1) throw new Error(MSG_SIN_STOCK_VEHICULO);
@@ -1403,6 +1616,10 @@ function calcularCotizacion(){
   let total = 0, detalle = "";
   if (formTipoArticulo === "Refaccion"){
     const item = REFACCIONES.find(r => String(r.id) === String(borrador.piezaId));
+    total = item?.precio || 0;
+    detalle = item ? item.nombre : "";
+  } else if (formTipoArticulo === "Accesorio"){
+    const item = ACCESORIOS.find(a => String(a.id) === String(borrador.piezaId));
     total = item?.precio || 0;
     detalle = item ? item.nombre : "";
   } else if (formTipoArticulo === "Credito"){
@@ -1828,6 +2045,7 @@ function mostrarTicketCliente(){
 function cerrarTicketCliente(){
   cerrarModales();
   ticketCerrado = null;
+  ventaSeccionAbierta = false;
   renderPanelVenta();
   renderPanelLateral();
   renderShortcutsBar();
@@ -2051,6 +2269,7 @@ function abrirFichaInventario(id){
   $("#btnIniciarVenta").addEventListener("click", () => {
     cerrarModales();
     formTipoArticulo = "Vehiculo";
+    ventaSeccionAbierta = true;
     borrador = { marca: car.marca, modelo: car.modelo };
     salirResultadosBusqueda();
   });
@@ -2063,6 +2282,7 @@ function abrirFichaInventario(id){
 function renderInventario(){
   const panel = $("#panelFull");
   const q = searchQuery.trim().toLowerCase();
+  panel.classList.toggle("panel-full--cuadros", !q && !inventarioCategoria);
 
   // Si hay texto en el buscador, ignoramos la categoría y buscamos en todo
   if (q){
@@ -2075,13 +2295,13 @@ function renderInventario(){
     return;
   }
 
-  // Sin búsqueda activa: exige elegir una de las 4 categorías primero
+  // Sin búsqueda activa: exige elegir una categoría primero
   if (!inventarioCategoria){
     panel.innerHTML = `
       <div class="panel-heading"><h2>Inventario</h2></div>
       <p class="venta-empty-hint" style="margin-bottom:18px;">Elige una categoría para consultar el inventario correspondiente.</p>
       <div class="tipo-tiles">
-        ${tileTipoHTML("Porsche")}${tileTipoHTML("Audi")}${tileTipoHTML("Ducati")}${tileTipoHTML("Refacciones")}
+        ${tileTipoHTML("Porsche")}${tileTipoHTML("Audi")}${tileTipoHTML("Ducati")}${tileTipoHTML("Refacciones")}${tileTipoHTML("Accesorios")}
       </div>
     `;
     $$(".tipo-tile", panel).forEach(el => el.addEventListener("click", () => {
@@ -2091,34 +2311,39 @@ function renderInventario(){
     return;
   }
 
-  // Los accesorios (código KRM-CAT-ACC-…) salen en Refacciones y también en el inventario de su marca
-  const items = inventarioCategoria === "Refacciones"
-    ? INVENTARIO.filter(c => c.tipo === "refaccion")
-    : INVENTARIO.filter(c => c.marca === inventarioCategoria && (c.tipo !== "refaccion" || String(c.codigo).startsWith("KRM-CAT-ACC-")));
+  // Accesorios = sección «accesorios» del Catálogo; las marcas solo listan vehículos
+  const esAccesorio = (c) => c.seccion === "accesorios";
+  const verAccesorios = inventarioCategoria === "Accesorios";
+  const items = verAccesorios
+    ? INVENTARIO.filter(esAccesorio)
+    : inventarioCategoria === "Refacciones"
+      ? INVENTARIO.filter(c => c.tipo === "refaccion" && !esAccesorio(c))
+      : INVENTARIO.filter(c => c.marca === inventarioCategoria && c.tipo !== "refaccion");
   panel.innerHTML = `
     <div class="section-toolbar">
       <div class="tipo-chip">Categoría: ${inventarioCategoria}<button type="button" id="btnCambiarCategoria">✕</button></div>
     </div>
     <div class="hint-banner">Inventario consultado directamente desde MySQL.</div>
-    ${tablaInventarioHTML(items)}
+    ${tablaInventarioHTML(items, verAccesorios)}
   `;
   $("#btnCambiarCategoria", panel).addEventListener("click", () => { inventarioCategoria = null; renderInventario(); });
 }
 
-// Tabla compartida entre la vista por categoría y la búsqueda global
-function tablaInventarioHTML(items){
+// Tabla compartida entre la vista por categoría y la búsqueda global.
+// esAccesorios muestra el nombre del producto en lugar de Año y Motor (los accesorios no los tienen)
+function tablaInventarioHTML(items, esAccesorios = false){
   if (!items.length){
     return `<div class="empty-state"><strong>Sin resultados</strong>No se encontraron artículos que coincidan con la búsqueda.</div>`;
   }
   return `
     <div class="table-wrap">
       <table class="data-table">
-        <thead><tr><th>Código</th><th>Marca</th><th>Modelo</th><th>Año</th><th>Color</th><th>Motor</th><th>Unidades</th><th>Precio</th></tr></thead>
+        <thead><tr><th>Código</th>${esAccesorios ? "<th>Artículo</th>" : ""}<th>Marca</th><th>Modelo</th>${esAccesorios ? "" : "<th>Año</th>"}<th>Color</th>${esAccesorios ? "" : "<th>Motor</th>"}<th>Unidades</th><th>Precio</th></tr></thead>
         <tbody>
           ${items.map(c => `
             <tr>
-              <td>${c.codigo}</td><td>${c.marca}</td><td>${c.modelo}</td><td>${c.anio ?? "—"}</td><td>${c.color}</td>
-              <td>${c.motor ?? "—"}</td><td>${badgeStockHTML(c.unidades)}</td><td>${formatoMoneda(c.precio)}</td>
+              <td>${c.codigo}</td>${esAccesorios ? `<td class="cell-articulo">${escapeHTML(c.nombre)}</td>` : ""}<td>${c.marca}</td><td>${c.modelo}</td>${esAccesorios ? "" : `<td>${c.anio ?? "—"}</td>`}<td>${c.color}</td>
+              ${esAccesorios ? "" : `<td>${c.motor ?? "—"}</td>`}<td>${badgeStockHTML(c.unidades)}</td><td>${formatoMoneda(c.precio)}</td>
             </tr>`).join("")}
         </tbody>
       </table>
@@ -2618,7 +2843,15 @@ async function cancelarOrdenWebPOS(idOrden){
 // Lleva los datos de una orden web directo al formulario de Venta
 function continuarDesdeWebOrder(orden){
   if (!orden) return;
-  if (orden.tipo === "vehiculo"){
+  ventaSeccionAbierta = true;
+  const accesorio = orden.tipo === "vehiculo" ? null : ACCESORIOS.find(a => a.nombre.toLowerCase() === String(orden.pieza || "").toLowerCase());
+  if (accesorio){
+    formTipoArticulo = "Accesorio";
+    borrador = {
+      webOrderId: orden.id, cliente: orden.nombre,
+      marcaVehiculo: accesorio.marca, piezaId: accesorio.id
+    };
+  } else if (orden.tipo === "vehiculo"){
     // Si la orden ya trae un enganche, lo más común es que sea una venta a crédito
     const item = INVENTARIO.find(c =>
       (orden.productoId && c.id === Number(orden.productoId)) ||

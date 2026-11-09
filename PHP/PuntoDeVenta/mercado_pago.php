@@ -240,6 +240,8 @@ function mpPrepararOperacion(PDO $pdo, string $tipo, array $d, int $idSucursal, 
             $items = is_array($d['items'] ?? null) ? $d['items'] : [];
             $conceptos = is_array($d['conceptos'] ?? null) ? $d['conceptos'] : [];
             if (!$items && !$conceptos) throw new RuntimeException('El ticket está vacío.');
+            $errorRfcIne = posErrorRfcIne(posNormalizarRfcIne($d['rfc_ine'] ?? ''));
+            if ($errorRfcIne !== null) throw new RuntimeException($errorRfcIne);
             [$productos, $total] = posValidarArticulosVenta($pdo, $items, $idSucursal);
             [, $totalConceptos] = posValidarConceptosCaja($pdo, $conceptos, $idSucursal, $productos);
             return [
@@ -253,6 +255,9 @@ function mpPrepararOperacion(PDO $pdo, string $tipo, array $d, int $idSucursal, 
                 ]
             ];
         case 'enganche':
+            // Antes de pasar la tarjeta: la CURP / RFC no puede pertenecer a otro cliente
+            $clienteCredito = contratoNormalizarCliente(is_array($d['cliente'] ?? null) ? $d['cliente'] : []);
+            contratoExigirCurpLibre($pdo, $clienteCredito['rfc_curp'], $clienteCredito['nombre']);
             // Mismo cálculo que preparar_credito: el importe a cobrar hoy es el enganche más lo de contado del ticket
             $items = contratoNormalizarItems($d['items'] ?? null);
             $parametros = contratoNormalizarParametros(is_array($d['credito'] ?? null) ? $d['credito'] : []);

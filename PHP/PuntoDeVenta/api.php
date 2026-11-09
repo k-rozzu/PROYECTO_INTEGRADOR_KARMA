@@ -31,6 +31,22 @@ function money(float $value): float {
     return round($value, 2);
 }
 
+// RFC / INE / CURP de las secciones de cobro: longitud permitida (el dato puede ser ficticio)
+const POS_RFC_INE_MIN = 13;
+const POS_RFC_INE_MAX = 18;
+
+// Deja el RFC / INE / CURP sin espacios y en mayúsculas
+function posNormalizarRfcIne($valor): string {
+    return mb_strtoupper((string)preg_replace('/\s+/u', '', (string)$valor), 'UTF-8');
+}
+
+// Regresa el mensaje de error si el RFC / INE / CURP no tiene una longitud válida; null si es correcto
+function posErrorRfcIne(string $rfcIne, string $etiqueta = 'RFC / INE'): ?string {
+    $n = mb_strlen($rfcIne, 'UTF-8');
+    if ($n >= POS_RFC_INE_MIN && $n <= POS_RFC_INE_MAX) return null;
+    return ($n < POS_RFC_INE_MIN ? 'Campo incompleto' : 'Campo excedido') . ": {$etiqueta} debe tener mínimo " . POS_RFC_INE_MIN . ' y máximo ' . POS_RFC_INE_MAX . ' caracteres.';
+}
+
 // Seguridad: todas las acciones (excepto cerrar sesión) requieren la sesión de un Cajero activo (login del sistema)
 require_once dirname(__DIR__) . '/Login/sesion_pos.php';
 $GLOBALS['cajeroSesion'] = ($_GET['action'] ?? '') === 'logout' ? null : posRequerirApi(db());
@@ -60,6 +76,11 @@ try {
             break;
         case 'validar_vin':
             validarVin();
+            break;
+        // Crédito: avisa antes de cobrar el enganche si la CURP / RFC ya pertenece a otro cliente
+        case 'validar_curp':
+            require_once __DIR__ . '/contrato_credito.php';
+            validarCurpCredito();
             break;
         case 'crear_venta':
             crearVenta();
@@ -207,10 +228,12 @@ function bootstrap(): never {
             p.modelo_3d AS modelo3d,
             p.precio_base AS precio,
             COALESCE(i.stock_actual, 0) AS unidades,
-            c.nombre_categoria AS categoria
+            c.nombre_categoria AS categoria,
+            pw.seccion
         FROM productos p
         JOIN categorias c ON c.id_categoria = p.id_categoria
         LEFT JOIN inventarios i ON i.id_producto = p.id_producto AND i.id_sucursal = ?
+        LEFT JOIN productos_web pw ON pw.id_producto = p.id_producto
         WHERE p.tipo <> 'servicio'
         ORDER BY p.marca, p.modelo, p.anio, p.nombre
     ");
@@ -379,7 +402,8 @@ function bootstrap(): never {
     }
     unset($orden);
 
-    // Refacciones de la sucursal (con su acabado/color y modelo 3D para la vista previa)
+    // Refacciones y accesorios de la sucursal (con su acabado/color y modelo 3D para la vista previa).
+    // Los accesorios son los de la sección «accesorios» del Catálogo: mismos productos y mismas existencias (tabla inventarios)
     $refStmt = $pdo->prepare("
         SELECT
             p.id_producto AS id,
@@ -397,15 +421,27 @@ function bootstrap(): never {
             p.color,
             p.color_hex AS colorHex,
             p.modelo_3d AS modelo3d,
-            COALESCE(i.stock_actual, 0) AS unidades
+            COALESCE(i.stock_actual, 0) AS unidades,
+            pw.seccion,
+            pw.imagen
         FROM productos p
         JOIN categorias c ON c.id_categoria=p.id_categoria
         LEFT JOIN inventarios i ON i.id_producto=p.id_producto AND i.id_sucursal=?
+        LEFT JOIN productos_web pw ON pw.id_producto=p.id_producto
         WHERE c.nombre_categoria='Refacciones' AND p.tipo='refaccion'
         ORDER BY p.nombre
     ");
     $refStmt->execute([$sucursal['id_sucursal']]);
-    $refacciones = $refStmt->fetchAll();
+    $piezas = array_map(function(array $r) {
+        $r['id'] = (int)$r['id'];
+        $r['precio'] = (float)$r['precio'];
+        $r['unidades'] = (int)$r['unidades'];
+        $r['modelo3d'] = rutaModelo3D($r['id'], $r['modelo3d']);
+        // Foto del Catálogo (la usan los accesorios en lugar de un modelo 3D); null si el archivo no existe
+        $r['imagen'] = $r['imagen'] && is_file(dirname(__DIR__, 2) . '/' . $r['imagen']) ? $r['imagen'] : null;
+        return $r;
+    }, $refStmt->fetchAll());
+    $esAccesorio = fn(array $r): bool => $r['seccion'] === 'accesorios';
 
     // Respuesta final con los tipos numéricos corregidos
     ok([
@@ -424,13 +460,8 @@ function bootstrap(): never {
         'clientes' => $clientes,
         'garantias' => $garantias,
         'weborders' => $webOrders,
-        'refacciones' => array_map(function(array $r) {
-            $r['id'] = (int)$r['id'];
-            $r['precio'] = (float)$r['precio'];
-            $r['unidades'] = (int)$r['unidades'];
-            $r['modelo3d'] = rutaModelo3D($r['id'], $r['modelo3d']);
-            return $r;
-        }, $refacciones),
+        'refacciones' => array_values(array_filter($piezas, fn(array $r): bool => !$esAccesorio($r))),
+        'accesorios' => array_values(array_filter($piezas, $esAccesorio)),
         // Catálogo de conceptos de caja con planes, unidades vendidas y accesorios (pestaña «Servicios»)
         'conceptos' => posCatalogoConceptosCaja($pdo, (int)$sucursal['id_sucursal']),
         // Cobro con tarjeta: si la caja tiene terminal Point y si quedó un cobro abierto que la pantalla debe retomar
@@ -510,6 +541,8 @@ function crearVenta(): never {
     // Los créditos ya no se registran aquí: se concretan solo con el contrato firmado (preparar_credito → concretar_credito)
     if (!empty($data['credito'])) fail('Los créditos se concretan con la firma del contrato. Vuelve a presionar F3 para iniciar el flujo de crédito.');
     if ($recibido <= 0) fail('El dinero recibido debe ser mayor que cero.');
+    $errorRfcIne = posErrorRfcIne(posNormalizarRfcIne($data['rfc_ine'] ?? ''));
+    if ($errorRfcIne !== null) fail($errorRfcIne);
 
     $pdo = db();
     $pdo->beginTransaction();

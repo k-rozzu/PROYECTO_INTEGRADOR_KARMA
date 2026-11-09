@@ -103,7 +103,7 @@ function contratoNormalizarCliente(array $c): array {
     $texto = fn(string $k, int $max): string => mb_substr(trim(preg_replace('/\s+/u', ' ', (string)($c[$k] ?? ''))), 0, $max);
     $cliente = [
         'nombre' => $texto('nombre', 150),
-        'rfc_curp' => strtoupper(str_replace(' ', '', $texto('rfc_curp', 20))),
+        'rfc_curp' => posNormalizarRfcIne($c['rfc_curp'] ?? ''),
         'email' => $texto('email', 120),
         'celular' => $texto('celular', 30),
         'direccion' => $texto('direccion', 255),
@@ -111,7 +111,8 @@ function contratoNormalizarCliente(array $c): array {
         'identificacion_numero' => strtoupper($texto('identificacion_numero', 40))
     ];
     if ($cliente['nombre'] === '') fail('Escribe el nombre completo del cliente.');
-    if (!contratoRfcCurpValido($cliente['rfc_curp'])) fail('El RFC debe tener 12 o 13 caracteres (3 o 4 letras, 6 números y 3 letras o números) y la CURP 18 (4 letras, 6 números y 8 letras o números).');
+    $errorRfcCurp = posErrorRfcIne($cliente['rfc_curp'], 'RFC / CURP');
+    if ($errorRfcCurp !== null) fail($errorRfcCurp);
     if ($cliente['direccion'] === '') fail('El contrato necesita el domicilio particular del cliente.');
     if (!in_array($cliente['identificacion_tipo'], ['INE', 'Pasaporte', 'Otra'], true)) fail('Elige el tipo de identificación oficial.');
     if ($cliente['identificacion_numero'] === '') fail('Escribe el número o folio de la identificación oficial.');
@@ -119,10 +120,31 @@ function contratoNormalizarCliente(array $c): array {
     return $cliente;
 }
 
-// Estructura de RFC (12 o 13) o CURP (18): solo letras y números en sus posiciones. No exige que el dato exista
-// (ni sexo, entidad o dígito verificador reales): el proyecto usa RFC y CURP ficticios
-function contratoRfcCurpValido(string $v): bool {
-    return (bool)preg_match('/^([A-ZÑ&]{3,4}\d{6}[A-ZÑ\d]{3}|[A-ZÑ]{4}\d{6}[A-ZÑ\d]{8})$/u', $v);
+// Una CURP / RFC solo puede pertenecer a un cliente: el titular es quien firmó el primer contrato con ese dato y él sí puede
+// volver a usarla. Con $bloquear (al firmar, dentro de la transacción) se bloquean todos los contratos con esa CURP para que
+// dos cajeros no concreten a la vez con la misma CURP y nombres distintos.
+function contratoExigirCurpLibre(PDO $pdo, string $rfcCurp, string $nombre, bool $bloquear = false): void {
+    $stmt = $pdo->prepare("
+        SELECT estado, cliente_nombre, cliente_nombre = ? AS mismo_nombre
+        FROM contratos_credito
+        WHERE rfc_curp = ?
+        ORDER BY id_contrato" . ($bloquear ? ' FOR UPDATE' : ''));
+    $stmt->execute([$nombre, $rfcCurp]);
+    foreach ($stmt->fetchAll() as $k) {
+        if ($k['estado'] !== 'firmado') continue;
+        if ((int)$k['mismo_nombre'] === 1) return;
+        throw new RuntimeException("La CURP / RFC {$rfcCurp} ya está registrada a nombre de {$k['cliente_nombre']}. No se puede usar para otro cliente.");
+    }
+}
+
+// Aviso temprano del botón Guardar: se revisa antes de cobrar el enganche
+function validarCurpCredito(): never {
+    $d = jsonInput();
+    $rfcCurp = posNormalizarRfcIne($d['rfc_curp'] ?? '');
+    $error = posErrorRfcIne($rfcCurp, 'RFC / CURP');
+    if ($error !== null) fail($error);
+    contratoExigirCurpLibre(db(), $rfcCurp, mb_substr(trim((string)preg_replace('/\s+/u', ' ', (string)($d['nombre'] ?? ''))), 0, 150));
+    ok(['valido' => true]);
 }
 
 // Parámetros del crédito elegidos en el formulario (enganche, plazo y tasa) + lo que calculó el navegador para comparar
@@ -863,6 +885,7 @@ function prepararCredito(): never {
 
     $pdo->beginTransaction();
     try {
+        contratoExigirCurpLibre($pdo, $cliente['rfc_curp'], $cliente['nombre']);
         // Un cajero solo tiene un contrato esperando firma: los anteriores que nunca se firmaron quedan cancelados
         $pdo->prepare("UPDATE contratos_credito SET estado = 'cancelado', fecha_cancelacion = NOW() WHERE estado = 'pendiente_firma' AND id_usuario = ?")
             ->execute([$idUsuario]);
@@ -887,13 +910,13 @@ function prepararCredito(): never {
         $cr = $datos['credito'];
         $ins = $pdo->prepare("
             INSERT INTO contratos_credito
-            (estado, id_sucursal, id_usuario, id_caja, ticket_numero, id_producto, vin, cliente_nombre,
+            (estado, id_sucursal, id_usuario, id_caja, ticket_numero, id_producto, vin, cliente_nombre, rfc_curp,
              precio_contado, enganche, saldo_financiar, comision_apertura, monto_financiado, tasa_anual, cat, plazo_meses,
              mensualidad, monto_interes, monto_total, importe_cobrado, metodo_pago, efectivo_recibido, cambio, datos_json)
-            VALUES ('pendiente_firma', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}')
+            VALUES ('pendiente_firma', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}')
         ");
         $ins->execute([
-            $idSucursal, $idUsuario, $idCaja, $ticketNumero, $datos['vehiculo']['id_producto'], $datos['vehiculo']['vin'], $cliente['nombre'],
+            $idSucursal, $idUsuario, $idCaja, $ticketNumero, $datos['vehiculo']['id_producto'], $datos['vehiculo']['vin'], $cliente['nombre'], $cliente['rfc_curp'],
             $cr['precio_contado'], $cr['enganche'], $cr['saldo_financiar'], $cr['comision_apertura'], $cr['monto_financiado'], $cr['tasa_anual'],
             $cr['cat'], $cr['plazo_meses'], $cr['mensualidad'], $cr['monto_interes'], $cr['monto_total'],
             $op['importe'], $op['metodo'], $op['recibido'], $op['cambio']
@@ -962,6 +985,12 @@ function concretarCredito(): never {
     $pdo = db();
     $pdo->beginTransaction();
     try {
+        // Primero se bloquea la CURP (antes que el contrato) para que dos firmas simultáneas no se esperen entre sí
+        $acreditado = $pdo->prepare("SELECT rfc_curp, cliente_nombre FROM contratos_credito WHERE id_contrato = ?");
+        $acreditado->execute([$idContrato]);
+        $acreditado = $acreditado->fetch();
+        if ($acreditado && $acreditado['rfc_curp'] !== null) contratoExigirCurpLibre($pdo, $acreditado['rfc_curp'], $acreditado['cliente_nombre'], true);
+
         $stmt = $pdo->prepare("SELECT * FROM contratos_credito WHERE id_contrato = ? FOR UPDATE");
         $stmt->execute([$idContrato]);
         $contrato = $stmt->fetch();

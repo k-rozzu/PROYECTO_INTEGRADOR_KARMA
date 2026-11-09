@@ -102,11 +102,6 @@ function payloadConcepto(){
 
 /* ----- 2. Formulario de la pestaña «Servicios» ----- */
 
-// Botón de la pestaña (se agrega al segmentado de Vehículo / Crédito / Refacción)
-function botonTipoConceptosHTML(){
-  return `<button type="button" class="segmented-btn ${formTipoArticulo === TIPO_FORM_CONCEPTOS ? "is-active" : ""}" data-form-tipo="${TIPO_FORM_CONCEPTOS}">Servicios</button>`;
-}
-
 // Formulario completo cuando la pestaña activa es «Servicios» (misma estructura que formularioVentaHTML de script.js)
 function formularioConceptosHTML(){
   const b = borrador;
@@ -116,12 +111,7 @@ function formularioConceptosHTML(){
     ${modoCotizacion ? `<div class="cotizacion-banner"><span>Modo cotización — esta venta no se guardará en el ticket</span></div>` : ""}
     ${b.articuloRef ? `<div class="hint-banner">Interés registrado en la web: <strong>${escapeHTML(b.articuloRef)}</strong></div>` : ""}
 
-    <div class="segmented tipo-articulo-toggle">
-      <button type="button" class="segmented-btn" data-form-tipo="Vehiculo">Vehículo</button>
-      <button type="button" class="segmented-btn" data-form-tipo="Credito">Crédito</button>
-      <button type="button" class="segmented-btn" data-form-tipo="Refaccion">Refacción</button>
-      ${botonTipoConceptosHTML()}
-    </div>
+    ${chipSeccionVentaHTML()}
 
     ${camposConceptosHTML()}
 
@@ -158,7 +148,7 @@ function camposConceptosHTML(){
   return `
     <div class="form-grid">
       <div class="form-field"><label>Cliente</label><input type="text" id="inpClienteS" value="${valor("cliente", primerCliente.cliente || "")}" placeholder="Nombre completo"></div>
-      <div class="form-field"><label>RFC / INE</label><input type="text" id="inpRfcIneS" value="${valor("rfcIne", primerCliente.rfcIne || "")}" placeholder="Identificación"></div>
+      <div class="form-field"><label>RFC / INE</label><input type="text" id="inpRfcIneS" value="${valor("rfcIne", primerCliente.rfcIne || "")}" placeholder="13 a 18 caracteres"></div>
       <div class="form-field"><label>Email</label><input type="email" id="inpEmailS" value="${valor("email", primerCliente.email || "")}" placeholder="correo@ejemplo.com"></div>
       <div class="form-field"><label>Celular</label><input type="tel" id="inpCelularS" value="${valor("celular", primerCliente.celular || "")}" placeholder="10 dígitos"></div>
 
@@ -466,6 +456,7 @@ async function guardarConceptoEnTicket(){
     if (!c){ $("#selConcepto")?.focus(); throw new Error("Elige el concepto que vas a cobrar."); }
     const cliente = $("#inpClienteS").value.trim();
     if (!cliente){ $("#inpClienteS").focus(); return; }
+    const rfcIne = rfcIneCapturado("inpRfcIneS", "RFC / INE");
     const email = $("#inpEmailS").value.trim();
     if (email && !/^\S+@\S+\.\S+$/.test(email)) throw new Error("El correo electrónico del cliente no es válido.");
 
@@ -488,7 +479,7 @@ async function guardarConceptoEnTicket(){
       // Si el concepto depende de un vehículo de este ticket, se quita junto con él (F4)
       vehiculoTicketId: payload.vehiculo?.origen === "ticket" ? Number(borrador.vehTicketId) : null,
       payload,
-      cliente, email, celular: $("#inpCelularS").value.trim(), rfcIne: $("#inpRfcIneS").value.trim()
+      cliente, email, celular: $("#inpCelularS").value.trim(), rfcIne
     });
 
     borrador = {};
@@ -564,20 +555,17 @@ function conceptosTicketDigitalHTML(conceptos){
     return data;
   };
 
-  // Formulario: la pestaña «Servicios» dibuja su propio contenido; las demás quedan igual
+  // Formulario: la sección «Servicios» dibuja su propio contenido; los cuadros y las demás secciones quedan igual
+  const seccionServiciosAbierta = () => ventaSeccionAbierta && formTipoArticulo === TIPO_FORM_CONCEPTOS;
   formularioVentaHTML = function(){
-    return formTipoArticulo === TIPO_FORM_CONCEPTOS ? formularioConceptosHTML() : original.formularioVentaHTML();
+    return seccionServiciosAbierta() ? formularioConceptosHTML() : original.formularioVentaHTML();
   };
 
-  // Agrega el botón «Servicios» al segmentado y conecta sus campos (el original conecta el segmentado y las acciones)
+  // El original conecta los cuadros, el chip y las acciones; aquí se conectan los campos de «Servicios»
   bindFormularioVenta = function(){
     const panel = $("#panelVenta");
-    const toggle = panel ? $(".tipo-articulo-toggle", panel) : null;
-    if (toggle && CONCEPTOS_CAJA.disponible && !$(`[data-form-tipo="${TIPO_FORM_CONCEPTOS}"]`, toggle)){
-      toggle.insertAdjacentHTML("beforeend", botonTipoConceptosHTML());
-    }
     original.bindFormularioVenta();
-    if (formTipoArticulo === TIPO_FORM_CONCEPTOS && panel) bindFormularioConceptos(panel);
+    if (seccionServiciosAbierta() && panel) bindFormularioConceptos(panel);
     else reiniciarCalculoConcepto();
   };
 
