@@ -130,6 +130,8 @@ function construirTicketHTML(string $nombreCliente, string $emailCliente, array 
     $total = (float)($ticket['total'] ?? 0);
     $recibido = (float)($ticket['recibido'] ?? 0);
     $cambio = (float)($ticket['cambio'] ?? 0);
+    // Pago con tarjeta (Mercado Pago Point): en lugar de efectivo recibido y cambio se imprime la tarjeta y la operación
+    $tarjeta = is_array($ticket['tarjeta'] ?? null) ? $ticket['tarjeta'] : null;
     $totalLetras = h(numeroALetras($total));
 
     // Un bloque de identificación + garantía por cada vehículo del ticket
@@ -246,8 +248,11 @@ function construirTicketHTML(string $nombreCliente, string $emailCliente, array 
         <tr><td class="etq">Subtotal</td><td>' . karmaMoneyFmt($subtotal) . '</td></tr>
         <tr><td class="etq">' . ($esCredito ? 'Total cobrado hoy (enganche y contado)' : 'Total') . '</td><td>' . karmaMoneyFmt($total) . '</td></tr>
         <tr><td class="etq">Total con letra</td><td>' . $totalLetras . '</td></tr>
-        <tr><td class="etq">Efectivo recibido</td><td>' . karmaMoneyFmt($recibido) . '</td></tr>
-        <tr><td class="etq">Cambio</td><td>' . karmaMoneyFmt($cambio) . '</td></tr>
+        ' . ($tarjeta
+            ? '<tr><td class="etq">Pagado con tarjeta</td><td>' . h(trim(($tarjeta['metodo'] ?? '') . ' ' . ($tarjeta['marca'] ?? ''))) . '</td></tr>
+        <tr><td class="etq">Operación Mercado Pago</td><td>' . h((string)($tarjeta['referencia'] ?? '')) . '</td></tr>'
+            : '<tr><td class="etq">Efectivo recibido</td><td>' . karmaMoneyFmt($recibido) . '</td></tr>
+        <tr><td class="etq">Cambio</td><td>' . karmaMoneyFmt($cambio) . '</td></tr>') . '
       </table>
       <div class="total-box"><strong>' . $leyendaPago . '</strong></div>
 

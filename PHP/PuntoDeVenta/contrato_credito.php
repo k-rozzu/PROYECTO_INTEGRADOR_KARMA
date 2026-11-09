@@ -12,6 +12,8 @@ declare(strict_types=1);
 
 // h(), karmaMoneyFmt(), numeroALetras(), karmaCargarDompdf() y el sello/logo SVG (karmaAssetSvg) del ticket en PDF
 require_once __DIR__ . '/correo.php';
+// Enganche cobrado con tarjeta (Mercado Pago Point): el contrato usa ese pago aprobado
+require_once __DIR__ . '/mercado_pago.php';
 
 // Datos de la empresa: el RFC es de DEMOSTRACIÓN (no existe en el sistema) y así se indica en el contrato
 const KARMA_RAZON_SOCIAL = 'KARMA S.A. de C.V.';
@@ -437,7 +439,15 @@ function contratoCalcularOperacion(PDO $pdo, array $items, array $lineas, array 
     // El seguro NO se cobra hoy: se financia junto con el vehículo.
     $importe = money($enganche + $contado);
 
-    if ($importe > 0) {
+    if ($importe > 0 && $pago['metodo'] === 'Tarjeta') {
+        // Enganche cobrado con Mercado Pago Point (mercado_pago.php): importe exacto y sin cambio
+        if (isset($pago['importe_tarjeta']) && abs((float)$pago['importe_tarjeta'] - $importe) > 0.009) {
+            fail('El cobro con tarjeta no coincide con el enganche de este crédito. Vuelve a capturarlo.');
+        }
+        $metodo = (string)($pago['nombre_metodo'] ?? 'Tarjeta');
+        $recibido = $importe;
+        $cambio = 0.0;
+    } elseif ($importe > 0) {
         if ($pago['metodo'] !== 'Efectivo') {
             fail('Selecciona un método de pago disponible para cobrar el enganche.');
         }
@@ -849,12 +859,19 @@ function prepararCredito(): never {
     $parametros = contratoNormalizarParametros(is_array($data['credito'] ?? null) ? $data['credito'] : []);
     $pago = ['metodo' => (string)($data['metodo_pago'] ?? ''), 'recibido' => money((float)($data['efectivo_recibido'] ?? 0))];
     $ordenesWeb = array_values(array_unique(array_filter(array_map('intval', (array)($data['ordenes_web'] ?? [])))));
+    $idPagoTarjeta = (int)($data['id_pago_mp'] ?? 0);
 
     $pdo->beginTransaction();
     try {
         // Un cajero solo tiene un contrato esperando firma: los anteriores que nunca se firmaron quedan cancelados
         $pdo->prepare("UPDATE contratos_credito SET estado = 'cancelado', fecha_cancelacion = NOW() WHERE estado = 'pendiente_firma' AND id_usuario = ?")
             ->execute([$idUsuario]);
+        mpLiberarEnganches($pdo, $idUsuario);
+        // Enganche cobrado con tarjeta: el contrato usa ese pago aprobado (mismo cajero, importe exacto)
+        if ($pago['metodo'] === 'Tarjeta') {
+            $cobroTarjeta = mpEngancheParaContrato($pdo, $idPagoTarjeta, $idUsuario);
+            $pago += ['importe_tarjeta' => (float)$cobroTarjeta['importe'], 'nombre_metodo' => mpNombreMetodo($cobroTarjeta['tarjeta_tipo'])];
+        }
 
         // Mismas validaciones que la venta de contado: producto, VIN registrado y existencias en la sucursal
         [$lineas] = posValidarArticulosVenta($pdo, $items, $idSucursal);
@@ -882,6 +899,9 @@ function prepararCredito(): never {
             $op['importe'], $op['metodo'], $op['recibido'], $op['cambio']
         ]);
         $idContrato = (int)$pdo->lastInsertId();
+        if ($pago['metodo'] === 'Tarjeta') {
+            $pdo->prepare("UPDATE pagos_mercadopago SET id_contrato = ? WHERE id_pago_mp = ?")->execute([$idContrato, $idPagoTarjeta]);
+        }
         $datos['folio'] = sprintf('KRM-CC-%02d-%06d', $idSucursal, $idContrato);
         $pdo->prepare("UPDATE contratos_credito SET folio = ?, datos_json = ? WHERE id_contrato = ?")
             ->execute([$datos['folio'], json_encode($datos, JSON_UNESCAPED_UNICODE), $idContrato]);
@@ -931,6 +951,7 @@ function concretarCredito(): never {
     }
     if (time() > (int)$pendiente['expira']) {
         db()->prepare("UPDATE contratos_credito SET estado = 'cancelado', fecha_cancelacion = NOW() WHERE id_contrato = ? AND estado = 'pendiente_firma'")->execute([$idContrato]);
+        mpLiberarEnganches(db(), $idUsuario);
         unset($_SESSION['pos_contrato_pendiente']);
         fail('Venció el tiempo para firmar el contrato. Vuelve a iniciar el crédito con F3.', 409);
     }
@@ -977,6 +998,8 @@ function concretarCredito(): never {
             'id_cliente' => $idCliente, 'total' => (float)$contrato['importe_cobrado'], 'recibido' => (float)$contrato['efectivo_recibido'],
             'cambio' => (float)$contrato['cambio'], 'ticket_numero' => (int)$contrato['ticket_numero']
         ], $lineas);
+        // Enganche cobrado con tarjeta: su cobro queda registrado con esta venta
+        if (str_starts_with((string)$contrato['metodo_pago'], 'Tarjeta')) mpCerrarEnganche($pdo, $idContrato, $ventaId);
         posMarcarOrdenesWeb($pdo, (array)($sol['ordenes_web'] ?? []), $ventaId, $idSucursal);
         // Garantía de 4 años del vehículo a crédito (y de cualquier otro vehículo del mismo ticket)
         posRegistrarGarantias($pdo, $ventaId, $idSucursal, $lineas, $sol['cliente'], $idCliente);
@@ -1075,6 +1098,8 @@ function cancelarCredito(): never {
     $idContrato = (int)(jsonInput()['id_contrato'] ?? 0);
     $stmt = db()->prepare("UPDATE contratos_credito SET estado = 'cancelado', fecha_cancelacion = NOW() WHERE id_contrato = ? AND estado = 'pendiente_firma' AND id_usuario = ?");
     $stmt->execute([$idContrato, (int)$GLOBALS['cajeroSesion']['id_usuario']]);
+    // Si el enganche se cobró con tarjeta, ese pago queda libre para usarse al volver a iniciar el crédito
+    mpLiberarEnganches(db(), (int)$GLOBALS['cajeroSesion']['id_usuario']);
     if ((int)($_SESSION['pos_contrato_pendiente']['id'] ?? 0) === $idContrato) unset($_SESSION['pos_contrato_pendiente']);
     if (!$stmt->rowCount()) fail('Ese contrato ya no está pendiente de firma (ya se firmó o se canceló).', 409);
     ok(['message' => 'El contrato se canceló y el crédito no se registró.']);
@@ -1097,7 +1122,7 @@ function cobrarAbono(): never {
     $clave = strtolower(trim((string)($data['clave'] ?? '')));
     $recibido = money((float)($data['efectivo_recibido'] ?? 0));
     if (!preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $clave)) fail('Solicitud de cobro no válida. Vuelve a agregar el abono al ticket.');
-    // Mismo cobro que una venta normal: hoy solo está habilitado el efectivo (la terminal de tarjeta aún no está conectada)
+    // Esta ruta cobra en efectivo; con tarjeta el abono se cobra con mp_iniciar_cobro y se registra con abonoRegistrar() al aprobarse
     if (($data['metodo_pago'] ?? '') !== 'Efectivo') fail('Selecciona un método de pago disponible para cobrar el abono.');
 
     $pdo = db();
@@ -1107,68 +1132,10 @@ function cobrarAbono(): never {
 
     $pdo->beginTransaction();
     try {
-        $stmt = $pdo->prepare("SELECT * FROM contratos_credito WHERE id_contrato = ? FOR UPDATE");
-        $stmt->execute([$idContrato]);
-        $contrato = $stmt->fetch();
-        if (!$contrato || $contrato['estado'] !== 'firmado') throw new RuntimeException('El crédito ya no existe.');
-
-        // Reenvío del mismo cobro (doble clic, recarga o reintento por error de red): se responde con el abono ya registrado
-        $previo = $pdo->prepare("SELECT * FROM abonos_credito WHERE clave_idempotencia = ?");
-        $previo->execute([$clave]);
-        if ($abono = $previo->fetch()) {
-            $pdo->commit();
-            ok(abonoRespuesta($pdo, $abono, $contrato) + ['repetido' => true]);
-        }
-
-        if ($contrato['estado_credito'] !== 'activo') throw new RuntimeException('Este crédito ya no tiene abonos pendientes.');
-        $siguiente = (int)$contrato['abonos_pagados'] + 1;
-        $plazo = (int)$contrato['plazo_meses'];
-        if ($siguiente > $plazo) throw new RuntimeException('Este crédito ya no tiene abonos pendientes.');
-        if ($numero !== $siguiente) {
-            throw new RuntimeException("El abono {$numero} ya no está pendiente: el siguiente es el {$siguiente} de {$plazo}. Quita el abono del ticket (F4) y vuelve a agregarlo desde Clientes.");
-        }
-
-        // Importe exacto de esa mensualidad en la tabla de amortización del contrato
-        $datos = json_decode((string)$contrato['datos_json'], true) ?: [];
-        $fila = $datos['amortizacion'][$siguiente - 1] ?? null;
-        $importe = $fila ? round((float)$fila['cuota'], 2) : round((float)$contrato['mensualidad'], 2);
-        $vence = $fila ? DateTimeImmutable::createFromFormat('d/m/Y', (string)$fila['fecha']) : false;
-        if ($recibido < $importe) throw new RuntimeException('El dinero recibido es menor al importe del abono.');
-        $cambio = money($recibido - $importe);
-        $saldoAnterior = round((float)$contrato['saldo_pendiente'], 2);
-        $liquida = $siguiente === $plazo;
-        $saldoRestante = $liquida ? 0.0 : max(round($saldoAnterior - $importe, 2), 0.0);
-
-        $pdo->prepare("
-            INSERT INTO abonos_credito
-            (id_contrato, id_cliente, numero_abono, importe, saldo_anterior, saldo_restante, fecha_vencimiento, id_sucursal, id_usuario,
-             id_caja, ticket_numero, metodo_pago, efectivo_recibido, cambio, clave_idempotencia)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Efectivo', ?, ?, ?)
-        ")->execute([
-            $idContrato, $contrato['id_cliente'], $siguiente, $importe, $saldoAnterior, $saldoRestante, $vence ? $vence->format('Y-m-d') : null,
-            $idSucursal, $idUsuario, $idCaja, $ticketNumero, $recibido, $cambio, $clave
+        $r = abonoRegistrar($pdo, [
+            'id_contrato' => $idContrato, 'numero' => $numero, 'clave' => $clave, 'id_sucursal' => $idSucursal, 'id_usuario' => $idUsuario,
+            'id_caja' => $idCaja, 'ticket_numero' => $ticketNumero, 'metodo_pago' => 'Efectivo', 'recibido' => $recibido
         ]);
-        $idAbono = (int)$pdo->lastInsertId();
-        $pdo->prepare("UPDATE abonos_credito SET folio = ? WHERE id_abono = ?")->execute([sprintf('KRM-AB-%02d-%06d', $idSucursal, $idAbono), $idAbono]);
-
-        // El crédito avanza; al pagar la última mensualidad queda liquidado y sale de la sección Clientes
-        $pdo->prepare("
-            UPDATE contratos_credito
-            SET abonos_pagados = ?, saldo_pendiente = ?, estado_credito = ?, fecha_liquidacion = IF(? = 1, NOW(), fecha_liquidacion)
-            WHERE id_contrato = ?
-        ")->execute([$siguiente, $saldoRestante, $liquida ? 'liquidado' : 'activo', $liquida ? 1 : 0, $idContrato]);
-
-        // La ficha del cliente (que también muestra la cuenta del Catálogo) refleja su crédito más reciente
-        if ($contrato['id_cliente']) {
-            $pdo->prepare("
-                UPDATE clientes SET abonos_pagados = ?, total_adeudo = ?
-                WHERE id_cliente = ? AND ? = (SELECT MAX(k.id_contrato) FROM contratos_credito k WHERE k.id_cliente = ? AND k.estado = 'firmado')
-            ")->execute([$siguiente, $saldoRestante, (int)$contrato['id_cliente'], $idContrato, (int)$contrato['id_cliente']]);
-        }
-
-        $abono = $pdo->prepare("SELECT * FROM abonos_credito WHERE id_abono = ?");
-        $abono->execute([$idAbono]);
-        $registrado = $abono->fetch();
         $pdo->commit();
     } catch (RuntimeException $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
@@ -1178,7 +1145,88 @@ function cobrarAbono(): never {
         throw $e;
     }
 
-    ok(abonoRespuesta($pdo, $registrado, $contrato) + ['repetido' => false]);
+    ok(abonoRespuesta($pdo, $r['abono'], $r['contrato']) + ['repetido' => $r['repetido']]);
+}
+
+// Bloquea el contrato del abono y revisa que siga firmado (cobro en efectivo o con tarjeta)
+function abonoContratoBloqueado(PDO $pdo, int $idContrato): array {
+    $stmt = $pdo->prepare("SELECT * FROM contratos_credito WHERE id_contrato = ? FOR UPDATE");
+    $stmt->execute([$idContrato]);
+    $contrato = $stmt->fetch();
+    if (!$contrato || $contrato['estado'] !== 'firmado') throw new RuntimeException('El crédito ya no existe.');
+    return $contrato;
+}
+
+// Mensualidad que toca cobrar: debe ser exactamente la siguiente pendiente; importe y vencimiento salen de la amortización
+function abonoSiguiente(array $contrato, int $numero): array {
+    if ($contrato['estado_credito'] !== 'activo') throw new RuntimeException('Este crédito ya no tiene abonos pendientes.');
+    $siguiente = (int)$contrato['abonos_pagados'] + 1;
+    $plazo = (int)$contrato['plazo_meses'];
+    if ($siguiente > $plazo) throw new RuntimeException('Este crédito ya no tiene abonos pendientes.');
+    if ($numero !== $siguiente) {
+        throw new RuntimeException("El abono {$numero} ya no está pendiente: el siguiente es el {$siguiente} de {$plazo}. Quita el abono del ticket (F4) y vuelve a agregarlo desde Clientes.");
+    }
+
+    // Importe exacto de esa mensualidad en la tabla de amortización del contrato
+    $datos = json_decode((string)$contrato['datos_json'], true) ?: [];
+    $fila = $datos['amortizacion'][$siguiente - 1] ?? null;
+    $importe = $fila ? round((float)$fila['cuota'], 2) : round((float)$contrato['mensualidad'], 2);
+    $vence = $fila ? DateTimeImmutable::createFromFormat('d/m/Y', (string)$fila['fecha']) : false;
+    $saldoAnterior = round((float)$contrato['saldo_pendiente'], 2);
+    $liquida = $siguiente === $plazo;
+    return [
+        'numero' => $siguiente, 'plazo' => $plazo, 'importe' => $importe, 'vence' => $vence ? $vence->format('Y-m-d') : null,
+        'saldo_anterior' => $saldoAnterior, 'liquida' => $liquida,
+        'saldo_restante' => $liquida ? 0.0 : max(round($saldoAnterior - $importe, 2), 0.0)
+    ];
+}
+
+// Registra la mensualidad dentro de la transacción de quien llama. Un reenvío del mismo cobro (doble clic, recarga o reintento
+// por error de red) regresa el abono ya registrado. $p['recibido'] = null en el cobro con tarjeta (importe exacto, sin cambio).
+// Regresa ['repetido' => bool, 'abono' => fila de abonos_credito, 'contrato' => fila del contrato].
+function abonoRegistrar(PDO $pdo, array $p): array {
+    $idContrato = (int)$p['id_contrato'];
+    $contrato = abonoContratoBloqueado($pdo, $idContrato);
+
+    $previo = $pdo->prepare("SELECT * FROM abonos_credito WHERE clave_idempotencia = ?");
+    $previo->execute([$p['clave']]);
+    if ($abono = $previo->fetch()) return ['repetido' => true, 'abono' => $abono, 'contrato' => $contrato];
+
+    $a = abonoSiguiente($contrato, (int)$p['numero']);
+    $recibido = $p['recibido'] ?? $a['importe'];
+    if ($recibido < $a['importe']) throw new RuntimeException('El dinero recibido es menor al importe del abono.');
+    $cambio = money($recibido - $a['importe']);
+
+    $pdo->prepare("
+        INSERT INTO abonos_credito
+        (id_contrato, id_cliente, numero_abono, importe, saldo_anterior, saldo_restante, fecha_vencimiento, id_sucursal, id_usuario,
+         id_caja, ticket_numero, metodo_pago, efectivo_recibido, cambio, clave_idempotencia)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ")->execute([
+        $idContrato, $contrato['id_cliente'], $a['numero'], $a['importe'], $a['saldo_anterior'], $a['saldo_restante'], $a['vence'],
+        $p['id_sucursal'], $p['id_usuario'], $p['id_caja'], $p['ticket_numero'], $p['metodo_pago'], $recibido, $cambio, $p['clave']
+    ]);
+    $idAbono = (int)$pdo->lastInsertId();
+    $pdo->prepare("UPDATE abonos_credito SET folio = ? WHERE id_abono = ?")->execute([sprintf('KRM-AB-%02d-%06d', $p['id_sucursal'], $idAbono), $idAbono]);
+
+    // El crédito avanza; al pagar la última mensualidad queda liquidado y sale de la sección Clientes
+    $pdo->prepare("
+        UPDATE contratos_credito
+        SET abonos_pagados = ?, saldo_pendiente = ?, estado_credito = ?, fecha_liquidacion = IF(? = 1, NOW(), fecha_liquidacion)
+        WHERE id_contrato = ?
+    ")->execute([$a['numero'], $a['saldo_restante'], $a['liquida'] ? 'liquidado' : 'activo', $a['liquida'] ? 1 : 0, $idContrato]);
+
+    // La ficha del cliente (que también muestra la cuenta del Catálogo) refleja su crédito más reciente
+    if ($contrato['id_cliente']) {
+        $pdo->prepare("
+            UPDATE clientes SET abonos_pagados = ?, total_adeudo = ?
+            WHERE id_cliente = ? AND ? = (SELECT MAX(k.id_contrato) FROM contratos_credito k WHERE k.id_cliente = ? AND k.estado = 'firmado')
+        ")->execute([$a['numero'], $a['saldo_restante'], (int)$contrato['id_cliente'], $idContrato, (int)$contrato['id_cliente']]);
+    }
+
+    $abono = $pdo->prepare("SELECT * FROM abonos_credito WHERE id_abono = ?");
+    $abono->execute([$idAbono]);
+    return ['repetido' => false, 'abono' => $abono->fetch(), 'contrato' => $contrato];
 }
 
 // Datos del abono para el ticket (mismos campos al cobrar y al responder un reenvío)

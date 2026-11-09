@@ -14,6 +14,38 @@ const FIRMA_EXPORT = { ancho: 600, alto: 200, x0: 24, x1: 576, y0: 18, y1: 182 }
 /* ----- 1. Verificación del empleado y contrato preparado en el servidor ----- */
 
 // Se llama desde confirmarVentaDB() cuando el ticket trae un crédito (el enganche ya se cobró o es de $0)
+// Artículos, cliente y condiciones del crédito del ticket (los usan preparar_credito y el cobro del enganche con tarjeta)
+function datosCreditoTicket(itemCredito){
+  return {
+    ordenes_web: ticketItems.map(it => it.webOrderId).filter(Boolean),
+    items: ticketItems.map(it => ({
+      producto_id: it.productoId,
+      cantidad: it.cantidad || 1,
+      es_credito: !!it.esCredito,
+      vin: it.vin || "",
+      motor_serie: it.motorTipo || "",
+      color_interior: it.colorInterior || ""
+    })),
+    cliente: {
+      nombre: itemCredito.cliente, rfc_curp: itemCredito.rfcIne, email: itemCredito.email, celular: itemCredito.celular,
+      direccion: itemCredito.direccion, identificacion_tipo: itemCredito.identificacionTipo, identificacion_numero: itemCredito.identificacionNumero
+    },
+    credito: {
+      producto_id: itemCredito.productoId,
+      enganche_tipo: itemCredito.engancheTipo,
+      enganche_valor: itemCredito.engancheValor,
+      plazo_meses: itemCredito.plazoMeses,
+      tasa_anual: itemCredito.tasaAnual,
+      // Se envía la elección, no el precio del seguro.
+      contratar_seguro: itemCredito.contratarSeguro === true,
+      esperado: {
+        enganche: itemCredito.enganche,
+        mensualidad: itemCredito.montoAbono
+      }
+    }
+  };
+}
+
 async function iniciarContratoCredito(itemCredito, boton){
   const pago = { ...pagoEstado };
   const sinCobro = pago.metodo === "Sin cobro";
@@ -32,39 +64,12 @@ async function iniciarContratoCredito(itemCredito, boton){
       body: JSON.stringify({
         id_caja: CAJA_ACTUAL_ID,
         ticket_numero: ticketNumero,
-        metodo_pago: sinCobro ? "Sin cobro" : "Efectivo",
+        // Enganche con tarjeta: el servidor usa el cobro ya aprobado en la terminal (id_pago_mp)
+        metodo_pago: sinCobro ? "Sin cobro" : (pago.metodo === "Tarjeta" ? "Tarjeta" : "Efectivo"),
+        id_pago_mp: pago.idPagoMp || null,
         efectivo_recibido: sinCobro ? 0 : pago.recibido,
         cambio: sinCobro ? 0 : pago.cambio,
-        ordenes_web: ticketItems.map(it => it.webOrderId).filter(Boolean),
-        items: ticketItems.map(it => ({
-          producto_id: it.productoId,
-          cantidad: it.cantidad || 1,
-          es_credito: !!it.esCredito,
-          vin: it.vin || "",
-          motor_serie: it.motorTipo || "",
-          color_interior: it.colorInterior || ""
-        })),
-        cliente: {
-          nombre: itemCredito.cliente, rfc_curp: itemCredito.rfcIne, email: itemCredito.email, celular: itemCredito.celular,
-          direccion: itemCredito.direccion, identificacion_tipo: itemCredito.identificacionTipo, identificacion_numero: itemCredito.identificacionNumero
-        },
-        
-        credito: {
-          producto_id: itemCredito.productoId,
-          enganche_tipo: itemCredito.engancheTipo,
-          enganche_valor: itemCredito.engancheValor,
-          plazo_meses: itemCredito.plazoMeses,
-          tasa_anual: itemCredito.tasaAnual,
-
-        // Se envía la elección, no el precio del seguro.
-          contratar_seguro: itemCredito.contratarSeguro === true,
-
-          esperado: {
-            enganche: itemCredito.enganche,
-            mensualidad: itemCredito.montoAbono
-          }
-        }
-
+        ...datosCreditoTicket(itemCredito)
       })
     });
 
@@ -166,7 +171,9 @@ async function cancelarContratoCredito(){
   const k = contratoEnCurso;
   if (!k || k.enviando) return;
   const r = k.resumen;
-  const aviso = r.importe > 0
+  const aviso = k.pago?.metodo === "Tarjeta"
+    ? `¿Cancelar la operación? El crédito NO se registrará. El enganche ya cobrado con tarjeta (${formatoMonedaCentavos(r.importe)}) queda guardado: si vuelves a iniciar este crédito se usará sin cobrarlo otra vez.`
+    : r.importe > 0
     ? `¿Cancelar la operación? El crédito NO se registrará y debes devolver al cliente lo cobrado (${formatoMonedaCentavos(r.importe)}).`
     : "¿Cancelar la operación? El crédito no se registrará.";
   if (!confirm(aviso)) return;
@@ -436,6 +443,7 @@ async function aceptarFirmaContrato(){
       total: data.total,
       recibido: data.recibido,
       cambio: data.cambio,
+      tarjeta: k.pago?.tarjeta || null,
       items: k.items,
       contrato: { id: data.contrato.id, folio: data.contrato.folio, resumen: `${r.plazo} mensualidades de ${formatoMonedaCentavos(r.mensualidad)}` }
     };

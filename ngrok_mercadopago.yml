@@ -1,0 +1,10 @@
+# KARMA · Política del túnel ngrok: solo deja pasar el Webhook de Mercado Pago (POST). Todo lo demás de XAMPP
+# (phpMyAdmin, el .env, el Punto de Venta, el Catálogo…) responde 404 desde internet. La usa iniciar_tunel_mercadopago.bat
+on_http_request:
+  - expressions:
+      - "req.url.path != '/PROYECTO_INTEGRADOR_KARMA/PHP/PuntoDeVenta/mercadopago_webhook.php' || req.method != 'POST'"
+    actions:
+      - type: custom-response
+        config:
+          status_code: 404
+          content: "Not found"

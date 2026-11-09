@@ -73,6 +73,8 @@ async function cargarDatosDB() {
     $("#statusCaja") && ($("#statusCaja").textContent = CAJA_ACTUAL);
     renderMain();
     renderShortcutsBar();
+    // Cobro con tarjeta (mercado_pago.js): terminal de la caja y, si quedó uno abierto, se retoma
+    mpAlCargarDatos(data.mercadoPago);
   } catch (error) {
     datosDBCargados = false;
     mostrarErrorDB(error.message);
@@ -1530,10 +1532,17 @@ function renderShortcutsBar(){
     <button class="btn btn-primary shortcut-btn ${modoCotizacion ? "is-active" : ""}" id="btnF5" ${pagoActivo ? "disabled" : ""}>F5 · Cotizar / simular</button>
     <button class="btn btn-primary shortcut-btn" id="btnF6" ${hayItems && !pagoActivo ? "" : "disabled"}>F6 · Cancelar</button>
   `;
-  $("#btnF3").addEventListener("click", () => { if (pagoEstado?.valido) confirmarVentaDB(); else concretarVenta(); });
+  $("#btnF3").addEventListener("click", accionF3);
   $("#btnF4").addEventListener("click", toggleModoEliminar);
   $("#btnF5").addEventListener("click", toggleCotizacion);
   $("#btnF6").addEventListener("click", cancelarTicket);
+}
+
+// F3 (tecla o botón): con tarjeta avanza su cobro; con efectivo confirma; sin método elegido abre el cobro
+function accionF3(){
+  if (pagoEstado?.metodo === "Tarjeta") teclaF3Tarjeta();
+  else if (pagoEstado?.valido) confirmarVentaDB();
+  else concretarVenta();
 }
 
 // F3 — abre el cobro; el número de ticket solo avanza cuando la venta se concreta de verdad
@@ -1572,15 +1581,14 @@ function abrirModalPago(){
       <button class="payment-method-card" id="btnPagoEfectivo" type="button">
         <span class="payment-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="5" width="19" height="14" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M5 9h.01M19 15h.01"/></svg></span><strong>Efectivo</strong><span>Recibir dinero y calcular cambio</span>
       </button>
-      <button class="payment-method-card is-disabled" id="btnPagoTarjeta" type="button">
-        <span class="payment-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 9h19M6 14h4"/></svg></span><strong>Tarjeta</strong><span>Terminal no disponible todavía</span>
-      </button>
+      ${botonPagoTarjetaHTML()}
     </div>
     <button class="btn btn-ghost" id="btnCancelarPago" type="button">Cancelar</button>
   `;
   abrirModal("#modalPago");
   $("#btnPagoEfectivo").addEventListener("click", abrirCobroEfectivo);
-  $("#btnPagoTarjeta").addEventListener("click", () => avisar("La terminal de tarjeta todavía no está conectada."));
+  // Tarjeta: Mercado Pago Point (mercado_pago.js)
+  $("#btnPagoTarjeta").addEventListener("click", abrirCobroTarjetaTicket);
   $("#btnCancelarPago").addEventListener("click", cerrarPago);
 }
 
@@ -1773,6 +1781,9 @@ async function cobrarAbonoDB(item, boton){
 
 /* Cierra la ventana temporal de pago */
 function cerrarPago(){
+  // Un cobro con tarjeta en curso no se cierra a medias: se cancela con su botón o termina en la terminal
+  if (cobroTarjetaEnCurso()) return;
+  soltarCobroTarjeta();
   pagoEstado = null;
   cerrarModales();
   renderShortcutsBar();
@@ -1794,7 +1805,9 @@ function mostrarTicketCliente(){
           : `<div class="digital-ticket-line"><span>${escapeHTML(it.articulo)}</span><strong>${formatoMoneda(it.precioTotal)}</strong></div>`).join("")}
       </div>
       <div class="digital-ticket-total"><span>${t.contrato || t.abono ? "Total cobrado" : "Total"}</span><strong>${t.contrato || t.abono ? formatoMonedaCentavos(t.total) : formatoMoneda(t.total)}</strong></div>
-      <div class="digital-ticket-paid"><span>Recibido</span><span>${formatoMoneda(t.recibido)}</span><span>Cambio</span><span>${formatoMoneda(t.cambio)}</span></div>
+      ${t.tarjeta
+        ? `<div class="digital-ticket-paid"><span>Pagado con</span><span>${escapeHTML(t.tarjeta.metodo)}${t.tarjeta.marca ? ` · ${escapeHTML(t.tarjeta.marca)}` : ""}</span><span>Operación</span><span>${escapeHTML(t.tarjeta.referencia || "—")}</span></div>`
+        : `<div class="digital-ticket-paid"><span>Recibido</span><span>${formatoMoneda(t.recibido)}</span><span>Cambio</span><span>${formatoMoneda(t.cambio)}</span></div>`}
       ${t.abono ? `<div class="digital-ticket-contrato">Folio ${escapeHTML(t.folio)} · contrato <strong>${escapeHTML(t.abono.contratoFolio)}</strong><br>${t.abono.liquidado ? "<strong>Crédito liquidado.</strong> ¡Gracias por completar tus pagos!" : `Saldo pendiente: <strong>${formatoMonedaCentavos(t.abono.saldoRestante)}</strong> · ${t.abono.plazo - t.abono.numero} mensualidad${t.abono.plazo - t.abono.numero === 1 ? "" : "es"} por pagar`}</div>` : ""}
       ${t.contrato ? `<div class="digital-ticket-contrato">${t.metodo !== "Efectivo" ? `${escapeHTML(t.metodo)}<br>` : ""}Contrato de crédito <strong>${escapeHTML(t.contrato.folio)}</strong> firmado · ${escapeHTML(t.contrato.resumen || "")}</div>` : ""}
       <div class="digital-ticket-thanks">Gracias por tu compra.</div>
@@ -2078,9 +2091,10 @@ function renderInventario(){
     return;
   }
 
+  // Los accesorios (código KRM-CAT-ACC-…) salen en Refacciones y también en el inventario de su marca
   const items = inventarioCategoria === "Refacciones"
     ? INVENTARIO.filter(c => c.tipo === "refaccion")
-    : INVENTARIO.filter(c => c.marca === inventarioCategoria && c.tipo !== "refaccion");
+    : INVENTARIO.filter(c => c.marca === inventarioCategoria && (c.tipo !== "refaccion" || String(c.codigo).startsWith("KRM-CAT-ACC-")));
   panel.innerHTML = `
     <div class="section-toolbar">
       <div class="tipo-chip">Categoría: ${inventarioCategoria}<button type="button" id="btnCambiarCategoria">✕</button></div>
@@ -2104,7 +2118,7 @@ function tablaInventarioHTML(items){
           ${items.map(c => `
             <tr>
               <td>${c.codigo}</td><td>${c.marca}</td><td>${c.modelo}</td><td>${c.anio ?? "—"}</td><td>${c.color}</td>
-              <td>${c.motor}</td><td>${badgeStockHTML(c.unidades)}</td><td>${formatoMoneda(c.precio)}</td>
+              <td>${c.motor ?? "—"}</td><td>${badgeStockHTML(c.unidades)}</td><td>${formatoMoneda(c.precio)}</td>
             </tr>`).join("")}
         </tbody>
       </table>
@@ -2535,9 +2549,12 @@ function abrirCobroOrdenWeb(orden){
     </div>
     <div class="payment-actions">
       <button class="btn btn-ghost" id="btnCancelarCobroWeb" type="button">Cancelar</button>
+      <button class="btn btn-outline" id="btnCobroWebTarjeta" type="button" ${MERCADO_PAGO.disponible ? "" : `disabled title="${escapeHTML(MERCADO_PAGO.aviso)}"`}>Pagar con tarjeta</button>
       <button class="btn btn-primary" id="btnConfirmarCobroWeb" type="button" disabled>Cobrar pedido</button>
     </div>`;
   abrirModal("#modalPago");
+  // Tarjeta: Mercado Pago Point (mercado_pago.js)
+  $("#btnCobroWebTarjeta").addEventListener("click", () => abrirCobroTarjetaOrdenWeb(orden));
   const input = $("#inpEfectivoWeb");
   input.addEventListener("input", () => {
     const recibido = Number(input.value || 0);
@@ -2761,10 +2778,8 @@ function initEventosGlobales(){
     if (currentView !== "venta" || !["F3", "F4", "F5", "F6"].includes(e.key)) return;
     e.preventDefault();
     if (pagoEstado && e.key !== "F3") return;
-    if (e.key === "F3") {
-      if (pagoEstado?.valido) confirmarVentaDB();
-      else concretarVenta();
-    } else if (e.key === "F4") toggleModoEliminar();
+    if (e.key === "F3") accionF3();
+    else if (e.key === "F4") toggleModoEliminar();
     else if (e.key === "F5") toggleCotizacion();
     else if (e.key === "F6") cancelarTicket();
   });
