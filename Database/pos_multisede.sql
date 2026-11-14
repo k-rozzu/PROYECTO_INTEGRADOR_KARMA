@@ -1176,7 +1176,8 @@ CREATE TABLE `solicitudes_garantia` (
   `id_usuario_resuelve` int(11) DEFAULT NULL COMMENT 'Gerente o administrador que la confirmó o denegó',
   `datos_json` longtext NOT NULL COMMENT 'Campos del formulario: VIN, kilometraje, síntoma, condiciones, evidencia, etc.',
   `fecha_solicitud` datetime NOT NULL DEFAULT current_timestamp(),
-  `fecha_resolucion` datetime DEFAULT NULL
+  `fecha_resolucion` datetime DEFAULT NULL,
+  `fecha_aviso_cajero` datetime DEFAULT NULL COMMENT 'Cuándo vio el cajero el aviso de garantía aceptada (NULL = aviso pendiente)'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Solicitudes de garantía levantadas en caja; las confirma o deniega un gerente';
 
 --
