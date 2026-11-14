@@ -81,6 +81,13 @@ try {
         case 'aplicar_garantia':
             aplicarGarantia();
             break;
+        // Avisos de garantías aceptadas por el gerente (las solicitudes las resuelve PHP/Dashboard/garantias_gerente.php)
+        case 'avisos_garantia':
+            ok(['avisos' => posAvisosGarantia(db(), (int)$GLOBALS['cajeroSesion']['id_usuario'])]);
+            break;
+        case 'marcar_aviso_garantia':
+            marcarAvisoGarantia();
+            break;
         // Crédito automotriz con contrato: cobro del enganche → contrato → firma del cliente (lógica en contrato_credito.php)
         case 'preparar_credito':
             require_once __DIR__ . '/contrato_credito.php';
@@ -1049,5 +1056,40 @@ function aplicarGarantia(): never {
     }
 
     ok(['message' => "Solicitud {$folio} enviada al gerente. Queda pendiente de su aprobación.", 'folio' => $folio]);
+}
+
+/* Avisos para el cajero: solicitudes de garantía que ÉL envió, que el gerente ya aceptó y cuyo aviso aún no marca como visto */
+function posAvisosGarantia(PDO $pdo, int $idCajero): array {
+    $stmt = $pdo->prepare("
+        SELECT
+            s.id_solicitud AS id, s.folio,
+            COALESCE(g.cliente_nombre, c.nombre) AS cliente,
+            COALESCE(g.cliente_celular, c.celular) AS celular,
+            COALESCE(g.cliente_email, c.email) AS email,
+            p.nombre AS articulo, g.vin, u.nombre AS gerente,
+            DATE_FORMAT(s.fecha_resolucion, '%d/%m/%Y %H:%i') AS fecha
+        FROM solicitudes_garantia s
+        JOIN garantias g ON g.id_garantia = s.id_garantia
+        JOIN productos p ON p.id_producto = g.id_producto
+        LEFT JOIN clientes c ON c.id_cliente = g.id_cliente
+        LEFT JOIN usuarios u ON u.id_usuario = s.id_usuario_resuelve
+        WHERE s.id_usuario_solicita = ? AND s.estado = 'confirmada' AND s.fecha_aviso_cajero IS NULL
+        ORDER BY s.fecha_resolucion DESC
+    ");
+    $stmt->execute([$idCajero]);
+    return array_map(function(array $a) { $a['id'] = (int)$a['id']; return $a; }, $stmt->fetchAll());
+}
+
+/* El cajero da «Enterado» a un aviso de garantía aceptada: deja de mostrarse en su Punto de Venta */
+function marcarAvisoGarantia(): never {
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') fail('Usa POST.', 405);
+    if (!posCsrfValido()) fail(posMensajeRechazo('CSRF'), 403);
+    $idCajero = (int)$GLOBALS['cajeroSesion']['id_usuario'];
+    $pdo = db();
+    $pdo->prepare("
+        UPDATE solicitudes_garantia SET fecha_aviso_cajero = NOW()
+        WHERE id_solicitud = ? AND id_usuario_solicita = ? AND estado = 'confirmada' AND fecha_aviso_cajero IS NULL
+    ")->execute([(int)(jsonInput()['id_solicitud'] ?? 0), $idCajero]);
+    ok(['avisos' => posAvisosGarantia($pdo, $idCajero)]);
 }
 ?>

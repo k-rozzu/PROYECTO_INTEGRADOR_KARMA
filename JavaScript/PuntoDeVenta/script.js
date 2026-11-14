@@ -2419,6 +2419,74 @@ function abrirGarantiaForm(id){
 // Cierra el formulario de garantía
 function cerrarGarantiaForm(){ $("#garantiaOverlay").classList.remove("is-open"); }
 
+/* ===== 11b. AVISOS DE GARANTÍA — el gerente aceptó una solicitud enviada desde esta caja ===== */
+let AVISOS_GARANTIA = [];
+
+// Pide los avisos pendientes; si llega uno nuevo refresca Garantías (la aceptada sale de la lista) y lo muestra al cajero
+async function cargarAvisosGarantia(){
+  let avisos;
+  try { avisos = (await apiFetch("avisos_garantia")).avisos || []; }
+  catch (_) { return; } // si falla, el resto del Punto de Venta sigue funcionando igual
+  const conocidos = new Set(AVISOS_GARANTIA.map(a => a.id));
+  const nuevos = avisos.filter(a => !conocidos.has(a.id));
+  AVISOS_GARANTIA = avisos;
+  pintarAvisosGarantia();
+  if (!nuevos.length) return;
+  try { await refrescarDatosDB(); } catch (_) { /* el aviso se muestra aunque no se refresque la lista */ }
+  if (currentView === "garantias") renderGarantias();
+  // No interrumpe un cobro, un formulario o una autorización en curso: en ese caso solo queda el contador de la campana
+  const ocupado = $(".modal-overlay.is-open, .fullscreen-overlay.is-open, .visor-overlay.is-open") || ($("#modalAutorizacion") && !$("#modalAutorizacion").hidden);
+  if (!ocupado) abrirAvisosGarantia();
+}
+
+// Contador de avisos sin ver en la campana de la barra superior
+function pintarAvisosGarantia(){
+  const badge = $("#avisosGarantiaBadge");
+  if (!badge) return;
+  badge.textContent = AVISOS_GARANTIA.length;
+  badge.hidden = AVISOS_GARANTIA.length === 0;
+}
+
+// Lista de garantías aceptadas con el siguiente paso para el cajero
+function abrirAvisosGarantia(){
+  $("#modalAvisosGarantiaContent").innerHTML = `
+    <p class="eyebrow-plain">Avisos de garantía</p>
+    <h3 class="modal-title">Garantías aceptadas por el gerente</h3>
+    ${AVISOS_GARANTIA.length ? `
+      <p class="modal-desc">Siguiente paso: contacta al cliente para agendar el ingreso de su unidad al taller de servicio. La reparación queda cubierta por la garantía KARMA, sin costo para el cliente.</p>
+      ${AVISOS_GARANTIA.map(a => `
+        <div class="aviso-garantia">
+          <div class="aviso-garantia-info">
+            <span class="garantia-estado garantia-estado--aceptada">Garantía aceptada</span>
+            <strong>${escapeHTML(a.cliente || "Cliente")}</strong>
+            <span>${escapeHTML(a.articulo)}${a.vin ? ` · <span translate="no">VIN ${escapeHTML(a.vin)}</span>` : ""}</span>
+            ${a.celular || a.email ? `<small class="garantia-detalle">${escapeHTML([a.celular, a.email].filter(Boolean).join(" · "))}</small>` : ""}
+            <small class="garantia-detalle">Solicitud <span translate="no">${escapeHTML(a.folio)}</span> · aceptada por ${escapeHTML(a.gerente || "el gerente")} el ${escapeHTML(a.fecha || "")}</small>
+          </div>
+          <button class="btn btn-primary" type="button" data-aviso-enterado="${a.id}" style="padding:7px 16px; font-size:12px;">Enterado</button>
+        </div>`).join("")}`
+      : `<div class="empty-state"><strong>Sin avisos</strong>Aquí aparecen las garantías que el gerente acepte de las solicitudes que envíes.</div>`}
+    <div class="venta-actions"><button class="btn btn-ghost" data-close-modal>Cerrar</button></div>
+  `;
+  $$("[data-aviso-enterado]", $("#modalAvisosGarantiaContent")).forEach(btn =>
+    btn.addEventListener("click", () => marcarAvisoGarantia(Number(btn.dataset.avisoEnterado), btn)));
+  abrirModal("#modalAvisosGarantia");
+}
+
+// «Enterado»: el aviso deja de mostrarse en este Punto de Venta
+async function marcarAvisoGarantia(id, boton){
+  boton.disabled = true;
+  try {
+    const data = await apiFetch("marcar_aviso_garantia", { method: "POST", body: JSON.stringify({ id_solicitud: id }) });
+    AVISOS_GARANTIA = data.avisos || [];
+    pintarAvisosGarantia();
+    abrirAvisosGarantia();
+  } catch (error) {
+    boton.disabled = false;
+    avisar(error.message);
+  }
+}
+
 /* ===== 12. WEB ORDERS — filtro por marca + búsqueda por nombre + "continuar" ===== */
 // Dibuja las órdenes web separadas en vehículos y refacciones
 function renderWebOrders(){
@@ -2793,5 +2861,8 @@ document.addEventListener("DOMContentLoaded", () => {
   actualizarReloj();
   setInterval(actualizarReloj, 1000);
   renderMain();
-  cargarDatosDB();
+  // Avisos de garantía aceptada: al cargar y cada minuto (la campana los abre en cualquier momento)
+  cargarDatosDB().then(cargarAvisosGarantia);
+  setInterval(cargarAvisosGarantia, 60000);
+  $("#avisosGarantiaBtn")?.addEventListener("click", abrirAvisosGarantia);
 });

@@ -21,7 +21,7 @@ $csrfPos = posTokenCsrf();
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../../CSS/PuntoDeVenta/style.css?v=2">
+<link rel="stylesheet" href="../../CSS/PuntoDeVenta/style.css?v=3">
 <!-- Three.js (vista previa 3D) desde el CDN jsDelivr, versión fija para que no cambie sola -->
 <script type="importmap">
 {
@@ -68,6 +68,11 @@ $csrfPos = posTokenCsrf();
         <button class="theme-toggle" id="themeToggle" title="Cambiar modo" aria-label="Cambiar modo claro/oscuro">
           <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.4M12 19.1v2.4M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7"/></svg>
           <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a6.8 6.8 0 0 0 10.5 10.5Z"/></svg>
+        </button>
+        <!-- Avisos de garantía: el gerente aceptó una solicitud enviada desde esta caja (los llena script.js) -->
+        <button class="avisos-btn" id="avisosGarantiaBtn" type="button" title="Avisos de garantía" aria-label="Avisos de garantía">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2H4.5l1.5-2Z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg>
+          <span class="avisos-badge" id="avisosGarantiaBadge" hidden>0</span>
         </button>
         <button class="logout-btn" id="logoutBtn">Cerrar sesión</button>
         <div class="sede-pill">
@@ -152,6 +157,16 @@ $csrfPos = posTokenCsrf();
   </div>
 </div>
 
+<!-- ===== MODAL: avisos de garantías aceptadas por el gerente ===== -->
+<div class="modal-overlay" id="modalAvisosGarantia">
+  <div class="modal-card modal-card--wide">
+    <button class="modal-close" data-close-modal>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 5l14 14M19 5L5 19"/></svg>
+    </button>
+    <div id="modalAvisosGarantiaContent"></div>
+  </div>
+</div>
+
 <!-- ===== PANTALLA COMPLETA: formulario para aplicar una garantía ===== -->
 <div class="fullscreen-overlay" id="garantiaOverlay">
   <div class="fullscreen-overlay-inner" id="garantiaOverlayContent"></div>
@@ -193,7 +208,7 @@ $csrfPos = posTokenCsrf();
 <!-- API DE TRADUCCIÓN: traductor universal (debe ir antes de script.js) -->
 <script src="../../JavaScript/Traduccion/traductor.js"></script>
 <!-- Lógica principal del punto de venta -->
-<script src="../../JavaScript/PuntoDeVenta/script.js?v=2"></script>
+<script src="../../JavaScript/PuntoDeVenta/script.js?v=3"></script>
 <!-- Autorización de empleado: cámara + lector QR (jsQR se carga solo al abrir el modal) y código manual; el servidor decide -->
 <script src="../../JavaScript/PuntoDeVenta/autorizacion_empleado.js"></script>
 <!-- Crédito automotriz: contrato, firma con el touchpad y visor del PDF -->
