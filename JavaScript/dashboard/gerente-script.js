@@ -169,6 +169,30 @@ const I18N = {
     colCant:"Cant.", saleTotal:"Total de la venta", close:"Cerrar",
     confirmLogout:"¿Cerrar sesión?", placeholderCaja:"Ej: 4",
     errSaveProducto:"No se pudo guardar el producto", errDeleteProducto:"No se pudo eliminar el producto",
+
+    /* Notificaciones: solicitudes de garantía enviadas desde caja */
+    navNotificaciones:"Notificaciones",
+    notifEyebrow:"Garantías", notifTitle:"Solicitudes de garantía",
+    notifDesc:"Solicitudes que los cajeros de esta sede envían desde el Punto de Venta. Revisa el reporte y acepta la garantía o deniégala indicando el motivo.",
+    notifPendientes:"Pendientes de revisión", notifResueltas:"Resueltas (últimos 30 días)",
+    notifSinPendientes:"No hay solicitudes de garantía pendientes.", notifSinResueltas:"Aún no hay solicitudes resueltas.",
+    notifErrCarga:"No se pudieron cargar las solicitudes de garantía.", notifNuevas:"Tienes solicitudes de garantía nuevas por revisar.",
+    colFolio:"Folio", colCliente:"Cliente", colVehiculo:"Vehículo", colResolucion:"Resolución",
+    estadoPendiente:"Pendiente", estadoAceptada:"Aceptada", estadoDenegada:"Denegada", btnRevisar:"Revisar",
+    garTitulo:"Solicitud de garantía", garDatosGarantia:"Garantía del vehículo", garReporte:"Reporte del cajero",
+    garCompra:"Compra", garVence:"Vence", garFolioVenta:"Factura / contrato",
+    garVigente:"Vigente al solicitar", garNoVigente:"Vencida al solicitar",
+    garVinRegistrado:"VIN registrado", garVinReportado:"VIN reportado", garVinNoCoincide:"No coincide con el VIN registrado",
+    garPropietario:"Propietario", garContacto:"Contacto", garPlaca:"Placa y año", garKm:"Kilometraje",
+    garHistorial:"Historial de servicios", garFechaFalla:"Inicio de la falla", garFechaRecepcion:"Recepción de la unidad",
+    garSintoma:"Síntoma", garCondiciones:"Condiciones de la falla", garEvidencia:"Evidencia",
+    garAsesor:"Asesor", garConformidad:"Conformidad del cliente",
+    garSolicito:"Envió", garResolvio:"Resolvió", garMotivo:"Motivo de la negación",
+    garMotivoPlaceholder:"Ej. La falla se debe a falta de mantenimiento o a uso indebido, fuera de la cobertura.",
+    btnAceptarGarantia:"Aceptar garantía", btnDenegarGarantia:"Denegar", btnConfirmarDenegar:"Confirmar negación",
+    confirmAceptarGarantia:"¿Aceptar la garantía? Se notificará al cajero para continuar con el cliente.",
+    garMotivoRequerido:"Escribe el motivo de la negación.", garErrResolver:"No se pudo resolver la solicitud.",
+    toastGarantiaAceptada:"Garantía aceptada. Se notificó al cajero.", toastGarantiaDenegada:"Garantía denegada. El cajero verá el motivo.",
   },
   en:{
     topHome:"Go to Home", brandSlogan:"Store Management Panel",
@@ -256,6 +280,30 @@ const I18N = {
     colCant:"Qty.", saleTotal:"Sale total", close:"Close",
     confirmLogout:"Log out?", placeholderCaja:"E.g. 4",
     errSaveProducto:"Could not save the product", errDeleteProducto:"Could not delete the product",
+
+    /* Notifications: warranty requests sent from the register */
+    navNotificaciones:"Notifications",
+    notifEyebrow:"Warranties", notifTitle:"Warranty requests",
+    notifDesc:"Requests that this branch's cashiers send from the Point of Sale. Review the report and approve the warranty or deny it with a reason.",
+    notifPendientes:"Pending review", notifResueltas:"Resolved (last 30 days)",
+    notifSinPendientes:"No pending warranty requests.", notifSinResueltas:"No resolved requests yet.",
+    notifErrCarga:"Could not load the warranty requests.", notifNuevas:"You have new warranty requests to review.",
+    colFolio:"Folio", colCliente:"Customer", colVehiculo:"Vehicle", colResolucion:"Resolution",
+    estadoPendiente:"Pending", estadoAceptada:"Approved", estadoDenegada:"Denied", btnRevisar:"Review",
+    garTitulo:"Warranty request", garDatosGarantia:"Vehicle warranty", garReporte:"Cashier's report",
+    garCompra:"Purchase", garVence:"Expires", garFolioVenta:"Invoice / contract",
+    garVigente:"Valid when requested", garNoVigente:"Expired when requested",
+    garVinRegistrado:"Registered VIN", garVinReportado:"Reported VIN", garVinNoCoincide:"Does not match the registered VIN",
+    garPropietario:"Owner", garContacto:"Contact", garPlaca:"Plate and year", garKm:"Mileage",
+    garHistorial:"Service history", garFechaFalla:"Failure started", garFechaRecepcion:"Vehicle received",
+    garSintoma:"Symptom", garCondiciones:"Failure conditions", garEvidencia:"Evidence",
+    garAsesor:"Advisor", garConformidad:"Customer acknowledgment",
+    garSolicito:"Sent by", garResolvio:"Resolved by", garMotivo:"Reason for denial",
+    garMotivoPlaceholder:"E.g. The failure is due to lack of maintenance or misuse, outside coverage.",
+    btnAceptarGarantia:"Approve warranty", btnDenegarGarantia:"Deny", btnConfirmarDenegar:"Confirm denial",
+    confirmAceptarGarantia:"Approve the warranty? The cashier will be notified to continue with the customer.",
+    garMotivoRequerido:"Write the reason for the denial.", garErrResolver:"Could not resolve the request.",
+    toastGarantiaAceptada:"Warranty approved. The cashier was notified.", toastGarantiaDenegada:"Warranty denied. The cashier will see the reason.",
   }
 };
 function t(key){
@@ -272,6 +320,8 @@ const MESES = {
    ========================================================================== */
 // El panel se abre desde Apache, pero su API vive en el servidor Node (backend/server.js, puerto 3000)
 const API_BASE = `http://${window.location.hostname}:3000/api`;
+// Solicitudes de garantía del POS: API en PHP (Apache) con la sesión del sistema, solo para cuentas Gerente
+const API_GARANTIAS = "../PHP/Dashboard/garantias_gerente.php";
 
 /* ---- Sucursal actual del gerente (en producción vendría del JWT / sesión) ---- */
 const SUCURSAL_ID = "s1";
@@ -460,6 +510,23 @@ const DB = {
     const ventas = await respuesta.json();
     return ventas.map(v => ({ ...v, total: Number(v.total) }));
   },
+  // Solicitudes de garantía: viven en PHP (sesión del sistema) porque aceptar o denegar exige saber qué gerente lo hace
+  async getSolicitudesGarantia(){
+    const respuesta = await fetch(`${API_GARANTIAS}?action=listar`, { cache:"no-store" });
+    const datos = await respuesta.json().catch(() => ({}));
+    if (!respuesta.ok || !datos.ok) throw new Error(datos.error || t("notifErrCarga"));
+    return datos.solicitudes || [];
+  },
+  async resolverSolicitudGarantia(id, decision, motivo){
+    const respuesta = await fetch(`${API_GARANTIAS}?action=resolver`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_solicitud: id, decision, motivo })
+    });
+    const datos = await respuesta.json().catch(() => ({}));
+    if (!respuesta.ok || !datos.ok) throw new Error(datos.error || t("garErrResolver"));
+    return datos;
+  },
 };
 
 /* ==========================================================================
@@ -481,6 +548,9 @@ const state = {
   ventasFiltro:"month",   // today | week | month
   cajasFiltro:"all",      // all | activo | inactivo
   cargando: true,
+  esGerente: false,          // la pestaña Notificaciones es exclusiva del rol Gerente
+  solicitudesGarantia: [],   // solicitudes de garantía de la sede (pendientes + resueltas recientes)
+  errorGarantias: "",
 };
 const chartInstances = {};
 
@@ -616,6 +686,7 @@ function renderMain(){
   else if (state.view === "inventario") renderInventario();
   else if (state.view === "cajas")      renderCajas();
   else if (state.view === "ventas")     renderVentas();
+  else if (state.view === "notificaciones" && state.esGerente) renderNotificaciones();
   applyI18n();
 }
 
@@ -1134,6 +1205,230 @@ function renderVentas(){
 }
 
 /* ==========================================================================
+   VISTA: NOTIFICACIONES — solicitudes de garantía enviadas desde caja (solo Gerente)
+   ========================================================================== */
+function estadoGarantiaBadge(estado){
+  if (estado === "pendiente")  return `<span class="badge badge-warn"><span class="badge-dot"></span>${t("estadoPendiente")}</span>`;
+  if (estado === "confirmada") return `<span class="badge badge-ok"><span class="badge-dot"></span>${t("estadoAceptada")}</span>`;
+  return `<span class="badge badge-danger"><span class="badge-dot"></span>${t("estadoDenegada")}</span>`;
+}
+function fechaHoraGarantia(iso){
+  return iso ? `${formatFecha(iso)} · ${formatHora(iso)}` : "—";
+}
+function vehiculoGarantiaHTML(s){
+  return `${escapeHTML(s.articulo)}${s.vin ? `<br><span class="cell-muted" style="font-size:11.5px;">VIN ${escapeHTML(s.vin)}</span>` : ""}`;
+}
+
+function renderNotificaciones(){
+  const main = $("#main");
+  const pendientes = state.solicitudesGarantia.filter(s => s.estado === "pendiente");
+  const resueltas  = state.solicitudesGarantia.filter(s => s.estado !== "pendiente");
+
+  main.innerHTML = `
+  <div class="panel panel-full">
+    <div class="panel-heading fade-in">
+      <div>
+        <p class="eyebrow-plain">${t("notifEyebrow")}${state.sucursal?.nombre ? ` · ${escapeHTML(state.sucursal.nombre)}` : ""}</p>
+        <h2>${t("notifTitle")}</h2>
+      </div>
+    </div>
+    <p class="modal-desc fade-in">${t("notifDesc")}</p>
+    ${state.errorGarantias ? `<div class="empty-state"><strong>${escapeHTML(state.errorGarantias)}</strong></div>` : ""}
+
+    <h3 class="notif-subtitulo fade-in fade-in--1">${t("notifPendientes")} (${pendientes.length})</h3>
+    <div class="table-wrap fade-in fade-in--1">
+      <table class="data-table">
+        <thead><tr>
+          <th>${t("colFolio")}</th><th>${t("colFecha")}</th><th>${t("colCajero")}</th>
+          <th>${t("colCliente")}</th><th>${t("colVehiculo")}</th><th>${t("colAcciones")}</th>
+        </tr></thead>
+        <tbody>
+          ${pendientes.length === 0 ? `<tr><td colspan="6"><div class="empty-state"><strong>${t("notifSinPendientes")}</strong></div></td></tr>` :
+            pendientes.map(s => `
+            <tr class="is-clickable" data-solicitud-id="${s.id}">
+              <td><strong style="font-family:monospace;">${escapeHTML(s.folio)}</strong></td>
+              <td><span style="font-weight:600;">${formatFecha(s.fechaSolicitud)}</span><br><span class="cell-muted" style="font-size:11.5px;">${formatHora(s.fechaSolicitud)}</span></td>
+              <td>${escapeHTML(s.cajero)}</td>
+              <td>${escapeHTML(s.cliente || "—")}</td>
+              <td>${vehiculoGarantiaHTML(s)}</td>
+              <td><button class="btn-table btn-sm">${t("btnRevisar")}</button></td>
+            </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>
+
+    <h3 class="notif-subtitulo fade-in fade-in--2">${t("notifResueltas")}</h3>
+    <div class="table-wrap fade-in fade-in--2">
+      <table class="data-table">
+        <thead><tr>
+          <th>${t("colFolio")}</th><th>${t("colCliente")}</th><th>${t("colVehiculo")}</th>
+          <th>${t("colEstado")}</th><th>${t("colResolucion")}</th><th>${t("colAcciones")}</th>
+        </tr></thead>
+        <tbody>
+          ${resueltas.length === 0 ? `<tr><td colspan="6"><div class="empty-state"><strong>${t("notifSinResueltas")}</strong></div></td></tr>` :
+            resueltas.map(s => `
+            <tr class="is-clickable" data-solicitud-id="${s.id}">
+              <td><strong style="font-family:monospace;">${escapeHTML(s.folio)}</strong></td>
+              <td>${escapeHTML(s.cliente || "—")}</td>
+              <td>${vehiculoGarantiaHTML(s)}</td>
+              <td>${estadoGarantiaBadge(s.estado)}</td>
+              <td>${fechaHoraGarantia(s.fechaResolucion)}<br><span class="cell-muted" style="font-size:11.5px;">${escapeHTML(s.resolvio || "")}</span></td>
+              <td><button class="btn-table btn-sm">${t("viewDetail")}</button></td>
+            </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+
+  $$("[data-solicitud-id]", main).forEach(fila => fila.addEventListener("click", () => abrirModalGarantia(Number(fila.dataset.solicitudId))));
+}
+
+/* ==========================================================================
+   MODAL: REVISIÓN DE UNA SOLICITUD DE GARANTÍA (aceptar / denegar con motivo)
+   ========================================================================== */
+function abrirModalGarantia(id){
+  const s = state.solicitudesGarantia.find(x => x.id === id);
+  if (!s) return;
+  const r = s.reporte || {};
+  const texto = (v) => (v === null || v === undefined || String(v).trim() === "") ? "—" : escapeHTML(v);
+  const dato  = (etiqueta, valor) => `<div class="info-item"><span class="info-item-label">${etiqueta}</span><span class="info-item-value">${valor}</span></div>`;
+  const bloque = (etiqueta, valor) => `<div class="info-item garantia-texto"><span class="info-item-label">${etiqueta}</span><span class="info-item-value">${texto(valor)}</span></div>`;
+  // Fechas del formulario del cajero (datetime-local, sin zona): se muestran como las capturó
+  const fechaReporte = (v) => v ? fechaHoraGarantia(v) : "—";
+  // El VIN que reporta el cajero debe ser el mismo que quedó registrado en la venta
+  const vinReportado = String(r.vin || "").toUpperCase();
+  const vinDistinto = vinReportado !== "" && s.vin && vinReportado !== String(s.vin).toUpperCase();
+  const pendiente = s.estado === "pendiente";
+
+  $("#modalGarantiaContent").innerHTML = `
+    <h2 class="modal-title">${t("garTitulo")}</h2>
+    <p class="modal-desc">
+      <span style="font-family:monospace;letter-spacing:.02em;">${escapeHTML(s.folio)}</span>
+      · ${t("garSolicito")}: ${escapeHTML(s.cajero)} · ${fechaHoraGarantia(s.fechaSolicitud)} &nbsp;${estadoGarantiaBadge(s.estado)}
+    </p>
+
+    <div class="info-card garantia-bloque">
+      <div class="info-card-head">
+        <h3>${t("garDatosGarantia")}</h3>
+        ${s.vigenteAlSolicitar
+          ? `<span class="badge badge-ok"><span class="badge-dot"></span>${t("garVigente")}</span>`
+          : `<span class="badge badge-danger"><span class="badge-dot"></span>${t("garNoVigente")}</span>`}
+      </div>
+      <div class="info-grid">
+        ${dato(t("colCliente"), `${texto(s.cliente)}${s.celular || s.email ? `<br><span class="cell-muted" style="font-size:12px;">${escapeHTML([s.celular, s.email].filter(Boolean).join(" · "))}</span>` : ""}`)}
+        ${dato(t("colVehiculo"), texto(s.articulo))}
+        ${dato(t("garVinRegistrado"), texto(s.vin))}
+        ${dato(t("garFolioVenta"), texto(s.folioVenta))}
+        ${dato(t("garCompra"), fechaHoraGarantia(s.fechaCompra))}
+        ${dato(t("garVence"), fechaHoraGarantia(s.fechaExpiracion))}
+      </div>
+    </div>
+
+    <div class="info-card garantia-bloque">
+      <div class="info-card-head"><h3>${t("garReporte")}</h3></div>
+      <div class="info-grid">
+        ${dato(t("garPropietario"), texto(r.propietario))}
+        ${dato(t("garContacto"), texto(r.contacto))}
+        ${dato(t("garVinReportado"), `${texto(vinReportado)}${vinDistinto ? `<br><span class="badge badge-danger" style="margin-top:4px;"><span class="badge-dot"></span>${t("garVinNoCoincide")}</span>` : ""}`)}
+        ${dato(t("garPlaca"), texto(r.placa_anio))}
+        ${dato(t("garKm"), r.kilometraje ? `${formatoNumero(Number(r.kilometraje))} km` : "—")}
+        ${dato(t("garFolioVenta"), texto(r.factura))}
+        ${dato(t("garHistorial"), texto(r.historial_servicios))}
+        ${dato(t("garFechaFalla"), fechaReporte(r.fecha_falla))}
+        ${dato(t("garFechaRecepcion"), fechaReporte(r.fecha_recepcion))}
+        ${dato(t("garAsesor"), texto(r.asesor))}
+        ${dato(t("garConformidad"), texto(r.conformidad_cliente))}
+      </div>
+      ${bloque(t("garSintoma"), r.sintoma)}
+      ${bloque(t("garCondiciones"), r.condiciones)}
+      ${bloque(t("garEvidencia"), r.evidencia)}
+    </div>
+
+    ${pendiente ? `
+      <div class="form-field" id="garMotivoCampo" hidden>
+        <label for="garMotivo">${t("garMotivo")}</label>
+        <textarea id="garMotivo" maxlength="500" placeholder="${escapeHTML(t("garMotivoPlaceholder"))}"></textarea>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" data-close-modal>${t("close")}</button>
+        <button type="button" class="btn btn-danger" id="btnDenegarGarantia">${t("btnDenegarGarantia")}</button>
+        <button type="button" class="btn btn-primary" id="btnAceptarGarantia">${t("btnAceptarGarantia")}</button>
+      </div>` : `
+      <div class="info-card garantia-bloque">
+        <div class="info-grid">
+          ${dato(t("garResolvio"), `${texto(s.resolvio)} · ${fechaHoraGarantia(s.fechaResolucion)}`)}
+          ${s.estado === "denegada" ? dato(t("garMotivo"), texto(s.motivoRechazo)) : ""}
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" data-close-modal>${t("close")}</button>
+      </div>`}`;
+
+  if (pendiente){
+    const btnAceptar = $("#btnAceptarGarantia");
+    const btnDenegar = $("#btnDenegarGarantia");
+    btnAceptar.addEventListener("click", () => {
+      if (!confirm(t("confirmAceptarGarantia"))) return;
+      resolverGarantia(s, "aceptar", "", [btnAceptar, btnDenegar]);
+    });
+    // Primer clic: pide el motivo; segundo clic: deniega (el motivo es obligatorio)
+    btnDenegar.addEventListener("click", () => {
+      const campo = $("#garMotivoCampo");
+      if (campo.hidden){
+        campo.hidden = false;
+        btnDenegar.textContent = t("btnConfirmarDenegar");
+        $("#garMotivo").focus();
+        return;
+      }
+      const motivo = $("#garMotivo").value.trim();
+      if (!motivo){ toast(t("garMotivoRequerido"), "err"); $("#garMotivo").focus(); return; }
+      resolverGarantia(s, "denegar", motivo, [btnAceptar, btnDenegar]);
+    });
+  }
+  abrirModal("modalGarantia");
+}
+
+// Envía la decisión del gerente; el cajero recibe el aviso (aceptada) o ve el motivo en Garantías (denegada)
+async function resolverGarantia(s, decision, motivo, botones){
+  botones.forEach(b => b.disabled = true);
+  try {
+    await DB.resolverSolicitudGarantia(s.id, decision, motivo);
+    toast(`${s.folio} · ${t(decision === "aceptar" ? "toastGarantiaAceptada" : "toastGarantiaDenegada")}`, "ok");
+    cerrarModales();
+    await cargarSolicitudesGarantia();
+    renderMain();
+  } catch (err) {
+    toast(err.message, "err");
+    botones.forEach(b => b.disabled = false);
+  }
+}
+
+// Carga las solicitudes de la sede y actualiza el contador de la pestaña Notificaciones
+async function cargarSolicitudesGarantia(){
+  if (!state.esGerente) return;
+  try {
+    state.solicitudesGarantia = await DB.getSolicitudesGarantia();
+    state.errorGarantias = "";
+  } catch (err) {
+    console.error("Error cargando solicitudes de garantía", err);
+    state.errorGarantias = err.message;
+  }
+  const pendientes = state.solicitudesGarantia.filter(s => s.estado === "pendiente").length;
+  const badge = $("#notifBadge");
+  if (badge){ badge.textContent = pendientes; badge.hidden = pendientes === 0; }
+}
+
+// Revisa cada minuto si llegaron solicitudes nuevas desde caja
+async function vigilarSolicitudesGarantia(){
+  const antes = new Set(state.solicitudesGarantia.filter(s => s.estado === "pendiente").map(s => s.id));
+  await cargarSolicitudesGarantia();
+  const nuevas = state.solicitudesGarantia.some(s => s.estado === "pendiente" && !antes.has(s.id));
+  if (nuevas) toast(t("notifNuevas"), "ok");
+  // Redibuja la pestaña solo si está abierta y no hay un modal en uso
+  if (state.view === "notificaciones" && !$(".modal-overlay.is-open")) renderMain();
+}
+
+/* ==========================================================================
    MODAL: PRODUCTO (alta / edición)
    ========================================================================== */
 function abrirModalProducto(id){
@@ -1571,8 +1866,13 @@ function attachEvents(){
   try { usuario = JSON.parse(localStorage.getItem("karma_user") || "null"); } catch (e) {}
   const nombreMenu = $("#navUserName");
   if (nombreMenu && usuario && usuario.nombre) nombreMenu.textContent = usuario.nombre;
+  // Notificaciones de garantía: exclusivas de las cuentas Gerente (el servidor también lo exige)
+  state.esGerente = usuario?.rol === "Gerente";
+  const navNotificaciones = $("#navNotificaciones");
+  if (navNotificaciones) navNotificaciones.hidden = !state.esGerente;
   attachEvents();
   iniciarReloj();
-  await cargarDatos();
+  await Promise.all([cargarDatos(), cargarSolicitudesGarantia()]);
   renderMain();
+  if (state.esGerente) setInterval(vigilarSolicitudesGarantia, 60000);
 })();

@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../CSS/dashboard/gerente-style.css">
+<link rel="stylesheet" href="../CSS/dashboard/gerente-style.css?v=2">
 <!-- Chart.js — gráficas del panel de gerente -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.js"></script>
 </head>
@@ -98,6 +98,11 @@
         <button class="sub-nav-btn"            data-view="inventario" data-i18n="navInventario">Inventario</button>
         <button class="sub-nav-btn"            data-view="cajas"      data-i18n="navCajas">Cajas</button>
         <button class="sub-nav-btn"            data-view="ventas"     data-i18n="navVentas">Ventas</button>
+        <!-- Solicitudes de garantía enviadas desde caja: solo para cuentas Gerente (gerente-script.js la muestra) -->
+        <button class="sub-nav-btn"            data-view="notificaciones" id="navNotificaciones" hidden>
+          <span data-i18n="navNotificaciones">Notificaciones</span>
+          <span class="nav-badge" id="notifBadge" hidden>0</span>
+        </button>
       </nav>
       <div class="sync-indicator" id="syncIndicator" title="Estado de conexión a la base de datos">
         <span class="sync-dot"></span>
@@ -191,9 +196,21 @@
   </div>
 </div>
 
+<!-- ============================================================
+     MODAL: revisión de una solicitud de garantía (aceptar / denegar)
+     ============================================================ -->
+<div class="modal-overlay" id="modalGarantia">
+  <div class="modal-card modal-card--wide">
+    <button class="modal-close" data-close-modal>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 5l14 14M19 5L5 19"/></svg>
+    </button>
+    <div id="modalGarantiaContent"></div>
+  </div>
+</div>
+
 <!-- Región de toasts -->
 <div class="toast-stack" id="toastStack" aria-live="polite"></div>
 
-<script src="../JavaScript/dashboard/gerente-script.js?v=4"></script>
+<script src="../JavaScript/dashboard/gerente-script.js?v=5"></script>
 </body>
 </html>
