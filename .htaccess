@@ -7,3 +7,8 @@
 <FilesMatch "^composer\.(json|lock)$">
     Require all denied
 </FilesMatch>
+
+# Bloquea la descarga del lanzador y la politica del tunel de ngrok
+<FilesMatch "^(ngrok_mercadopago\.yml|iniciar_tunel_mercadopago\.bat)$">
+    Require all denied
+</FilesMatch>

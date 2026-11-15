@@ -56,6 +56,15 @@ function posAccionProtegida(string $ruta, array $datos): ?array {
             return ['ORDEN_WEB', (int)($datos['id_orden'] ?? 0)];
         case 'aplicar_garantia':
             return ['GARANTIA', (int)($datos['id_garantia'] ?? 0)];
+        case 'mp_iniciar_cobro':
+            // Cobro con tarjeta (Mercado Pago Point): el gafete se pide al mandar la orden a la terminal, porque al aprobarse
+            // el pago la venta, el abono o la orden web se registran solos. El enganche no lo pide aquí (igual que el efectivo):
+            // se pide después, en preparar_credito
+            $tipo = (string)($datos['tipo'] ?? '');
+            if ($tipo === 'venta') return ['VENTA', (int)($datos['ticket_numero'] ?? 0)];
+            if ($tipo === 'abono') return ['ABONO', (int)($datos['ticket_numero'] ?? 0)];
+            if ($tipo === 'orden_web') return ['ORDEN_WEB', (int)($datos['datos']['id_orden'] ?? 0)];
+            return null;
     }
     return null;
 }

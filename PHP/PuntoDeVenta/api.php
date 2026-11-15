@@ -31,6 +31,22 @@ function money(float $value): float {
     return round($value, 2);
 }
 
+// RFC / INE / CURP de las secciones de cobro: longitud permitida (el dato puede ser ficticio)
+const POS_RFC_INE_MIN = 13;
+const POS_RFC_INE_MAX = 18;
+
+// Deja el RFC / INE / CURP sin espacios y en mayúsculas
+function posNormalizarRfcIne($valor): string {
+    return mb_strtoupper((string)preg_replace('/\s+/u', '', (string)$valor), 'UTF-8');
+}
+
+// Regresa el mensaje de error si el RFC / INE / CURP no tiene una longitud válida; null si es correcto
+function posErrorRfcIne(string $rfcIne, string $etiqueta = 'RFC / INE'): ?string {
+    $n = mb_strlen($rfcIne, 'UTF-8');
+    if ($n >= POS_RFC_INE_MIN && $n <= POS_RFC_INE_MAX) return null;
+    return ($n < POS_RFC_INE_MIN ? 'Campo incompleto' : 'Campo excedido') . ": {$etiqueta} debe tener mínimo " . POS_RFC_INE_MIN . ' y máximo ' . POS_RFC_INE_MAX . ' caracteres.';
+}
+
 // Seguridad: todas las acciones (excepto cerrar sesión) requieren la sesión de un Cajero activo (login del sistema)
 require_once dirname(__DIR__) . '/Login/sesion_pos.php';
 $GLOBALS['cajeroSesion'] = ($_GET['action'] ?? '') === 'logout' ? null : posRequerirApi(db());
@@ -38,6 +54,8 @@ $GLOBALS['cajeroSesion'] = ($_GET['action'] ?? '') === 'logout' ? null : posRequ
 require_once __DIR__ . '/autorizacion_empleado.php';
 // Conceptos de caja (seguros, financiamiento, trámites, impuestos y posventa): cálculo, cobro y desglose en conceptos_caja.php
 require_once __DIR__ . '/conceptos_caja.php';
+// Cobro con tarjeta mediante Mercado Pago Point: orden a la terminal, estado del pago y registro al aprobarse (mercado_pago.php)
+require_once __DIR__ . '/mercado_pago.php';
 
 // Enrutador: ejecuta la acción pedida en ?action=
 try {
@@ -58,6 +76,11 @@ try {
             break;
         case 'validar_vin':
             validarVin();
+            break;
+        // Crédito: avisa antes de cobrar el enganche si la CURP / RFC ya pertenece a otro cliente
+        case 'validar_curp':
+            require_once __DIR__ . '/contrato_credito.php';
+            validarCurpCredito();
             break;
         case 'crear_venta':
             crearVenta();
@@ -101,6 +124,18 @@ try {
         case 'cobrar_abono':
             require_once __DIR__ . '/contrato_credito.php';
             cobrarAbono();
+            break;
+        // Cobro con tarjeta (Mercado Pago Point). contrato_credito.php aporta el cálculo del enganche y el registro del abono
+        case 'mp_iniciar_cobro':
+            require_once __DIR__ . '/contrato_credito.php';
+            mpIniciarCobro();
+            break;
+        case 'mp_estado_cobro':
+            require_once __DIR__ . '/contrato_credito.php';
+            mpEstadoCobro();
+            break;
+        case 'mp_cancelar_cobro':
+            mpCancelarCobro();
             break;
         case 'logout':
             posCerrarSesion();
@@ -193,10 +228,12 @@ function bootstrap(): never {
             p.modelo_3d AS modelo3d,
             p.precio_base AS precio,
             COALESCE(i.stock_actual, 0) AS unidades,
-            c.nombre_categoria AS categoria
+            c.nombre_categoria AS categoria,
+            pw.seccion
         FROM productos p
         JOIN categorias c ON c.id_categoria = p.id_categoria
         LEFT JOIN inventarios i ON i.id_producto = p.id_producto AND i.id_sucursal = ?
+        LEFT JOIN productos_web pw ON pw.id_producto = p.id_producto
         WHERE p.tipo <> 'servicio'
         ORDER BY p.marca, p.modelo, p.anio, p.nombre
     ");
@@ -365,7 +402,8 @@ function bootstrap(): never {
     }
     unset($orden);
 
-    // Refacciones de la sucursal (con su acabado/color y modelo 3D para la vista previa)
+    // Refacciones y accesorios de la sucursal (con su acabado/color y modelo 3D para la vista previa).
+    // Los accesorios son los de la sección «accesorios» del Catálogo: mismos productos y mismas existencias (tabla inventarios)
     $refStmt = $pdo->prepare("
         SELECT
             p.id_producto AS id,
@@ -383,15 +421,27 @@ function bootstrap(): never {
             p.color,
             p.color_hex AS colorHex,
             p.modelo_3d AS modelo3d,
-            COALESCE(i.stock_actual, 0) AS unidades
+            COALESCE(i.stock_actual, 0) AS unidades,
+            pw.seccion,
+            pw.imagen
         FROM productos p
         JOIN categorias c ON c.id_categoria=p.id_categoria
         LEFT JOIN inventarios i ON i.id_producto=p.id_producto AND i.id_sucursal=?
+        LEFT JOIN productos_web pw ON pw.id_producto=p.id_producto
         WHERE c.nombre_categoria='Refacciones' AND p.tipo='refaccion'
         ORDER BY p.nombre
     ");
     $refStmt->execute([$sucursal['id_sucursal']]);
-    $refacciones = $refStmt->fetchAll();
+    $piezas = array_map(function(array $r) {
+        $r['id'] = (int)$r['id'];
+        $r['precio'] = (float)$r['precio'];
+        $r['unidades'] = (int)$r['unidades'];
+        $r['modelo3d'] = rutaModelo3D($r['id'], $r['modelo3d']);
+        // Foto del Catálogo (la usan los accesorios en lugar de un modelo 3D); null si el archivo no existe
+        $r['imagen'] = $r['imagen'] && is_file(dirname(__DIR__, 2) . '/' . $r['imagen']) ? $r['imagen'] : null;
+        return $r;
+    }, $refStmt->fetchAll());
+    $esAccesorio = fn(array $r): bool => $r['seccion'] === 'accesorios';
 
     // Respuesta final con los tipos numéricos corregidos
     ok([
@@ -410,15 +460,12 @@ function bootstrap(): never {
         'clientes' => $clientes,
         'garantias' => $garantias,
         'weborders' => $webOrders,
-        'refacciones' => array_map(function(array $r) {
-            $r['id'] = (int)$r['id'];
-            $r['precio'] = (float)$r['precio'];
-            $r['unidades'] = (int)$r['unidades'];
-            $r['modelo3d'] = rutaModelo3D($r['id'], $r['modelo3d']);
-            return $r;
-        }, $refacciones),
+        'refacciones' => array_values(array_filter($piezas, fn(array $r): bool => !$esAccesorio($r))),
+        'accesorios' => array_values(array_filter($piezas, $esAccesorio)),
         // Catálogo de conceptos de caja con planes, unidades vendidas y accesorios (pestaña «Servicios»)
-        'conceptos' => posCatalogoConceptosCaja($pdo, (int)$sucursal['id_sucursal'])
+        'conceptos' => posCatalogoConceptosCaja($pdo, (int)$sucursal['id_sucursal']),
+        // Cobro con tarjeta: si la caja tiene terminal Point y si quedó un cobro abierto que la pantalla debe retomar
+        'mercadoPago' => mpConfiguracionCaja($pdo, (int)$caja['id_caja'], (int)$usuario['id_usuario'])
     ]);
 }
 
@@ -494,6 +541,8 @@ function crearVenta(): never {
     // Los créditos ya no se registran aquí: se concretan solo con el contrato firmado (preparar_credito → concretar_credito)
     if (!empty($data['credito'])) fail('Los créditos se concretan con la firma del contrato. Vuelve a presionar F3 para iniciar el flujo de crédito.');
     if ($recibido <= 0) fail('El dinero recibido debe ser mayor que cero.');
+    $errorRfcIne = posErrorRfcIne(posNormalizarRfcIne($data['rfc_ine'] ?? ''));
+    if ($errorRfcIne !== null) fail($errorRfcIne);
 
     $pdo = db();
     $pdo->beginTransaction();
@@ -885,20 +934,8 @@ function cobrarOrdenWeb(): never {
     $pdo = db();
     $pdo->beginTransaction();
     try {
-        $stmt = $pdo->prepare("SELECT * FROM web_orders WHERE id_orden = ? FOR UPDATE");
-        $stmt->execute([$idOrden]);
-        $orden = $stmt->fetch();
-        if (!$orden) throw new RuntimeException('La orden ya no existe.');
-        if ((int)$orden['id_sucursal'] !== $idSucursal) throw new RuntimeException('Esta orden pertenece a otra sucursal.');
-        if ($orden['estado'] !== 'pendiente' || $orden['estado_pago'] !== 'pendiente') throw new RuntimeException('Esta orden ya fue cobrada o cancelada.');
-
-        $lin = $pdo->prepare("SELECT d.id_producto, d.cantidad, d.precio_unitario, d.subtotal_linea, COALESCE(d.descripcion, p.nombre) AS descripcion
-                              FROM web_order_detalle d JOIN productos p ON p.id_producto = d.id_producto WHERE d.id_orden = ? ORDER BY d.id_detalle");
-        $lin->execute([$idOrden]);
-        $lineas = $lin->fetchAll();
-        if (!$lineas) throw new RuntimeException('La orden no tiene artículos para cobrar. Usa "Continuar" para capturarla en Venta.');
-
-        $total = money(array_sum(array_map(fn($l) => (float)$l['subtotal_linea'], $lineas)) + (float)$orden['costo_envio']);
+        $prep = posPrepararOrdenWeb($pdo, $idOrden, $idSucursal);
+        $total = $prep['total'];
         if ($recibido < $total) throw new RuntimeException('El dinero recibido es menor al total de la orden.');
         $cambio = money($recibido - $total);
 
@@ -909,48 +946,86 @@ function cobrarOrdenWeb(): never {
         $metodo = (int)$pdo->query("SELECT id_metodo_pago FROM metodos_pago WHERE nombre_metodo = 'Efectivo' LIMIT 1")->fetchColumn();
         if (!$metodo) throw new RuntimeException('No existe el método de pago Efectivo.');
 
-        // Respaldo: si la orden no apartó inventario, se valida y descuenta aquí (solo en esta sucursal)
-        if ((int)$orden['stock_reservado'] !== 1) {
-            $ver = $pdo->prepare("SELECT stock_actual FROM inventarios WHERE id_producto = ? AND id_sucursal = ? FOR UPDATE");
-            $baja = $pdo->prepare("UPDATE inventarios SET stock_actual = stock_actual - ? WHERE id_producto = ? AND id_sucursal = ?");
-            foreach ($lineas as $l) {
-                $ver->execute([$l['id_producto'], $idSucursal]);
-                $existencia = $ver->fetchColumn();
-                if ($existencia === false || (int)$existencia < (int)$l['cantidad']) throw new RuntimeException("Stock insuficiente para {$l['descripcion']}.");
-                $baja->execute([$l['cantidad'], $l['id_producto'], $idSucursal]);
-            }
-        }
-
-        $venta = $pdo->prepare("INSERT INTO ventas (id_sucursal, id_usuario, id_caja, id_metodo_pago, id_cliente, subtotal, total, efectivo_recibido, cambio, ticket_numero)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        $venta->execute([$idSucursal, (int)$cajero['id_usuario'], $idCaja, $metodo, $orden['id_cliente'] ?: null, $total, $total, $recibido, $cambio, $ticketNumero]);
-        $ventaId = (int)$pdo->lastInsertId();
-
-        $det = $pdo->prepare("INSERT INTO detalle_ventas (id_venta, id_producto, cantidad, precio_unitario, subtotal_linea) VALUES (?, ?, ?, ?, ?)");
-        foreach ($lineas as $l) $det->execute([$ventaId, $l['id_producto'], $l['cantidad'], $l['precio_unitario'], $l['subtotal_linea']]);
-        posRegistrarGarantias($pdo, $ventaId, $idSucursal, array_map(fn($l) => ['id' => (int)$l['id_producto'], 'vin' => ''], $lineas),
-            ['nombre' => (string)$orden['nombre'], 'celular' => (string)($orden['celular'] ?? ''), 'email' => (string)($orden['email'] ?? '')],
-            $orden['id_cliente'] ? (int)$orden['id_cliente'] : null);
-
-        $pdo->prepare("UPDATE web_orders SET estado = 'atendida', estado_pago = 'pagado', id_venta = ?, fecha_pago = NOW(), id_metodo_pago = ? WHERE id_orden = ?")
-            ->execute([$ventaId, $metodo, $idOrden]);
-        notificarClienteOrden($pdo, $idOrden, "Pedido {$orden['folio']} pagado en caja", 'Recibimos tu pago en efectivo. ¡Gracias por tu compra en KARMA!');
-        $fecha = $pdo->query("SELECT DATE_FORMAT(NOW(), '%d/%m/%Y %H:%i:%s')")->fetchColumn();
+        $respuesta = posRegistrarOrdenWeb($pdo, $prep, [
+            'id_usuario' => (int)$cajero['id_usuario'], 'id_sucursal' => $idSucursal, 'id_caja' => $idCaja, 'id_metodo_pago' => $metodo,
+            'recibido' => $recibido, 'cambio' => $cambio, 'ticket_numero' => $ticketNumero,
+            'aviso' => 'Recibimos tu pago en efectivo. ¡Gracias por tu compra en KARMA!'
+        ]);
         $pdo->commit();
 
-        ok([
-            'venta_id' => $ventaId,
-            'folio' => sprintf('KRM-%02d-%06d', $idSucursal, $ventaId),
-            'folio_orden' => $orden['folio'],
-            'fecha' => $fecha,
-            'total' => $total,
-            'cambio' => $cambio,
-            'lineas' => array_map(fn($l) => ['descripcion' => $l['descripcion'], 'cantidad' => (int)$l['cantidad'], 'subtotal' => (float)$l['subtotal_linea']], $lineas)
-        ]);
+        ok($respuesta);
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         throw $e;
     }
+}
+
+/* Bloquea y revisa una orden web antes de cobrarla (efectivo o tarjeta): existe, es de esta sucursal, sigue pendiente y tiene
+   artículos. Regresa ['orden', 'lineas', 'total'] */
+function posPrepararOrdenWeb(PDO $pdo, int $idOrden, int $idSucursal): array {
+    $stmt = $pdo->prepare("SELECT * FROM web_orders WHERE id_orden = ? FOR UPDATE");
+    $stmt->execute([$idOrden]);
+    $orden = $stmt->fetch();
+    if (!$orden) throw new RuntimeException('La orden ya no existe.');
+    if ((int)$orden['id_sucursal'] !== $idSucursal) throw new RuntimeException('Esta orden pertenece a otra sucursal.');
+    if ($orden['estado'] !== 'pendiente' || $orden['estado_pago'] !== 'pendiente') throw new RuntimeException('Esta orden ya fue cobrada o cancelada.');
+
+    $lin = $pdo->prepare("SELECT d.id_producto, d.cantidad, d.precio_unitario, d.subtotal_linea, COALESCE(d.descripcion, p.nombre) AS descripcion
+                          FROM web_order_detalle d JOIN productos p ON p.id_producto = d.id_producto WHERE d.id_orden = ? ORDER BY d.id_detalle");
+    $lin->execute([$idOrden]);
+    $lineas = $lin->fetchAll();
+    if (!$lineas) throw new RuntimeException('La orden no tiene artículos para cobrar. Usa "Continuar" para capturarla en Venta.');
+
+    $total = money(array_sum(array_map(fn($l) => (float)$l['subtotal_linea'], $lineas)) + (float)$orden['costo_envio']);
+    return ['orden' => $orden, 'lineas' => $lineas, 'total' => $total];
+}
+
+/* Registra el cobro de una orden web ya revisada (posPrepararOrdenWeb): descuenta lo que no se apartó, crea la venta con sus
+   garantías y deja la orden atendida. $c: id_usuario, id_sucursal, id_caja, id_metodo_pago, recibido, cambio, ticket_numero, aviso */
+function posRegistrarOrdenWeb(PDO $pdo, array $prep, array $c): array {
+    $orden = $prep['orden'];
+    $lineas = $prep['lineas'];
+    $total = $prep['total'];
+    $idOrden = (int)$orden['id_orden'];
+    $idSucursal = (int)$c['id_sucursal'];
+
+    // Respaldo: si la orden no apartó inventario, se valida y descuenta aquí (solo en esta sucursal)
+    if ((int)$orden['stock_reservado'] !== 1) {
+        $ver = $pdo->prepare("SELECT stock_actual FROM inventarios WHERE id_producto = ? AND id_sucursal = ? FOR UPDATE");
+        $baja = $pdo->prepare("UPDATE inventarios SET stock_actual = stock_actual - ? WHERE id_producto = ? AND id_sucursal = ?");
+        foreach ($lineas as $l) {
+            $ver->execute([$l['id_producto'], $idSucursal]);
+            $existencia = $ver->fetchColumn();
+            if ($existencia === false || (int)$existencia < (int)$l['cantidad']) throw new RuntimeException("Stock insuficiente para {$l['descripcion']}.");
+            $baja->execute([$l['cantidad'], $l['id_producto'], $idSucursal]);
+        }
+    }
+
+    $venta = $pdo->prepare("INSERT INTO ventas (id_sucursal, id_usuario, id_caja, id_metodo_pago, id_cliente, subtotal, total, efectivo_recibido, cambio, ticket_numero)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    $venta->execute([$idSucursal, (int)$c['id_usuario'], (int)$c['id_caja'], (int)$c['id_metodo_pago'], $orden['id_cliente'] ?: null, $total, $total, $c['recibido'], $c['cambio'], (int)$c['ticket_numero']]);
+    $ventaId = (int)$pdo->lastInsertId();
+
+    $det = $pdo->prepare("INSERT INTO detalle_ventas (id_venta, id_producto, cantidad, precio_unitario, subtotal_linea) VALUES (?, ?, ?, ?, ?)");
+    foreach ($lineas as $l) $det->execute([$ventaId, $l['id_producto'], $l['cantidad'], $l['precio_unitario'], $l['subtotal_linea']]);
+    posRegistrarGarantias($pdo, $ventaId, $idSucursal, array_map(fn($l) => ['id' => (int)$l['id_producto'], 'vin' => ''], $lineas),
+        ['nombre' => (string)$orden['nombre'], 'celular' => (string)($orden['celular'] ?? ''), 'email' => (string)($orden['email'] ?? '')],
+        $orden['id_cliente'] ? (int)$orden['id_cliente'] : null);
+
+    $pdo->prepare("UPDATE web_orders SET estado = 'atendida', estado_pago = 'pagado', id_venta = ?, fecha_pago = NOW(), id_metodo_pago = ? WHERE id_orden = ?")
+        ->execute([$ventaId, (int)$c['id_metodo_pago'], $idOrden]);
+    notificarClienteOrden($pdo, $idOrden, "Pedido {$orden['folio']} pagado en caja", (string)$c['aviso']);
+    $fecha = $pdo->query("SELECT DATE_FORMAT(NOW(), '%d/%m/%Y %H:%i:%s')")->fetchColumn();
+
+    return [
+        'venta_id' => $ventaId,
+        'folio' => sprintf('KRM-%02d-%06d', $idSucursal, $ventaId),
+        'folio_orden' => $orden['folio'],
+        'fecha' => $fecha,
+        'total' => $total,
+        'cambio' => $c['cambio'],
+        'lineas' => array_map(fn($l) => ['descripcion' => $l['descripcion'], 'cantidad' => (int)$l['cantidad'], 'subtotal' => (float)$l['subtotal_linea']], $lineas)
+    ];
 }
 
 /* Cancela una orden web pendiente (por ejemplo, el cliente no se presentó). Si la orden había apartado piezas,
