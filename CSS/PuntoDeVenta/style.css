@@ -1472,3 +1472,35 @@ body.dark .mp-pasos li.is-fallo{ color:#E2697A; }
 @media (max-width:520px){
   .mp-pasos li{ font-size:8.5px; letter-spacing:.02em; }
 }
+
+/* ===== AVISOS DE GARANTÍA — campana de la barra superior y garantías aceptadas por el gerente ===== */
+.avisos-btn{
+  width:34px; height:34px;
+  border-radius:50%;
+  border:1px solid rgba(255,255,255,.16);
+  background:rgba(255,255,255,.04);
+  color:var(--text-on-dark);
+  display:flex; align-items:center; justify-content:center;
+  position:relative;
+  transition:background .2s ease;
+}
+.avisos-btn:hover{ background:rgba(255,255,255,.1); }
+.avisos-badge{
+  position:absolute; top:-5px; right:-5px;
+  min-width:17px; height:17px; padding:0 4px;
+  border-radius:999px; background:var(--red); color:#fff;
+  font-size:10px; font-weight:700; line-height:17px; text-align:center;
+}
+.avisos-badge[hidden]{ display:none; }
+.garantia-estado--aceptada{ background:rgba(31,122,77,.12); color:#1F7A4D; align-self:flex-start; }
+body.dark .garantia-estado--aceptada{ background:rgba(62,190,133,.16); color:#3EBE85; }
+.aviso-garantia{
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  padding:14px 16px; margin-bottom:10px;
+  border:1px solid var(--line); border-radius:12px;
+}
+.aviso-garantia-info{ display:flex; flex-direction:column; gap:4px; min-width:0; font-size:13.5px; }
+.aviso-garantia-info .garantia-detalle{ margin:0; }
+@media (max-width:640px){
+  .aviso-garantia{ flex-direction:column; align-items:stretch; }
+}

@@ -1080,3 +1080,20 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   .sub-nav{ gap:6px 18px; }
   .statusbar{ padding:8px 16px; }
 }
+/* ==========================================================================
+   NOTIFICACIONES — solicitudes de garantía enviadas desde caja
+   ========================================================================== */
+/* Contador de solicitudes pendientes en la pestaña */
+.nav-badge{
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:18px; height:18px; padding:0 5px; margin-left:6px;
+  border-radius:999px; background:var(--red); color:#fff;
+  font-size:10.5px; font-weight:700; letter-spacing:0; vertical-align:1px;
+}
+.nav-badge[hidden]{ display:none; }
+.notif-subtitulo{ font-family:var(--font-display); font-size:17px; font-weight:500; margin:22px 0 10px; }
+.garantia-bloque{ padding:16px 18px; margin-bottom:16px; }
+.garantia-texto{ margin-top:14px; }
+.garantia-texto .info-item-value{ white-space:pre-wrap; line-height:1.5; }
+#garMotivoCampo{ margin-top:6px; }
+#garMotivoCampo[hidden]{ display:none; }
