@@ -95,7 +95,14 @@
   // ===== CABECERA: sombra, menú de modelos, submenús, cuenta =====
   function iniciarCabecera() {
     const cabecera = $("#cabecera");
-    const alHacerScroll = () => cabecera?.classList.toggle("con-sombra", window.scrollY > 8);
+    // Posición del scroll cuando se abrió un menú (null = ninguno abierto)
+    let scrollAlAbrir = null;
+    const alHacerScroll = () => {
+      cabecera?.classList.toggle("con-sombra", window.scrollY > 8);
+      // Si la página se desplaza con un menú abierto, el menú se cierra: así no se queda flotando encima
+      // mientras la página se mueve por detrás
+      if (scrollAlAbrir !== null && Math.abs(window.scrollY - scrollAlAbrir) > 24) cerrarMenus();
+    };
     window.addEventListener("scroll", alHacerScroll, { passive: true });
     alHacerScroll();
 
@@ -106,7 +113,10 @@
       if (!mega || !botonMega) return;
       mega.classList.toggle("abierto", abrir);
       botonMega.setAttribute("aria-expanded", String(abrir));
-      if (abrir) cargarMiniaturas($(".mega-modelos:not(.oculto)", mega));
+      if (abrir) {
+        scrollAlAbrir = window.scrollY;
+        cargarMiniaturas($(".mega-modelos:not(.oculto)", mega));
+      }
     };
     botonMega?.addEventListener("click", (e) => { e.stopPropagation(); abrirMega(!mega.classList.contains("abierto")); });
     $$("[data-mega-marca]").forEach(btn => btn.addEventListener("mouseenter", () => btn.click()));
@@ -118,7 +128,12 @@
         if (visible) cargarMiniaturas(p);
       });
     }));
-    mega?.addEventListener("click", e => e.stopPropagation());
+    // Un clic dentro del menú no lo cierra, salvo que sea un enlace: el menú se cierra al elegir un modelo o sección
+    // (si no, al volver con «Atrás» la página reaparece con el menú todavía abierto encima)
+    mega?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (e.target.closest("a[href]")) cerrarMenus();
+    });
 
     // Submenú de Servicios y menú de la cuenta
     $$("[data-submenu], [data-menu-cuenta]").forEach(btn => {
@@ -129,15 +144,18 @@
         cerrarMenus();
         menu.classList.toggle("abierto", abrir);
         btn.setAttribute("aria-expanded", String(abrir));
+        if (abrir) scrollAlAbrir = window.scrollY;
       });
     });
     function cerrarMenus() {
+      scrollAlAbrir = null;
       $$(".submenu.abierto").forEach(m => m.classList.remove("abierto"));
       $$("[data-submenu], [data-menu-cuenta]").forEach(b => b.setAttribute("aria-expanded", "false"));
       abrirMega(false);
     }
     document.addEventListener("click", cerrarMenus);
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") cerrarMenus(); });
+    document.addEventListener("karma:cerrar-capas", cerrarMenus);
 
     // Cerrar sesión del cliente (no afecta la sesión del Punto de Venta)
     $$("[data-cerrar-sesion]").forEach(a => a.addEventListener("click", async (e) => {
@@ -158,8 +176,11 @@
     };
     $$("[data-abrir-menu]").forEach(b => b.addEventListener("click", () => abrir(true)));
     $$("[data-cerrar-cajon]", cajon).forEach(b => b.addEventListener("click", () => abrir(false)));
-    cajon.addEventListener("click", e => { if (e.target === cajon) abrir(false); });
+    // Se cierra al tocar el fondo o cualquier enlace: un enlace a la misma página (ej. servicios.php#seguros)
+    // no recarga, y el menú se quedaba abierto encima con la página de fondo bloqueada
+    cajon.addEventListener("click", e => { if (e.target === cajon || e.target.closest("a[href]")) abrir(false); });
     document.addEventListener("keydown", e => { if (e.key === "Escape" && cajon.classList.contains("abierto")) abrir(false); });
+    document.addEventListener("karma:cerrar-capas", () => abrir(false));
     $$("[data-abrir-sucursales]", cajon).forEach(b => b.addEventListener("click", () => abrir(false)));
   }
 
@@ -178,7 +199,8 @@
     };
     $$("[data-abrir-busqueda]").forEach(b => b.addEventListener("click", () => abrir(true)));
     $$("[data-cerrar-busqueda]").forEach(b => b.addEventListener("click", () => abrir(false)));
-    capa.addEventListener("click", e => { if (e.target === capa) abrir(false); });
+    capa.addEventListener("click", e => { if (e.target === capa || e.target.closest("a[href]")) abrir(false); });
+    document.addEventListener("karma:cerrar-capas", () => abrir(false));
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && capa.classList.contains("abierta")) abrir(false);
       const escribiendo = /input|textarea|select/i.test(document.activeElement?.tagName || "");
@@ -252,6 +274,20 @@
     } catch (_) {}
   }
 
+  // ===== AL VOLVER CON «ATRÁS» =====
+  // El navegador puede restaurar la página tal como se dejó (caché de ida y vuelta): con el menú de modelos,
+  // el menú móvil, el buscador o los filtros abiertos encima y la página de fondo sin poder desplazarse.
+  // Al restaurarla se cierra todo y se devuelve el desplazamiento.
+  function iniciarRestauracion() {
+    window.addEventListener("pageshow", (e) => {
+      if (!e.persisted) return;
+      document.dispatchEvent(new Event("karma:cerrar-capas"));
+      $$("dialog[open]").forEach(d => d.close());
+      $("#panelFiltros")?.classList.remove("abierto");
+      document.body.style.overflow = "";
+    });
+  }
+
   // ===== IDIOMA (reutiliza JavaScript/Traduccion/traductor.js del proyecto) =====
   function iniciarIdioma() {
     const boton = $("#btnIdioma");
@@ -291,7 +327,7 @@
         </div>
         <button class="btn-favorito${fav ? " activo" : ""}" type="button" data-favorito="${p.id}" aria-pressed="${fav}" aria-label="Guardar ${esc(p.titulo)} en vehículos de interés">${icono("corazon")}</button>
         <div class="tarjeta-cuerpo">
-          <span class="tarjeta-marca"><span translate="no">${esc(p.marca)}</span> · ${esc(p.subcategoria || (p.tipo === "moto" ? "Motocicleta" : "Automóvil"))}</span>
+          <span class="tarjeta-marca"><span translate="no">${esc(p.marca)}</span> · ${esc(p.subcategoria || (p.tipo === "moto" ? "Motocicleta" : "Automóvil"))}${p.color ? ` · <span translate="no">${esc(p.color)}</span>` : ""}</span>
           <h3><a href="${esc(p.url)}" translate="no">${esc(p.titulo)}</a><span class="anio">${p.anio || ""}</span></h3>
           <div class="tarjeta-resumen">
             ${p.motor ? `<span>${icono("motor")}${esc(p.motor)}</span>` : ""}
@@ -457,6 +493,7 @@
     iniciarCajon();
     iniciarBusqueda();
     iniciarSucursales();
+    iniciarRestauracion();
     iniciarIdioma();
     iniciarDelegados();
     avisoPendiente();

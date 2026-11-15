@@ -79,15 +79,14 @@ function catCabecera(array $o = []): void {
 <body class="<?= e($o['clase'] ?? '') ?>">
 <a class="saltar-contenido" href="#contenido">Saltar al contenido</a>
 
-<!-- ===== BARRA SUPERIOR: sucursal elegida, contacto, idioma y acceso al Punto de Venta ===== -->
+<!-- ===== BARRA SUPERIOR: sucursal cuyo inventario se muestra, idioma y acceso al Punto de Venta.
+     Sin teléfono ni horario: el sitio es un catálogo, no una sucursal en línea. ===== -->
 <div class="barra-util">
   <div class="contenedor">
     <div class="grupo">
       <button class="selector-sucursal" type="button" data-abrir-sucursales aria-haspopup="dialog">
         <?= icono('ubicacion') ?> <span class="ocultar-movil">Sucursal:</span> <strong data-sucursal-nombre translate="no"><?= e($sucursal['nombre']) ?></strong> <?= icono('chevron', 'icono icono--chico') ?>
       </button>
-      <a class="ocultar-movil" href="tel:<?= e($sucursal['telefono']) ?>"><?= icono('telefono') ?> <span translate="no"><?= e(preg_replace('/(\d{3})(\d{3})(\d{4})/', '$1 $2 $3', $sucursal['telefono'])) ?></span></a>
-      <span class="ocultar-movil"><?= icono('reloj') ?> <?= e($sucursal['horario_ventas'] ?? '') ?></span>
     </div>
     <div class="grupo">
       <button class="idioma" type="button" id="btnIdioma" aria-label="Cambiar idioma" translate="no"><span class="op activo" data-lang="es">ES</span> / <span class="op" data-lang="en">EN</span></button>
@@ -174,7 +173,7 @@ function catCabecera(array $o = []): void {
             <a class="mega-modelo" href="<?= e($v['url']) ?>">
               <!-- IMAGEN DEL MENÚ: miniatura de assets/Catalogo/vehiculos/{marca}/miniaturas/ -->
               <span class="foto"><img data-src="<?= e($v['miniatura']) ?>" alt="" width="240" height="150"></span>
-              <strong translate="no"><?= e($v['titulo']) ?></strong>
+              <strong translate="no"><?= e($v['titulo']) ?><?php if ($v['anio']): ?> <span class="anio"><?= $v['anio'] ?></span><?php endif; ?></strong>
               <span>Desde <span translate="no"><?= e($v['precioTexto']) ?></span> · <?= e($v['subcategoria'] ?? '') ?></span>
             </a>
           <?php endforeach; ?>

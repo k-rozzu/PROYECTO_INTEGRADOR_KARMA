@@ -320,7 +320,11 @@ ul { margin: 0; padding: 0; }
   background: var(--c-elev); border-bottom: 1px solid var(--c-line); box-shadow: var(--shadow-3);
   opacity: 0; visibility: hidden; transform: translateY(-8px);
   transition: opacity .22s var(--ease), transform .22s var(--ease), visibility .22s;
-  max-height: calc(100vh - var(--header-h) - 20px); overflow: auto;
+  /* Cabe completo en pantalla aun con la barra superior visible; si el contenido es más alto se desplaza dentro
+     del menú sin mover la página de fondo (overscroll-behavior), y al desplazar la página el menú se cierra (app.js) */
+  max-height: calc(100vh - var(--header-h) - var(--util-h) - 16px);
+  max-height: calc(100dvh - var(--header-h) - var(--util-h) - 16px);
+  overflow: auto; overscroll-behavior: contain;
 }
 .mega.abierto { opacity: 1; visibility: visible; transform: translateY(0); }
 .mega .contenedor { height: auto; display: grid; grid-template-columns: 210px 1fr; gap: 32px; padding-top: 22px; padding-bottom: 24px; align-items: start; }
@@ -343,6 +347,7 @@ ul { margin: 0; padding: 0; }
 .mega-modelo:hover .foto img { transform: scale(1.05); }
 .mega-modelo strong { font-family: var(--font-display); font-size: 14.5px; font-weight: 600; }
 .mega-modelo span { font-size: 12.5px; color: var(--c-text-3); }
+.mega-modelo strong .anio { font-family: var(--font-text); font-weight: 500; }
 
 /* ===== 6. MENÚ MÓVIL Y BÚSQUEDA ===== */
 .cajon {
@@ -351,7 +356,7 @@ ul { margin: 0; padding: 0; }
 }
 .cajon.abierto { opacity: 1; visibility: visible; }
 .cajon-panel {
-  width: min(420px, 92vw); height: 100%; overflow-y: auto; background: var(--c-bg);
+  width: min(420px, 92vw); height: 100%; overflow-y: auto; overscroll-behavior: contain; background: var(--c-bg);
   transform: translateX(100%); transition: transform .3s var(--ease);
   display: flex; flex-direction: column;
 }
@@ -373,7 +378,7 @@ ul { margin: 0; padding: 0; }
 .capa-busqueda.abierta { opacity: 1; visibility: visible; }
 .panel-busqueda {
   background: var(--c-bg); border-bottom: 1px solid var(--c-line); box-shadow: var(--shadow-3);
-  transform: translateY(-20px); transition: transform .25s var(--ease); max-height: 86vh; overflow-y: auto;
+  transform: translateY(-20px); transition: transform .25s var(--ease); max-height: 86vh; overflow-y: auto; overscroll-behavior: contain;
 }
 .capa-busqueda.abierta .panel-busqueda { transform: translateY(0); }
 .panel-busqueda .contenedor { padding-top: 28px; padding-bottom: 36px; }
