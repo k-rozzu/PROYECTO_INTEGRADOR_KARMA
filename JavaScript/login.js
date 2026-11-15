@@ -37,7 +37,6 @@ formulario.addEventListener("submit", async (event) => {
         const { respuesta, datos } = await autenticar(correo, password);
 
         if (respuesta.ok) {
-            alert(`Bienvenido, ${datos.usuario.nombre}`);
             console.log("Usuario autenticado:", datos.usuario);
 
             // 1. Guardamos el usuario en localStorage

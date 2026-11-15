@@ -110,7 +110,7 @@ const I18N = {
     noPedidosSub:"Registra tu primer pedido a proveedor con el botón “Nuevo pedido”.",
     minOneVehicle:"El pedido debe incluir al menos un vehículo",
 
-    navCatalogo:"Catálogo", navVentas:"Ventas", navCortes:"Cortes de caja", navAuditoria:"Auditoría", helpBtn:"F1 · Ayuda",
+    navCatalogo:"Catálogo", navVentas:"Ventas", navCortes:"Cortes de caja", navAuditoria:"Auditoría", helpBtn:"F1 · Ayuda", registrarVenta:"Registrar venta",
     kpiStock:"Unidades en stock", daysSupply:"≈ {n} días de inventario", avgAging:"antigüedad prom. {n} d", agedUnits:"{n} rezagada(s) +90 d",
     kpiMargen:"Margen bruto promedio", perUnit:"por venta · últimos 6 meses", noCostData:"Sin costos capturados",
     kpiFI:"Penetración financiera (F&I)", fiSub:"{c} a crédito · {d} de contado",
@@ -230,7 +230,7 @@ const I18N = {
     noPedidosSub:"Register your first supplier order with the “New order” button.",
     minOneVehicle:"The order must include at least one vehicle",
 
-    navCatalogo:"Catalog", navVentas:"Sales", navCortes:"Cash closings", navAuditoria:"Audit trail", helpBtn:"F1 · Help",
+    navCatalogo:"Catalog", navVentas:"Sales", navCortes:"Cash closings", navAuditoria:"Audit trail", helpBtn:"F1 · Help", registrarVenta:"Record sale",
     kpiStock:"Units in stock", daysSupply:"≈ {n} days of supply", avgAging:"avg. age {n} d", agedUnits:"{n} aged 90+ d",
     kpiMargen:"Average front-end gross", perUnit:"per sale · last 6 months", noCostData:"No cost data yet",
     kpiFI:"Finance penetration (F&I)", fiSub:"{c} financed · {d} cash",
