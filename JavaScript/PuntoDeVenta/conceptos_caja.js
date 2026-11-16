@@ -481,6 +481,8 @@ async function guardarConceptoEnTicket(){
       payload,
       cliente, email, celular: $("#inpCelularS").value.trim(), rfcIne
     });
+    // El primer artículo fija los datos del cliente para todo el ticket (script.js)
+    fijarClienteTicket(ticketItems[ticketItems.length - 1]);
 
     borrador = {};
     reiniciarCalculoConcepto();

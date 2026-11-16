@@ -446,6 +446,28 @@ body.dark .tipo-tile:hover{ background:rgba(158,27,46,.18); }
 .form-field input:focus, .form-field select:focus, .form-field textarea:focus{ border-color:var(--text-muted); }
 .form-field input::placeholder, .form-field textarea::placeholder, .cash-form input::placeholder{ color:var(--text-form); font-weight:500; opacity:1; }
 .form-field select:disabled{ color:var(--text-form); -webkit-text-fill-color:var(--text-form); font-weight:500; opacity:1; }
+/* Datos del cliente ya fijados en el ticket: se ven completos pero no se pueden editar hasta cobrar o cancelar (F6) */
+.form-field input.is-cliente-fijo,
+.form-field select.is-cliente-fijo{
+  background:var(--surface-1);
+  border-style:dashed;
+  color:var(--text-main);
+  -webkit-text-fill-color:var(--text-main);
+  font-weight:600;
+  opacity:1;
+  cursor:not-allowed;
+}
+.cliente-fijo-candado{ display:inline-flex; vertical-align:-2px; color:var(--text-muted); }
+.cliente-fijo-aviso{
+  display:flex; align-items:flex-start; gap:10px;
+  font-size:12px; line-height:1.5; color:var(--text-soft);
+  background:var(--surface-1);
+  border:1px dashed var(--line);
+  border-radius:var(--radius-sm);
+  padding:10px 13px; margin-bottom:18px;
+}
+.cliente-fijo-aviso svg{ flex:0 0 auto; margin-top:2px; color:var(--text-muted); }
+.cliente-fijo-aviso strong{ color:var(--text-main); }
 .form-field-info{ font-size:11.5px; font-weight:600; color:var(--text-form); margin-top:2px; }
 .form-field-info--ok{ color:var(--navy); font-weight:600; }
 .form-field-info--error{ color:var(--red); font-weight:600; }
@@ -629,6 +651,27 @@ body.dark .btn-ghost:hover{ background:rgba(158,27,46,.16); }
 .ticket-item-total strong{ font-size:14px; color:var(--text-main); }
 .ticket-item:last-child{ border-bottom:none; }
 
+/* Cliente del ticket: queda fijo bajo «Ticket #n» desde el primer artículo hasta cobrar o cancelar (F6) */
+.ticket-cliente{
+  flex-shrink:0;
+  width:min(100%, 430px);
+  margin:-6px 0 14px;
+  padding:14px 18px 13px;
+  background:var(--surface-2);
+  border:1px solid var(--line);
+  border-radius:6px;
+  box-shadow:0 14px 30px -24px rgba(0,0,0,.35);
+}
+.ticket-cliente-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.ticket-cliente-etiqueta{ font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--text-faint); }
+.ticket-cliente-candado{ display:inline-flex; align-items:center; gap:5px; font-size:10.5px; font-weight:600; color:var(--text-muted); }
+.ticket-cliente-nombre{ font-family:var(--font-display); font-size:17px; font-weight:500; color:var(--text-main); margin:3px 0 10px; overflow-wrap:anywhere; }
+.ticket-cliente-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; }
+.ticket-cliente-grid div{ display:flex; flex-direction:column; gap:2px; min-width:0; }
+.ticket-cliente-grid .span-2{ grid-column:1 / -1; }
+.ticket-cliente-grid span{ font-size:9.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-faint); }
+.ticket-cliente-grid strong{ font-size:12.5px; font-weight:600; color:var(--text-main); overflow-wrap:anywhere; }
+
 /* Cuadro de total con IVA — azul en claro / rojo en oscuro (pedido explícito) */
 .ticket-total{
   display:flex; align-items:center; justify-content:space-between;
@@ -657,8 +700,22 @@ body.dark .ticket-total{ background:rgba(158,27,46,.9); }
 }
 .shortcuts-bar[hidden]{ display:none; }
 .shortcut-btn{ flex:1; text-align:center; }
-/* Estado "activado" de un acceso rápido tipo interruptor (F4 / F5) */
-.shortcut-btn.is-active{ box-shadow:inset 0 0 0 2px rgba(255,255,255,.5); }
+/* Estado "activado" de un acceso rápido tipo interruptor (F4 / F5): colores invertidos para que se note que está encendido
+   (antes era un borde blanco casi invisible y F5 parecía quedarse activo); al pulsarlo otra vez vuelve al relleno normal */
+.shortcut-btn.is-active{
+  background:var(--surface-2);
+  border-color:var(--navy);
+  color:var(--navy);
+  box-shadow:inset 0 0 0 1px var(--navy);
+}
+.shortcut-btn.is-active:hover{ background:var(--navy-soft); }
+body.dark .shortcut-btn.is-active{
+  background:var(--surface-2);
+  border-color:rgba(158,27,46,1);
+  color:#E2697A;
+  box-shadow:inset 0 0 0 1px rgba(158,27,46,1);
+}
+body.dark .shortcut-btn.is-active:hover{ background:rgba(158,27,46,.16); }
 
 /* ===== RESULTADOS DE BÚSQUEDA (Venta) — cuadrícula de artículos con liquid glass ===== */
 .popular-heading{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:16px; }

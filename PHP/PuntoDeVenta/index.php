@@ -21,7 +21,7 @@ $csrfPos = posTokenCsrf();
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../../CSS/PuntoDeVenta/style.css?v=4">
+<link rel="stylesheet" href="../../CSS/PuntoDeVenta/style.css?v=6">
 <!-- Three.js (vista previa 3D) desde el CDN jsDelivr, versión fija para que no cambie sola -->
 <script type="importmap">
 {
@@ -208,15 +208,15 @@ $csrfPos = posTokenCsrf();
 <!-- API DE TRADUCCIÓN: traductor universal (debe ir antes de script.js) -->
 <script src="../../JavaScript/Traduccion/traductor.js"></script>
 <!-- Lógica principal del punto de venta -->
-<script src="../../JavaScript/PuntoDeVenta/script.js?v=4"></script>
+<script src="../../JavaScript/PuntoDeVenta/script.js?v=6"></script>
 <!-- Autorización de empleado: cámara + lector QR (jsQR se carga solo al abrir el modal) y código manual; el servidor decide -->
 <script src="../../JavaScript/PuntoDeVenta/autorizacion_empleado.js"></script>
 <!-- Crédito automotriz: contrato, firma con el touchpad y visor del PDF -->
-<script src="../../JavaScript/PuntoDeVenta/contrato_credito.js?v=2"></script>
+<script src="../../JavaScript/PuntoDeVenta/contrato_credito.js?v=3"></script>
 <!-- Conceptos de caja: seguros, financiamiento, trámites, impuestos y posventa (pestaña «Servicios» del formulario de Venta) -->
-<script src="../../JavaScript/PuntoDeVenta/conceptos_caja.js?v=2"></script>
+<script src="../../JavaScript/PuntoDeVenta/conceptos_caja.js?v=3"></script>
 <!-- Cobro con tarjeta: Mercado Pago Point (orden a la terminal, estado del pago y ticket al aprobarse) -->
-<script src="../../JavaScript/PuntoDeVenta/mercado_pago.js?v=1"></script>
+<script src="../../JavaScript/PuntoDeVenta/mercado_pago.js?v=2"></script>
 <!-- Vista previa 3D (módulo de Three.js); si no carga, script.js muestra un aviso -->
 <script type="module" src="../../JavaScript/PuntoDeVenta/vista_previa_3d.js?v=2" onerror="window.KARMA_VISTA3D_FALLO = true; window.dispatchEvent(new Event('karma:vista3d-fallo'));"></script>
 </body>

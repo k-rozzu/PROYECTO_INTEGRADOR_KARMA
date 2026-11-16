@@ -134,6 +134,7 @@ let ticketNumero = 1;               // número de ticket, sube cada vez que se c
 let modoEliminarTicket = false;     // F4 — muestra las "×" para quitar artículos
 let pagoEstado = null;              // Estado temporal del cobro antes de guardar la venta
 let ticketCerrado = null;            // Ticket confirmado que se muestra al cliente
+let ticketCliente = null;            // Cliente del ticket en curso: se fija con el primer artículo y se libera al cobrar o cancelar (F6)
 
 // --- Estado de búsqueda dentro de Venta (autocompletado → resultados) ---
 let ventaResultadosActivos = false; // true = se está mostrando la cuadrícula de resultados
@@ -493,8 +494,10 @@ function renderPanelVenta(){
   // desplaza es <main> (formulario y ticket apilados), por eso se guardan los dos
   const main = $("#main");
   const scroll = panel.scrollTop, scrollMain = main ? main.scrollTop : 0;
+  aplicarClienteTicketAlBorrador();
   panel.innerHTML = formularioVentaHTML();
   bindFormularioVenta();
+  bloquearCamposCliente(panel);
   montarVistaPrevia3D();
   panel.scrollTop = scroll;
   if (main) main.scrollTop = scrollMain;
@@ -1458,6 +1461,7 @@ async function guardarArticulo(){
       email = $("#inpEmailP").value.trim();
       celular = $("#inpCelularP").value.trim();
       rfcIne = rfcIneCapturado("inpRfcIneP", "RFC / INE");
+      validarEmailCliente(email, "inpEmailP");
 
       item = REFACCIONES.find(r => String(r.id) === String(borrador.piezaId));
       if (!item){
@@ -1490,6 +1494,7 @@ async function guardarArticulo(){
       email = $("#inpEmailA").value.trim();
       celular = $("#inpCelularA").value.trim();
       rfcIne = rfcIneCapturado("inpRfcIneA", "RFC / INE");
+      validarEmailCliente(email, "inpEmailA");
 
       item = ACCESORIOS.find(a => String(a.id) === String(borrador.piezaId));
       if (!item) throw new Error("Elige el accesorio en el último cajón antes de guardarlo.");
@@ -1584,6 +1589,7 @@ async function guardarArticulo(){
       email = $("#inpEmail").value.trim();
       celular = $("#inpCelular").value.trim();
       rfcIne = rfcIneCapturado("inpRfcIne", "RFC / INE");
+      validarEmailCliente(email, "inpEmail");
       item = articuloDeBorrador(borrador);
       if (!item) throw new Error(MSG_COMPLETAR_VEHICULO);
       if (item.unidades < 1) throw new Error(MSG_SIN_STOCK_VEHICULO);
@@ -1601,6 +1607,8 @@ async function guardarArticulo(){
       });
     }
 
+    // El primer artículo fija los datos del cliente para todo el ticket
+    fijarClienteTicket(ticketItems[ticketItems.length - 1]);
     borrador = {};
     mostrarTablaAmortizacion = false;
     renderPanelVenta();
@@ -1641,6 +1649,103 @@ function calcularCotizacion(){
 
 /* ===== 5. VENTA — ticket de la venta actual (derecha, 2/5) ===== */
 
+/* ----- Cliente del ticket: todos los artículos de un ticket son de la misma persona ----- */
+
+// Datos del cliente que comparte el ticket (domicilio e identificación solo los piden Vehículos y Créditos)
+const CAMPOS_CLIENTE_TICKET = ["cliente", "rfcIne", "email", "celular", "direccion", "identificacionTipo", "identificacionNumero"];
+
+// Campo del formulario de cada sección que corresponde a cada dato del cliente
+const CAMPOS_CLIENTE_FORM = {
+  Vehiculo:  { cliente: "inpCliente",  rfcIne: "inpRfcIne",  email: "inpEmail",  celular: "inpCelular",  direccion: "inpDireccion",  identificacionTipo: "selIdentificacion" },
+  Credito:   { cliente: "inpClienteC", rfcIne: "inpRfcIneC", email: "inpEmailC", celular: "inpCelularC", direccion: "inpDireccionC", identificacionTipo: "selIdentificacionC", identificacionNumero: "inpIdNumeroC" },
+  Servicios: { cliente: "inpClienteS", rfcIne: "inpRfcIneS", email: "inpEmailS", celular: "inpCelularS" },
+  Refaccion: { cliente: "inpClienteP", rfcIne: "inpRfcIneP", email: "inpEmailP", celular: "inpCelularP" },
+  Accesorio: { cliente: "inpClienteA", rfcIne: "inpRfcIneA", email: "inpEmailA", celular: "inpCelularA" }
+};
+
+const ICONO_CANDADO = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>`;
+
+// Correo opcional: si se escribe debe ser válido, porque queda fijo para todo el ticket (Créditos y Servicios lo exigen así)
+function validarEmailCliente(email, idInput){
+  if (email && !/^\S+@\S+\.\S+$/.test(email)){
+    $(`#${idInput}`)?.focus();
+    throw new Error("El correo electrónico del cliente no es válido.");
+  }
+}
+
+// Guarda los datos del cliente con el primer artículo. Los siguientes solo completan lo que seguía vacío
+// (por ejemplo, el domicilio cuando después de una refacción se agrega un vehículo), y todos los artículos quedan con los mismos datos
+function fijarClienteTicket(it){
+  if (!it) return;
+  if (!ticketCliente) ticketCliente = {};
+  CAMPOS_CLIENTE_TICKET.forEach(k => {
+    const valor = String(it[k] ?? "").trim();
+    if (valor && !ticketCliente[k]) ticketCliente[k] = valor;
+  });
+  ticketItems.forEach(item => CAMPOS_CLIENTE_TICKET.forEach(k => { if (!item[k] && ticketCliente[k]) item[k] = ticketCliente[k]; }));
+}
+
+// Ticket cobrado o cancelado: los campos del cliente se desbloquean y quedan vacíos para atender a otra persona
+function liberarClienteTicket(){
+  ticketCliente = null;
+  CAMPOS_CLIENTE_TICKET.forEach(k => { delete borrador[k]; });
+  renderPanelVenta();
+}
+
+// Antes de dibujar el formulario: copia al borrador los datos ya fijados (así cualquier sección los muestra y los usa)
+function aplicarClienteTicketAlBorrador(){
+  if (!ticketCliente) return;
+  CAMPOS_CLIENTE_TICKET.forEach(k => { if (ticketCliente[k]) borrador[k] = ticketCliente[k]; });
+}
+
+// Bloquea en el formulario los datos del cliente ya fijados; los que siguen vacíos se pueden completar
+function bloquearCamposCliente(panel){
+  const campos = CAMPOS_CLIENTE_FORM[formTipoArticulo];
+  if (!ticketCliente || !ventaSeccionAbierta || !campos || !panel) return;
+  let primerCampo = null, vacios = 0;
+  Object.entries(campos).forEach(([clave, id]) => {
+    const el = $(`#${id}`, panel);
+    if (!el) return;
+    primerCampo = primerCampo || el;
+    const valor = ticketCliente[clave];
+    if (!valor){ vacios += 1; return; }
+    el.value = valor;
+    el.disabled = true;
+    el.classList.add("is-cliente-fijo");
+    el.title = "Dato del cliente del ticket: se libera al cobrar o cancelar (F6)";
+    el.closest(".form-field")?.querySelector("label")?.insertAdjacentHTML("beforeend", ` <span class="cliente-fijo-candado">${ICONO_CANDADO}</span>`);
+  });
+  primerCampo?.closest(".form-grid")?.insertAdjacentHTML("beforebegin", `
+    <div class="cliente-fijo-aviso">
+      ${ICONO_CANDADO}
+      <span>Cliente del ticket #${String(ticketNumero).padStart(2, "0")}: <strong translate="no">${escapeHTML(ticketCliente.cliente)}</strong>. Sus datos quedan bloqueados hasta cobrar o cancelar (F6) el ticket; captura solo el producto o servicio.${vacios ? " Los datos que siguen vacíos aún se pueden completar." : ""}</span>
+    </div>`);
+}
+
+// Tarjeta fija bajo «Ticket #n» con los datos del cliente
+function clienteTicketHTML(){
+  const c = ticketCliente;
+  if (!c) return "";
+  const dato = (etiqueta, valor, ancho = false) => valor
+    ? `<div${ancho ? ` class="span-2"` : ""}><span>${etiqueta}</span><strong translate="no">${escapeHTML(valor)}</strong></div>`
+    : "";
+  return `
+    <div class="ticket-cliente">
+      <div class="ticket-cliente-head">
+        <span class="ticket-cliente-etiqueta">Cliente</span>
+        <span class="ticket-cliente-candado" title="Se libera al cobrar o cancelar (F6) el ticket">${ICONO_CANDADO}<span>Fijo en este ticket</span></span>
+      </div>
+      <div class="ticket-cliente-nombre" translate="no">${escapeHTML(c.cliente)}</div>
+      <div class="ticket-cliente-grid">
+        ${dato("RFC / INE / CURP", c.rfcIne)}
+        ${dato("Celular", c.celular)}
+        ${dato("Email", c.email, true)}
+        ${dato("Dirección", c.direccion, true)}
+        ${dato("Identificación", [c.identificacionTipo, c.identificacionNumero].filter(Boolean).join(" · "))}
+      </div>
+    </div>`;
+}
+
 // Suma el precio total de todos los artículos del ticket
 function calcularTotalTicket(){
   return ticketItems.reduce((suma, it) => suma + (Number(it.precioTotal) || 0), 0);
@@ -1653,6 +1758,7 @@ function renderPanelLateral(){
 
   panel.innerHTML = `
     <div class="panel-heading"><h2>Ticket #${String(ticketNumero).padStart(2, "0")}</h2></div>
+    ${clienteTicketHTML()}
     <div class="ticket-list">
       ${ticketItems.length
         ? ticketItems.map(it => ticketItemHTML(it)).join("")
@@ -1745,9 +1851,9 @@ function renderShortcutsBar(){
   const pagoActivo = !!pagoEstado;
   bar.innerHTML = `
     <button class="btn btn-primary shortcut-btn ${pagoActivo ? "is-active" : ""}" id="btnF3" ${hayItems && (!pagoActivo || pagoEstado?.valido) ? "" : "disabled"}>F3 · Concretar</button>
-    <button class="btn btn-primary shortcut-btn ${modoEliminarTicket ? "is-active" : ""}" id="btnF4" ${hayItems && !pagoActivo ? "" : "disabled"}>F4 · Eliminar artículo</button>
-    <button class="btn btn-primary shortcut-btn ${modoCotizacion ? "is-active" : ""}" id="btnF5" ${pagoActivo ? "disabled" : ""}>F5 · Cotizar / simular</button>
-    <button class="btn btn-primary shortcut-btn" id="btnF6" ${hayItems && !pagoActivo ? "" : "disabled"}>F6 · Cancelar</button>
+    <button class="btn btn-primary shortcut-btn ${modoEliminarTicket ? "is-active" : ""}" id="btnF4" aria-pressed="${modoEliminarTicket}" ${hayItems && !pagoActivo ? "" : "disabled"}>F4 · Eliminar artículo</button>
+    <button class="btn btn-primary shortcut-btn ${modoCotizacion ? "is-active" : ""}" id="btnF5" aria-pressed="${modoCotizacion}" ${pagoActivo ? "disabled" : ""}>${modoCotizacion ? "F5 · Salir de cotización" : "F5 · Cotizar / simular"}</button>
+    <button class="btn btn-primary shortcut-btn" id="btnF6" ${(hayItems || ticketCliente) && !pagoActivo ? "" : "disabled"}>F6 · Cancelar</button>
   `;
   $("#btnF3").addEventListener("click", accionF3);
   $("#btnF4").addEventListener("click", toggleModoEliminar);
@@ -1946,6 +2052,7 @@ async function confirmarVentaDB(){
     ticketItems = [];
     modoEliminarTicket = false;
     ticketNumero += 1;
+    liberarClienteTicket();
     await refrescarDatosDB();
     renderPanelLateral();
     renderShortcutsBar();
@@ -1986,6 +2093,7 @@ async function cobrarAbonoDB(item, boton){
     ticketItems = [];
     modoEliminarTicket = false;
     ticketNumero += 1;
+    liberarClienteTicket();
     try { await refrescarDatosDB(); } catch (_) { /* el abono ya quedó registrado */ }
     renderPanelLateral();
     renderShortcutsBar();
@@ -2121,11 +2229,12 @@ function toggleCotizacion(){
   renderShortcutsBar();
 }
 
-// F6 — vacía el ticket sin concretar ninguna venta: NO avanza el número de ticket
+// F6 — vacía el ticket sin concretar ninguna venta: NO avanza el número de ticket. También libera al cliente del ticket
 function cancelarTicket(){
-  if (!ticketItems.length) return;
+  if (!ticketItems.length && !ticketCliente) return;
   ticketItems = [];
   modoEliminarTicket = false;
+  liberarClienteTicket();
   renderPanelLateral();
   renderShortcutsBar();
 }
@@ -2403,8 +2512,10 @@ function iniciarCobroAbono(id){
   if (!c) return;
   if (pagoEstado){ avisar("Termina primero el cobro que está en curso."); return; }
   if (ticketItems.some(it => it.esAbono && it.contratoId === c.contratoId)){ setActiveView("venta"); return; }
-  if (ticketItems.length){
-    avisar("El ticket actual tiene artículos. Concrétalo o cancélalo (F6) antes de cobrar un abono: el abono se cobra en su propio ticket.");
+  if (ticketItems.length || ticketCliente){
+    avisar(ticketItems.length
+      ? "El ticket actual tiene artículos. Concrétalo o cancélalo (F6) antes de cobrar un abono: el abono se cobra en su propio ticket."
+      : `El ticket actual está a nombre de ${ticketCliente.cliente}. Cancélalo (F6) antes de cobrar un abono: el abono se cobra en su propio ticket.`);
     return;
   }
   ticketIdCounter += 1;
@@ -2419,6 +2530,7 @@ function iniciarCobroAbono(id){
     // Identificador único de este cobro: si se reenvía (doble clic, error de red) el servidor no lo registra dos veces
     clave: (window.crypto?.randomUUID ? crypto.randomUUID() : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, d => (d ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> d / 4).toString(16)))
   });
+  fijarClienteTicket(ticketItems[ticketItems.length - 1]);
   modoEliminarTicket = false;
   cerrarModales();
   setActiveView("venta");
@@ -2911,6 +3023,12 @@ async function cancelarOrdenWebPOS(idOrden){
 // Lleva los datos de una orden web directo al formulario de Venta
 function continuarDesdeWebOrder(orden){
   if (!orden) return;
+  // El ticket en curso pertenece a un solo cliente: la orden de otra persona espera a que se cobre o se cancele (F6)
+  const mismoNombre = (a, b) => String(a || "").trim().toLocaleLowerCase("es") === String(b || "").trim().toLocaleLowerCase("es");
+  if (ticketCliente && !mismoNombre(ticketCliente.cliente, orden.nombre)){
+    avisar(`El ticket #${String(ticketNumero).padStart(2, "0")} está a nombre de ${ticketCliente.cliente}. Cóbralo o cancélalo (F6) antes de atender la orden de ${orden.nombre}.`);
+    return;
+  }
   ventaSeccionAbierta = true;
   const accesorio = orden.tipo === "vehiculo" ? null : ACCESORIOS.find(a => a.nombre.toLowerCase() === String(orden.pieza || "").toLowerCase());
   if (accesorio){

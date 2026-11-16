@@ -452,6 +452,7 @@ async function aceptarFirmaContrato(){
     ticketItems = [];
     modoEliminarTicket = false;
     ticketNumero += 1;
+    liberarClienteTicket();
     try { await refrescarDatosDB(); } catch (_) { /* el crédito ya quedó registrado; los catálogos se refrescan después */ }
     renderPanelVenta();
     renderPanelLateral();

@@ -403,6 +403,7 @@ async function cerrarVentaConTarjeta(pago){
   ticketItems = [];
   modoEliminarTicket = false;
   ticketNumero += 1;
+  liberarClienteTicket();
   try { await refrescarDatosDB(); } catch (_) { /* la venta ya quedó registrada */ }
   renderPanelLateral();
   renderShortcutsBar();
@@ -429,6 +430,7 @@ async function cerrarAbonoConTarjeta(pago, item){
   ticketItems = [];
   modoEliminarTicket = false;
   ticketNumero += 1;
+  liberarClienteTicket();
   try { await refrescarDatosDB(); } catch (_) { /* el abono ya quedó registrado */ }
   renderPanelLateral();
   renderShortcutsBar();
