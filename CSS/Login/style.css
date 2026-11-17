@@ -5,6 +5,23 @@
     --border-gray: #ccc;
     --text-gray: #333;
     --placeholder-gray: #aaa;
+    /* Se usaba en el foco de los campos y el fondo del logo sin estar definida: rojo vino de KARMA */
+    --primary-red: #9E1B2E;
+    --page-bg: #ffffff;
+    --input-bg: #ffffff;
+    --input-text: #17181A;
+}
+
+/* Modo oscuro: misma paleta que el POS, el Home y los paneles (#101012 con rojo vino), según karma_tema */
+body.dark {
+    --primary-blue: #F1F1EF;
+    --hover-blue: #7A1322;
+    --border-gray: #2B2C2F;
+    --text-gray: #C9C9C7;
+    --placeholder-gray: #6D6E6C;
+    --page-bg: #101012;
+    --input-bg: #17181B;
+    --input-text: #F1F1EF;
 }
 
 * {
@@ -18,7 +35,7 @@ body {
     height: 100vh;
     width: 100vw;
     overflow: hidden; /* Evita barras de desplazamiento innecesarias */
-    background-color: #ffffff;
+    background-color: var(--page-bg);
 }
 
 /* --- Contenedor Principal a Pantalla Completa --- */
@@ -27,7 +44,7 @@ body {
     display: flex;
     width: 100vw;       /* Toma todo el ancho de la ventana */
     height: 100vh;      /* Toma todo el alto de la ventana */
-    background-color: #ffffff;
+    background-color: var(--page-bg);
     border-radius: 0;   /* Eliminamos esquinas redondeadas */
     box-shadow: none;   /* Eliminamos sombras de tipo tarjeta */
     overflow: hidden;
@@ -44,8 +61,9 @@ body {
 .left-image {
     width: 100%;
     height: 100%;
-    object-fit: fill;
-    /*object-position: center bottom;*/
+    /* cover: la foto se recorta en lugar de deformarse en pantallas anchas o angostas */
+    object-fit: cover;
+    object-position: center;
     display: block;
 }
 
@@ -139,6 +157,8 @@ body {
     font-size: 14px;
     font-family: inherit;
     outline: none;
+    background-color: var(--input-bg);
+    color: var(--input-text);
     transition: border-color 0.3s;
 }
 
@@ -182,4 +202,25 @@ body {
 
 .forgot-password:hover {
     text-decoration: underline;
+}
+
+body.dark .login-form button { background-color: rgba(158, 27, 46, 0.85); }
+body.dark .login-form button:hover { background-color: #9E1B2E; }
+body.dark .overlap-logo { border-color: #101012; }
+
+/* --- Pantallas medianas y celulares: una sola columna con la foto como franja superior --- */
+@media (max-width: 860px) {
+    body { height: auto; min-height: 100vh; min-height: 100dvh; overflow-x: hidden; overflow-y: auto; width: 100%; }
+    .login-container { flex-direction: column; width: 100%; height: auto; min-height: 100vh; min-height: 100dvh; overflow: visible; }
+    .left-panel { width: 100%; height: 30vh; min-height: 170px; max-height: 280px; flex: none; }
+    .overlap-logo { top: clamp(170px, 30vh, 280px); width: 96px; height: 96px; }
+    .right-panel { width: 100%; height: auto; flex: 1; justify-content: flex-start; padding: 72px 20px 40px; }
+    .header-section { margin-bottom: 28px; }
+    .header-section h1 { font-size: 30px; }
+    .header-section p { font-size: 13px; }
+    .input-group input { font-size: 16px; } /* 16px evita el zoom automático de iOS al enfocar */
+}
+@media (max-width: 380px) {
+    .header-section h1 { font-size: 26px; }
+    .right-panel { padding-left: 16px; padding-right: 16px; }
 }

@@ -50,8 +50,12 @@ define('CAT_RAIZ', catRaizWeb());
 function catIniciarSesion(): void {
     if (session_status() === PHP_SESSION_ACTIVE) return;
     ini_set('session.use_strict_mode', '1');
+    ini_set('session.use_only_cookies', '1');
     session_name(CAT_SESION);
-    session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
+    // En el dominio público (HTTPS, también detrás del proxy del hosting) la cookie se marca Secure
+    $https = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
+        || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
+    session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax', 'secure' => $https]);
     session_start();
 }
 catIniciarSesion();

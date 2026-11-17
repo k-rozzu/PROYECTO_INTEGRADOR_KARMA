@@ -29,6 +29,11 @@ window.addEventListener('storage', function (event) {
     if (event.key === CLAVE_TEMA || event.key === CLAVE_IDIOMA) window.location.reload();
 });
 
+// Escapa texto de la base de datos antes de meterlo en el HTML de las tarjetas (evita inyectar etiquetas o scripts)
+function esc(valor) {
+    return String(valor ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
 // Función para cargar un archivo HTML en un contenedor
 async function loadComponent(file, elementId) {
     try {
@@ -54,6 +59,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
     const usuario = JSON.parse(userDataString);
+    // Contraseña temporal del administrador: primero hay que cambiarla
+    if (usuario.debe_cambiar_password) {
+        window.location.replace("../PHP/Login/cambiar_password.php?forzado=1");
+        return;
+    }
 
     // Aplica el tema guardado de inmediato, antes de cargar la navbar, para que no se vea un destello claro
     document.body.classList.toggle('dark-mode', localStorage.getItem(CLAVE_TEMA) === 'dark');
@@ -71,6 +81,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             "displacement": "Cilindraje",
             "detail": "Detalle",
             "logout": "Cerrar Sesión",
+            "change_password": "Cambiar contraseña",
             "load_error": "No se pudieron cargar los vehículos. Revisa la conexión con el servidor e inténtalo de nuevo.",
             "role_Gerente": "Gerente",
             "role_Cajero": "Cajero",
@@ -88,6 +99,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             "displacement": "Displacement",
             "detail": "Detail",
             "logout": "Log Out",
+            "change_password": "Change password",
             "load_error": "The vehicles could not be loaded. Check the server connection and try again.",
             "role_Gerente": "Manager",
             "role_Cajero": "Cashier",
@@ -318,22 +330,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // Generar tarjetas para Top Sellers (Giratorias)
                 topSellers.forEach(prod => {
                     // En la BD las rutas empiezan con "/assets/...": se vuelven relativas a Home/ para que funcionen en cualquier carpeta
-                    const imgSrc = '..' + prod.imagen_path;
+                    const imgSrc = encodeURI('..' + prod.imagen_path);
                     
                     const cardHTML = `
                     <div class="card" tabindex="0">
                         <div class="content">
                             <div class="face face-front">
-                                <h2 class="car-title">${prod.marca || ''} ${prod.modelo || ''}</h2>
-                                <div class="image-wrapper"><img src="${imgSrc}" alt="${prod.modelo}" class="car-image"></div>
+                                <h2 class="car-title">${esc(prod.marca)} ${esc(prod.modelo)}</h2>
+                                <div class="image-wrapper"><img src="${esc(imgSrc)}" alt="${esc(prod.modelo)}" class="car-image" loading="lazy"></div>
                                 <span class="hover-indicator">${translations[currentLang].flip_info}</span>
                             </div>
                             <div class="face face-back">
-                                <h2 class="car-title-back">${prod.marca || ''} ${prod.modelo || ''}</h2>
+                                <h2 class="car-title-back">${esc(prod.marca)} ${esc(prod.modelo)}</h2>
                                 <div class="car-info">
-                                    <div class="info-row"><span>${translations[currentLang].engine}</span><strong>${prod.motor || 'N/A'}</strong></div>
-                                    <div class="info-row"><span>${translations[currentLang].displacement}</span><strong>${prod.cilindraje || 'N/A'}</strong></div>
-                                    <div class="info-row"><span>${translations[currentLang].detail}</span><strong>${prod.detalle || 'Estándar'}</strong></div>
+                                    <div class="info-row"><span>${translations[currentLang].engine}</span><strong>${esc(prod.motor || 'N/A')}</strong></div>
+                                    <div class="info-row"><span>${translations[currentLang].displacement}</span><strong>${esc(prod.cilindraje || 'N/A')}</strong></div>
+                                    <div class="info-row"><span>${translations[currentLang].detail}</span><strong>${esc(prod.detalle || 'Estándar')}</strong></div>
                                 </div>
                             </div>
                         </div>
@@ -350,11 +362,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                             <div class="shape shape-2"></div>
                         </div>
                         <div class="glass-front">
-                            <h2 class="glass-title">${prod.marca || ''} <br> ${prod.modelo || ''}</h2>
+                            <h2 class="glass-title">${esc(prod.marca)} <br> ${esc(prod.modelo)}</h2>
                             <div class="glass-specs">
-                                <div class="spec-item"><span>${translations[currentLang].engine}</span><strong>${prod.motor || 'N/A'}</strong></div>
-                                <div class="spec-item"><span>${translations[currentLang].displacement}</span><strong>${prod.cilindraje || 'N/A'}</strong></div>
-                                <div class="spec-item"><span>${translations[currentLang].detail}</span><strong>${prod.detalle || 'Estándar'}</strong></div>
+                                <div class="spec-item"><span>${translations[currentLang].engine}</span><strong>${esc(prod.motor || 'N/A')}</strong></div>
+                                <div class="spec-item"><span>${translations[currentLang].displacement}</span><strong>${esc(prod.cilindraje || 'N/A')}</strong></div>
+                                <div class="spec-item"><span>${translations[currentLang].detail}</span><strong>${esc(prod.detalle || 'Estándar')}</strong></div>
                             </div>
                         </div>
                     </div>`;

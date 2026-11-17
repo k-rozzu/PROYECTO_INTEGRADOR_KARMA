@@ -61,6 +61,15 @@ require_once __DIR__ . '/mercado_pago.php';
 try {
     $action = $_GET['action'] ?? '';
 
+    // Capa CSRF: solo las consultas se aceptan por GET; todo lo demás debe llegar por POST, desde este mismo sitio y con el
+    // token de la sesión (script.js lo manda en X-CSRF-Token en cada petición). Cerrar sesión queda libre a propósito.
+    $accionesLectura = ['bootstrap', 'avisos_garantia', 'ver_contrato', 'mp_estado_cobro', 'logout'];
+    if ($action !== 'logout') {
+        $metodo = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+        if ($metodo !== 'POST' && !in_array($action, $accionesLectura, true)) fail('Usa POST.', 405);
+        if ($metodo === 'POST' && (!posCsrfValido() || !posMismoOrigen())) fail(posMensajeRechazo('CSRF'), 403);
+    }
+
     // Capa de autorización: concretar venta, concretar crédito, aplicar garantía y cobrar/cancelar órdenes web exigen un permiso
     // vigente del gafete del MISMO usuario de la sesión. Se valida y se consume aquí, ANTES de llamar a la función original:
     // sin permiso válido la petición termina en 403 y no se toca ninguna tabla (ni ventas, ni inventario, ni órdenes).
@@ -151,6 +160,12 @@ try {
         default:
             fail('Acción no reconocida.', 404);
     }
+} catch (PDOException $e) {
+    // Mensajes de las reglas de la base de datos (triggers con SIGNAL 45000): están escritos para el cajero y se muestran tal cual
+    if (($e->errorInfo[0] ?? '') === '45000') fail((string)($e->errorInfo[2] ?? 'Operación no permitida.'), 409);
+    // Los demás errores de la base de datos no se muestran (revelarían tablas y consultas): quedan en el log del servidor
+    error_log('[POS API] ' . ($action ?? '') . ': ' . $e->getMessage());
+    fail('No se pudo completar la operación por un error de la base de datos. Inténtalo de nuevo.', 500);
 } catch (Throwable $e) {
     fail($e->getMessage(), 500);
 }

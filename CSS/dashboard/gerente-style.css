@@ -14,9 +14,10 @@
   --black:        #0B0B0C;
   --ink:          #17181A;
 
-  /* Acentos (verde gerencial + rojo vino de la marca KARMA) */
-  --green:        #1A5C3A;
-  --green-soft:   rgba(26,92,58,.10);
+  /* Acentos: azul marino + rojo vino de KARMA, los mismos del POS y del panel de administrador
+     (las variables conservan el nombre --green para no tocar el resto de la hoja) */
+  --green:        #10213F;
+  --green-soft:   rgba(16,33,63,.10);
   --red:          #9E1B2E;
   --red-soft:     rgba(158,27,46,.10);
 
@@ -53,9 +54,9 @@
   --surface-2:    var(--white);
 
   --chart-grid:   rgba(23,24,26,.08);
-  --chart-green:  #1A5C3A;
+  --chart-green:  #10213F;
   --chart-red:    #9E1B2E;
-  --chart-green-soft: rgba(26,92,58,.35);
+  --chart-green-soft: rgba(16,33,63,.35);
   --chart-red-soft:   rgba(158,27,46,.35);
 }
 
@@ -519,18 +520,18 @@ input, select, textarea{ font-family:inherit; }
 .btn svg{ flex:0 0 auto; }
 
 /* Primario: verde gerencial (claro) / rojo marca (oscuro) */
-.btn-primary{ background:rgba(26,92,58,.9); border-color:rgba(26,92,58,1); color:#fff; }
-.btn-primary:hover{ background:rgba(26,92,58,1); box-shadow:0 10px 24px -12px rgba(26,92,58,.7); }
+.btn-primary{ background:rgba(16,33,63,.9); border-color:rgba(16,33,63,1); color:#fff; }
+.btn-primary:hover{ background:rgba(16,33,63,1); box-shadow:0 10px 24px -12px rgba(16,33,63,.7); }
 body.dark .btn-primary{ background:rgba(158,27,46,.85); border-color:rgba(158,27,46,1); }
 body.dark .btn-primary:hover{ background:rgba(158,27,46,1); box-shadow:0 10px 24px -12px rgba(158,27,46,.7); }
 
-.btn-outline{ background:rgba(26,92,58,.10); border-color:rgba(26,92,58,.38); color:var(--green); }
-.btn-outline:hover{ background:rgba(26,92,58,.18); border-color:rgba(26,92,58,.6); }
+.btn-outline{ background:rgba(16,33,63,.10); border-color:rgba(16,33,63,.38); color:var(--green); }
+.btn-outline:hover{ background:rgba(16,33,63,.18); border-color:rgba(16,33,63,.6); }
 body.dark .btn-outline{ background:rgba(158,27,46,.14); border-color:rgba(158,27,46,.45); color:#E2697A; }
 body.dark .btn-outline:hover{ background:rgba(158,27,46,.22); border-color:rgba(158,27,46,.65); }
 
-.btn-ghost{ background:rgba(26,92,58,.05); color:var(--green); }
-.btn-ghost:hover{ background:rgba(26,92,58,.12); }
+.btn-ghost{ background:rgba(16,33,63,.05); color:var(--green); }
+.btn-ghost:hover{ background:rgba(16,33,63,.12); }
 body.dark .btn-ghost{ background:rgba(158,27,46,.08); color:#E2697A; }
 body.dark .btn-ghost:hover{ background:rgba(158,27,46,.16); }
 
@@ -569,7 +570,7 @@ body.dark .btn-ghost:hover{ background:rgba(158,27,46,.16); }
   width:40px; height:40px; flex:0 0 auto;
   border-radius:11px;
   display:flex; align-items:center; justify-content:center;
-  background:rgba(26,92,58,.10); color:var(--green);
+  background:rgba(16,33,63,.10); color:var(--green);
 }
 body.dark .quick-action-icon{ background:rgba(158,27,46,.14); color:#E2697A; }
 .quick-action-text{ display:flex; flex-direction:column; gap:1px; min-width:0; }
@@ -600,14 +601,14 @@ body.dark .quick-action-icon{ background:rgba(158,27,46,.14); color:#E2697A; }
   content:"";
   position:absolute; top:-40%; right:-30%;
   width:140px; height:140px; border-radius:50%;
-  background:radial-gradient(circle, rgba(26,92,58,.14), transparent 70%);
+  background:radial-gradient(circle, rgba(16,33,63,.14), transparent 70%);
   pointer-events:none;
 }
 body.dark .kpi-card::before{ background:radial-gradient(circle, rgba(158,27,46,.16), transparent 70%); }
 .kpi-icon{
   width:36px; height:36px; border-radius:10px;
   display:flex; align-items:center; justify-content:center;
-  background:rgba(26,92,58,.10); color:var(--green);
+  background:rgba(16,33,63,.10); color:var(--green);
   margin-bottom:14px;
 }
 body.dark .kpi-icon{ background:rgba(158,27,46,.14); color:#E2697A; }
@@ -728,11 +729,11 @@ body.dark .alert-panel-head h3{ color:#E2697A; }
 .btn-table{
   font-size:12px; font-weight:600;
   padding:7px 14px; border-radius:999px;
-  border:1px solid rgba(26,92,58,.38);
-  background:rgba(26,92,58,.10);
+  border:1px solid rgba(16,33,63,.38);
+  background:rgba(16,33,63,.10);
   color:var(--green); white-space:nowrap;
 }
-.btn-table:hover{ background:rgba(26,92,58,.18); }
+.btn-table:hover{ background:rgba(16,33,63,.18); }
 body.dark .btn-table{ border-color:rgba(158,27,46,.45); background:rgba(158,27,46,.14); color:#E2697A; }
 body.dark .btn-table:hover{ background:rgba(158,27,46,.22); }
 .btn-table-danger{
@@ -768,7 +769,7 @@ body.dark .btn-table:hover{ background:rgba(158,27,46,.22); }
 }
 .search-bar:focus-within{
   border-color:var(--text-muted);
-  box-shadow:0 0 0 3px rgba(26,92,58,.10);
+  box-shadow:0 0 0 3px rgba(16,33,63,.10);
 }
 .search-bar svg{ flex:0 0 auto; color:var(--text-faint); }
 .search-bar input{
@@ -831,7 +832,7 @@ body.dark .badge-danger{ color:#E2697A; }
 .caja-number{
   width:42px; height:42px; border-radius:12px;
   display:flex; align-items:center; justify-content:center;
-  background:rgba(26,92,58,.10); color:var(--green);
+  background:rgba(16,33,63,.10); color:var(--green);
   font-family:var(--font-display); font-size:18px; font-weight:600;
 }
 body.dark .caja-number{ background:rgba(158,27,46,.14); color:#E2697A; }
@@ -899,7 +900,7 @@ body.dark .caja-number{ background:rgba(158,27,46,.14); color:#E2697A; }
 .form-field textarea{ resize:vertical; min-height:70px; font-family:inherit; }
 .form-field input:focus, .form-field select:focus, .form-field textarea:focus{
   border-color:var(--text-muted);
-  box-shadow:0 0 0 3px rgba(26,92,58,.10);
+  box-shadow:0 0 0 3px rgba(16,33,63,.10);
 }
 body.dark .form-field input:focus, body.dark .form-field select:focus, body.dark .form-field textarea:focus{
   box-shadow:0 0 0 3px rgba(158,27,46,.14);
@@ -916,7 +917,7 @@ body.dark .form-field input:focus, body.dark .form-field select:focus, body.dark
   font-size:12.5px; font-weight:600;
   transition:border-color .15s ease, background .15s ease, color .15s ease;
 }
-.segmented-btn.is-active{ border-color:var(--green); color:var(--green); background:rgba(26,92,58,.08); }
+.segmented-btn.is-active{ border-color:var(--green); color:var(--green); background:rgba(16,33,63,.08); }
 body.dark .segmented-btn.is-active{ border-color:var(--red); color:#E2697A; background:rgba(158,27,46,.12); }
 
 .modal-title{ font-family:var(--font-display); font-size:22px; font-weight:500; margin:0 0 6px; }
@@ -1097,3 +1098,34 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .garantia-texto .info-item-value{ white-space:pre-wrap; line-height:1.5; }
 #garMotivoCampo{ margin-top:6px; }
 #garMotivoCampo[hidden]{ display:none; }
+
+/* ==========================================================================
+   CELULARES Y TABLETAS ANGOSTAS: la página completa se desplaza (antes la barra superior
+   ocupaba media pantalla y el contenido quedaba en una franja con su propio scroll),
+   las pestañas van en una sola fila deslizable y los modales usan todo el ancho.
+   ========================================================================== */
+@media (max-width:760px){
+  html, body{ height:auto; }
+  body{ overflow-x:hidden; }
+  .app{ height:auto; min-height:100vh; min-height:100dvh; overflow:visible; }
+  .main, .admin-main, .panel{ overflow:visible; }
+  .main{ display:block; }
+  .panel{ padding:20px 16px 32px; }
+  .topbar-main{ padding-left:16px; padding-right:16px; }
+  .topbar-sub{ padding:0 16px 12px; gap:8px; }
+  .sub-nav{ flex-wrap:nowrap; overflow-x:auto; max-width:100%; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+  .sub-nav::-webkit-scrollbar{ display:none; }
+  .sub-nav-btn{ flex:none; }
+  .panel-heading h2{ font-size:21px; }
+  .section-toolbar > *{ max-width:100%; }
+  .search-box{ flex:1 1 100% !important; }
+  .modal-overlay{ padding:10px; align-items:flex-end; }
+  .modal-card{ padding:22px 16px; max-height:92vh; max-height:92dvh; width:100%; }
+  .statusbar{ gap:8px 14px; }
+  .status-divider{ display:none; }
+}
+
+/* Mismo tamaño de logo que el Home en celulares */
+@media (max-width:768px){
+  .logo-img{ height:35px; }
+}

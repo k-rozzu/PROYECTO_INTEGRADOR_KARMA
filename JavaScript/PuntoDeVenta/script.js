@@ -2553,11 +2553,11 @@ function abrirDetalleCliente(id){
 
   $("#modalClienteContent").innerHTML = `
     <p class="eyebrow-plain">Detalle de cliente</p>
-    <h3 class="modal-title">${c.nombre}</h3>
+    <h3 class="modal-title">${escapeHTML(c.nombre)}</h3>
     <div class="form-grid" style="margin-top:18px;">
-      ${campo("Celular", c.celular)}
-      ${campo("Email", c.email)}
-      ${campo("Artículo", c.articulo)}
+      ${campo("Celular", escapeHTML(c.celular || "—"))}
+      ${campo("Email", escapeHTML(c.email || "—"))}
+      ${campo("Artículo", escapeHTML(c.articulo || "—"))}
       ${campo("Saldo pendiente", formatoMonedaCentavos(c.totalAdeudo))}
       ${campo("Monto de abono", formatoMonedaCentavos(c.montoAbono))}
       ${campo("Enganche", c.enganche ? formatoMoneda(c.enganche) : "—")}
@@ -3120,7 +3120,8 @@ function alFallarTraduccion(e){
   if (avisoTraduccionMostrado) return;
   avisoTraduccionMostrado = true;
   alert(`No se pudo traducir la página: ${e.detail?.mensaje || "error desconocido"}`);
-  window.KarmaTraductor?.setIdioma("es");
+  // Solo esta página regresa a español: la preferencia compartida (Home, paneles) se conserva
+  window.KarmaTraductor?.setIdioma("es", { guardar: false });
 }
 
 /* Cierra la sesión del POS en el servidor y regresa a la pantalla de login */
@@ -3159,14 +3160,29 @@ function onSearchInput(){
 function initEventosGlobales(){
   $("#statusCajero").textContent = CAJERO_ACTUAL;
 
-  // Logo → siempre regresa a Venta
-  $("#logoHome").addEventListener("click", irAInicio);
+  // Logo → Administrador y Gerente regresan al Inicio (Home), como en el panel de gerente; el Cajero regresa a Venta.
+  // Si hay un ticket en curso se confirma antes de salir del POS para no perder la venta
+  $("#logoHome").addEventListener("click", (e) => {
+    if (e.currentTarget.dataset.alInicio !== "1"){ e.preventDefault(); irAInicio(); return; }
+    if (ticketItems.length && !confirm("Hay un ticket en curso. ¿Salir al Inicio? Se perderán los artículos capturados.")) e.preventDefault();
+  });
 
   // Cuenta: tema / idioma / sesión
   $("#themeToggle").addEventListener("click", toggleTema);
   $("#langToggle").addEventListener("click", toggleIdioma);
   $("#logoutBtn").addEventListener("click", cerrarSesion);
+  // Si el tema cambia en otra pestaña del sistema (Home, paneles, Catálogo) o se vuelve con «Atrás», se refleja aquí
+  window.addEventListener("storage", (e) => {
+    if (e.key === "karma_tema") document.body.classList.toggle("dark", e.newValue === "dark");
+  });
+  window.addEventListener("pageshow", (e) => {
+    if (e.persisted) document.body.classList.toggle("dark", localStorage.getItem("karma_tema") === "dark");
+  });
   // Catálogo web: si hay un ticket en curso se confirma antes de salir para no perder la venta
+  // Cambiar contraseña: mismo cuidado que el Catálogo para no perder un ticket en curso
+  $("#passwordLink")?.addEventListener("click", (e) => {
+    if (ticketItems.length && !confirm("Hay un ticket en curso. ¿Salir a cambiar tu contraseña? Se perderán los artículos capturados.")) e.preventDefault();
+  });
   $("#catalogLink")?.addEventListener("click", (e) => {
     if (ticketItems.length && !confirm("Hay un ticket en curso. ¿Salir al Catálogo? Se perderán los artículos capturados.")) e.preventDefault();
   });

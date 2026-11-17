@@ -3,15 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="titulo-es" content="Pantalla de Inicio de Sesión">
+    <meta name="titulo-en" content="Sign in">
     <title>Pantalla de Inicio de Sesión</title>
     <link rel="icon" type="image/png" href="assets/favicon-karma.png?v=1">
-    <link rel="stylesheet" href="CSS/Login/style.css">
+    <link rel="stylesheet" href="CSS/Login/style.css?v=2">
     <!-- Fuente Montserrat de Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
+    <!-- Aplica el tema guardado (el mismo del POS, el Home y los paneles) antes de dibujar la página -->
+    <script>try { if (localStorage.getItem("karma_tema") === "dark") document.body.classList.add("dark"); } catch (_) {}</script>
     <div class="login-container">
-        
+
         <!-- 1. CAMPO PARA LA IMAGEN DEL LADO IZQUIERDO -->
         <div class="left-panel">
             <img src="assets/Login/imagen_rueda_Audi.jpg" alt="Imagen Rueda Audi" class="left-image">
@@ -25,32 +29,35 @@
         <!-- PANEL DERECHO: Formulario de Login -->
         <div class="right-panel">
             <div class="header-section">
-                <h1>BIENVENIDO</h1>
+                <h1 data-es="BIENVENIDO" data-en="WELCOME">BIENVENIDO</h1>
                 <!-- Se muestra al llegar desde el botón "Punto de Venta" del Catálogo (index.html?destino=pos) -->
-                <p id="avisoDestino" hidden>ACCESO AL PUNTO DE VENTA · SOLO PERSONAL AUTORIZADO</p>
+                <p id="avisoDestino" hidden data-es="ACCESO AL PUNTO DE VENTA · SOLO PERSONAL AUTORIZADO" data-en="POINT OF SALE ACCESS · AUTHORIZED STAFF ONLY">ACCESO AL PUNTO DE VENTA · SOLO PERSONAL AUTORIZADO</p>
             </div>
-            
+
             <form class="login-form">
                 <div class="input-group">
-                    <label for="correo">CORREO</label>
-                    <input type="email" id="correo" placeholder="Ingresa tu correo" required>
+                    <label for="correo" data-es="CORREO" data-en="EMAIL">CORREO</label>
+                    <input type="email" id="correo" placeholder="Ingresa tu correo" data-placeholder-es="Ingresa tu correo" data-placeholder-en="Enter your email" autocomplete="username" required>
                 </div>
-                
+
                 <div class="input-group">
-                    <label for="password">CONTRASEÑA</label>
-                    <input type="password" id="password" placeholder="Ingresa tu contraseña" required>
+                    <label for="password" data-es="CONTRASEÑA" data-en="PASSWORD">CONTRASEÑA</label>
+                    <input type="password" id="password" placeholder="Ingresa tu contraseña" data-placeholder-es="Ingresa tu contraseña" data-placeholder-en="Enter your password" autocomplete="current-password" required>
                 </div>
-                
-                <button type="submit">INGRESAR</button>
-                <a href="#" class="forgot-password">¿NO PUEDES INGRESAR?</a>
+
+                <button type="submit" data-es="INGRESAR" data-en="SIGN IN">INGRESAR</button>
+                <a href="#" class="forgot-password" data-es="¿NO PUEDES INGRESAR?" data-en="CAN'T SIGN IN?">¿NO PUEDES INGRESAR?</a>
                 <!-- Regreso al sitio de clientes (Catálogo) -->
-                <a href="PHP/Catalogo/index.php" class="forgot-password" style="margin-top:14px;">← VOLVER AL CATÁLOGO</a>
+                <a href="PHP/Catalogo/index.php" class="forgot-password" style="margin-top:14px;" data-es="← VOLVER AL CATÁLOGO" data-en="← BACK TO THE CATALOG">← VOLVER AL CATÁLOGO</a>
+                <a href="PHP/Privacidad/aviso.php" class="forgot-password" style="margin-top:14px;font-weight:400;" data-es="Aviso de privacidad" data-en="Privacy notice">Aviso de privacidad</a>
             </form>
         </div>
 
     </div>
 
-    <script src="JavaScript/login.js?v=2"></script>
-    
+    <!-- Tema e idioma compartidos con el resto del sistema (karma_tema / karma_idioma) -->
+    <script src="JavaScript/Cuenta/preferencias.js?v=1"></script>
+    <script src="JavaScript/login.js?v=3"></script>
+
 </body>
 </html>

@@ -39,6 +39,10 @@ app.get("/api/prueba", (req, res) => {
 });
 
 app.get("/api/usuarios", async (req, res) => {
+    // Lista de cuentas (nombre y correo) sin pedir sesión: solo responde a peticiones hechas desde este mismo equipo
+    if (!["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket.remoteAddress)) {
+        return res.status(403).json({ mensaje: "No permitido" });
+    }
     try {
         const [usuarios] = await pool.query(
             "SELECT id_usuario, nombre, correo, estado FROM usuarios"
@@ -654,6 +658,10 @@ app.patch("/api/gerente/cajas/:id/cajero", async (req, res) => {
 //El puerto en el que se va a ejecturar el servidor:
 const PORT = 3000;
 
-app.listen(PORT, () => {
+// Solo escucha en este equipo: las rutas de este servidor no validan sesión, así que nunca deben quedar expuestas a la red.
+// En el dominio público el sistema usa las versiones PHP (PHP/Login/login.php, PHP/Dashboard/gerente_api.php).
+const HOST = process.env.HOST || "127.0.0.1";
+
+app.listen(PORT, HOST, () => {
     console.log(`Servidor ejecutándose en http://localhost:${PORT}`);
 });

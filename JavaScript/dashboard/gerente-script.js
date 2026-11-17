@@ -13,6 +13,11 @@ function verificarAcceso(){
     window.location.replace("../index.html");
     return false;
   }
+  // Contraseña temporal del administrador: primero hay que cambiarla
+  if (usuario.debe_cambiar_password){
+    window.location.replace("../PHP/Login/cambiar_password.php?forzado=1");
+    return false;
+  }
   // Con sesión, pero sin permiso o sin sucursal: avisa y regresa al Home
   if (!ROLES_PANEL_GERENTE.includes(usuario.rol) || !usuario.id_sucursal){
     if (!avisoAccesoMostrado) {
@@ -80,7 +85,7 @@ function etiquetaTipo(tipo){
 const I18N = {
   es:{
     topHome:"Ir al Inicio", brandSlogan:"Panel de Gerencia",
-    logout:"Cerrar sesión", role:"Rol", roleGerente:"Gerente de Sede",
+    logout:"Cerrar sesión", changePassword:"Cambiar contraseña", role:"Rol", roleGerente:"Gerente de Sede",
     navDashboard:"Dashboard", navProductos:"Productos", navInventario:"Inventario",
     navCajas:"Cajas", navVentas:"Ventas",
     syncOk:"Datos en vivo", syncOff:"Sin conexión a BD",
@@ -196,7 +201,7 @@ const I18N = {
   },
   en:{
     topHome:"Go to Home", brandSlogan:"Store Management Panel",
-    logout:"Log out", role:"Role", roleGerente:"Store Manager",
+    logout:"Log out", changePassword:"Change password", role:"Role", roleGerente:"Store Manager",
     navDashboard:"Dashboard", navProductos:"Products", navInventario:"Inventory",
     navCajas:"Registers", navVentas:"Sales",
     syncOk:"Live data", syncOff:"DB disconnected",
@@ -318,8 +323,8 @@ const MESES = {
 /* ==========================================================================
    CAPA DE DATOS (DB) — seed en memoria, lista para reemplazar por fetch()
    ========================================================================== */
-// El panel se abre desde Apache, pero su API vive en el servidor Node (backend/server.js, puerto 3000)
-const API_BASE = `http://${window.location.hostname}:3000/api`;
+// API del panel en PHP con la sesión del sistema (antes vivía en el servidor Node del puerto 3000, sin validar la sesión)
+const API_GERENTE = "../PHP/Dashboard/gerente_api.php";
 // Solicitudes de garantía del POS: API en PHP (Apache) con la sesión del sistema, solo para cuentas Gerente
 const API_GARANTIAS = "../PHP/Dashboard/garantias_gerente.php";
 
@@ -393,121 +398,67 @@ const SEED = (() => {
   return { sucursal, cajeros, cajas, productos, ventas };
 })();
 
+// Llama a la API del panel (PHP/Dashboard/gerente_api.php). Con `datos` hace POST JSON; sin datos, GET.
+// La sucursal la decide el servidor con la sesión (no se manda desde el navegador). Lanza error con el mensaje del servidor.
+async function gerenteApi(accion, datos, mensajeError){
+  const opciones = datos === undefined
+    ? { cache:"no-store" }
+    : { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(datos) };
+  let respuesta;
+  try {
+    respuesta = await fetch(`${API_GERENTE}?action=${encodeURIComponent(accion)}`, opciones);
+  } catch (_) {
+    throw new Error(mensajeError);
+  }
+  const json = await respuesta.json().catch(() => ({}));
+  // Sin sesión: al login; con contraseña temporal: a cambiarla
+  if (respuesta.status === 401) { window.location.replace("../index.html"); throw new Error(json.mensaje || mensajeError); }
+  if (json.cambiar_password) { window.location.replace("../PHP/Login/cambiar_password.php?forzado=1"); throw new Error(json.mensaje || mensajeError); }
+  if (!respuesta.ok) throw new Error(json.mensaje || mensajeError);
+  return json;
+}
+
 const DB = {
   async getSucursal(){
-    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
-    const respuesta = await fetch(`${API_BASE}/gerente/sucursal?sucursal=${usuario?.id_sucursal}`);
-    if (!respuesta.ok) throw new Error("No se pudo cargar la sucursal");
-    return respuesta.json();
+    return gerenteApi("sucursal", undefined, "No se pudo cargar la sucursal");
   },
   async getCajeros(){
-    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
-    const respuesta = await fetch(`${API_BASE}/gerente/cajeros?sucursal=${usuario?.id_sucursal}`);
-    if (!respuesta.ok) throw new Error("No se pudieron cargar los cajeros");
-    return respuesta.json();
+    return gerenteApi("cajeros", undefined, "No se pudieron cargar los cajeros");
   },
   async getCajas(){
-    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
-    const respuesta = await fetch(`${API_BASE}/gerente/cajas?sucursal=${usuario?.id_sucursal}`);
-    if (!respuesta.ok) throw new Error("No se pudieron cargar las cajas");
-    const cajas = await respuesta.json();
+    const cajas = await gerenteApi("cajas", undefined, "No se pudieron cargar las cajas");
     return cajas.map(c => ({ ...c, id: String(c.id) }));
   },
   async createCaja(payload){
-    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
-    const respuesta = await fetch(`${API_BASE}/gerente/cajas`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ numero: payload.numero, cajeroId: payload.cajeroId, sucursal: usuario?.id_sucursal })
-    });
-    if (!respuesta.ok) {
-        const error = await respuesta.json().catch(() => ({}));
-        throw new Error(error.mensaje || "No se pudo crear la caja");
-    }
-    return respuesta.json();
+    return gerenteApi("crear_caja", { numero: payload.numero, cajeroId: payload.cajeroId }, "No se pudo crear la caja");
   },
   async setCajaEstado(id, estado){
-    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
-    const respuesta = await fetch(`${API_BASE}/gerente/cajas/${id}/estado`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ estado, sucursal: usuario?.id_sucursal })
-    });
-    if (!respuesta.ok) {
-        const error = await respuesta.json().catch(() => ({}));
-        throw new Error(error.mensaje || "No se pudo cambiar el estado de la caja");
-    }
-    return respuesta.json();
+    return gerenteApi("estado_caja", { id, estado }, "No se pudo cambiar el estado de la caja");
   },
   async asignarCajero(idCaja, cajeroId){
-    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
-    const respuesta = await fetch(`${API_BASE}/gerente/cajas/${idCaja}/cajero`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cajeroId, sucursal: usuario?.id_sucursal })
-    });
-    if (!respuesta.ok) {
-        const error = await respuesta.json().catch(() => ({}));
-        throw new Error(error.mensaje || "No se pudo asignar el cajero");
-    }
-    return respuesta.json();
+    return gerenteApi("asignar_cajero", { id: idCaja, cajeroId }, "No se pudo asignar el cajero");
   },
   async getProductos(){
-      const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
-      const sucursal = usuario?.id_sucursal;
-      const respuesta = await fetch(`${API_BASE}/gerente/productos?sucursal=${sucursal}`);
-      if (!respuesta.ok) throw new Error("No se pudieron cargar los productos");
-      const productos = await respuesta.json();
+      const productos = await gerenteApi("productos", undefined, "No se pudieron cargar los productos");
       return productos.map(p => ({ ...p, id: String(p.id), precio: Number(p.precio) }));
   },
   async createProducto(payload){
-    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
-    const respuesta = await fetch(`${API_BASE}/gerente/productos`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...payload, sucursal: usuario?.id_sucursal })
-    });
-    if (!respuesta.ok) throw new Error("No se pudo crear el producto");
-    return respuesta.json();
+    return gerenteApi("crear_producto", { ...payload }, "No se pudo crear el producto");
   },
   async updateProducto(id, payload){
-    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
-    const respuesta = await fetch(`${API_BASE}/gerente/productos/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...payload, sucursal: usuario?.id_sucursal })
-    });
-    if (!respuesta.ok) throw new Error("No se pudo actualizar el producto");
-    return respuesta.json();
+    return gerenteApi("actualizar_producto", { ...payload, id }, "No se pudo actualizar el producto");
   },
   async deleteProducto(id){
-    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
-    const respuesta = await fetch(`${API_BASE}/gerente/productos/${id}?sucursal=${usuario?.id_sucursal}`, {
-        method: "DELETE"
-    });
-    if (!respuesta.ok) throw new Error("No se pudo retirar el producto");
-    return respuesta.json();
+    return gerenteApi("retirar_producto", { id }, "No se pudo retirar el producto");
   },
   async getCategorias(){
-    const respuesta = await fetch(`${API_BASE}/gerente/categorias`);
-    if (!respuesta.ok) throw new Error("No se pudieron cargar las categorías");
-    return respuesta.json();
+    return gerenteApi("categorias", undefined, "No se pudieron cargar las categorías");
   },
   async updateStock(id, nuevoStock){
-    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
-    const respuesta = await fetch(`${API_BASE}/gerente/inventario/${id}/stock`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stockActual: nuevoStock, sucursal: usuario?.id_sucursal })
-    });
-    if (!respuesta.ok) throw new Error("No se pudo actualizar el stock");
-    return respuesta.json();
+    return gerenteApi("stock", { id, stockActual: nuevoStock }, "No se pudo actualizar el stock");
   },
   async getVentas(){
-    const usuario = JSON.parse(localStorage.getItem("karma_user") || "null");
-    const respuesta = await fetch(`${API_BASE}/gerente/ventas?sucursal=${usuario?.id_sucursal}`);
-    if (!respuesta.ok) throw new Error("No se pudieron cargar las ventas");
-    const ventas = await respuesta.json();
+    const ventas = await gerenteApi("ventas", undefined, "No se pudieron cargar las ventas");
     return ventas.map(v => ({ ...v, total: Number(v.total) }));
   },
   // Solicitudes de garantía: viven en PHP (sesión del sistema) porque aceptar o denegar exige saber qué gerente lo hace
@@ -862,7 +813,7 @@ function renderDashboard(){
       data:{
         labels,
         datasets:[
-          { label:t("revenue"), data:ingresos, backgroundColor:"rgba(26,92,58,.75)", borderRadius:6, yAxisID:"y" },
+          { label:t("revenue"), data:ingresos, backgroundColor:"rgba(16,33,63,.75)", borderRadius:6, yAxisID:"y" },
           { label:t("units"),   data:unidades, type:"line", borderColor: cssVar("--chart-red", "#9e1b2e") , backgroundColor:"rgba(158,27,46,.12)", tension:.4, pointRadius:4, yAxisID:"y1" },
         ]
       },
@@ -879,7 +830,7 @@ function renderDashboard(){
   mountChart("chartStock", () => {
     const cats = Object.keys(stockCat);
     const vals = Object.values(stockCat);
-    const palette = ["rgba(26,92,58,.8)","rgba(158,27,46,.75)","rgba(180,121,26,.75)","rgba(62,190,133,.7)","rgba(26,92,58,.45)","rgba(158,27,46,.45)"];
+    const palette = ["rgba(16,33,63,.8)","rgba(158,27,46,.75)","rgba(180,121,26,.75)","rgba(124,147,184,.75)","rgba(16,33,63,.45)","rgba(158,27,46,.45)"];
     const ctx = $("#chartStock").getContext("2d");
     return new Chart(ctx, {
       type:"doughnut",

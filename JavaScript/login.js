@@ -6,6 +6,24 @@ if (new URLSearchParams(window.location.search).get("destino") === "pos") {
     if (aviso) aviso.hidden = false;
 }
 
+// Mensajes del login en el idioma elegido en el resto del sistema (karma_idioma); el servidor responde en español
+function idiomaLogin() {
+    try { return localStorage.getItem("karma_idioma") === "en" ? "en" : "es"; } catch (_) { return "es"; }
+}
+const MENSAJES_LOGIN_EN = {
+    "Credenciales incorrectas": "Incorrect credentials",
+    "El usuario está inactivo": "The user is inactive",
+    "Correo y contraseña son obligatorios": "Email and password are required",
+    "Demasiados intentos. Espera un minuto e inténtalo de nuevo.": "Too many attempts. Wait a minute and try again.",
+    "Demasiados intentos desde esta red. Espera unos minutos e inténtalo de nuevo.": "Too many attempts from this network. Wait a few minutes and try again.",
+    "Error interno del servidor": "Internal server error",
+    "Tu rol no tiene una pantalla asignada aún.": "Your role does not have a screen assigned yet.",
+    "No se pudo conectar con el servidor.": "Could not connect to the server."
+};
+function mensajeLogin(texto) {
+    return idiomaLogin() === "en" ? (MENSAJES_LOGIN_EN[texto] || texto) : texto;
+}
+
 // Autenticación: en XAMPP usa PHP/Login/login.php (misma lógica que /api/login y además abre la sesión PHP del POS);
 // si el proyecto corre con el servidor Node.js (puerto 3000), PHP no se ejecuta y se usa /api/login como antes.
 // La ruta es relativa a index.html para que funcione sin importar cómo se llame la carpeta del proyecto en htdocs.
@@ -37,28 +55,29 @@ formulario.addEventListener("submit", async (event) => {
         const { respuesta, datos } = await autenticar(correo, password);
 
         if (respuesta.ok) {
-            console.log("Usuario autenticado:", datos.usuario);
-
             // 1. Guardamos el usuario en localStorage
             localStorage.setItem("karma_user", JSON.stringify(datos.usuario));
 
             // 2. Evaluamos el rol para la redirección (rutas relativas: funcionan en XAMPP y en Node)
             const rol = datos.usuario.rol;
 
-            if (rol === "Cajero") {
+            // Cuenta recién creada (o con contraseña restablecida por el administrador): primero se cambia la contraseña temporal
+            if (datos.usuario.debe_cambiar_password) {
+                window.location.href = "PHP/Login/cambiar_password.php?forzado=1";
+            } else if (rol === "Cajero") {
                 window.location.href = "PHP/PuntoDeVenta/index.php";
             } else if (rol === "Admin_General" || rol === "Administrador General" || rol === "Gerente") {
                 // Redirige al Home
                 window.location.href = "Home/home.html";
             } else {
-                alert("Tu rol no tiene una pantalla asignada aún.");
+                alert(mensajeLogin("Tu rol no tiene una pantalla asignada aún."));
             }
         } else {
-            alert(datos.mensaje);
+            alert(mensajeLogin(datos.mensaje));
         }
 
     } catch (error) {
         console.error("Error:", error);
-        alert("No se pudo conectar con el servidor.");
+        alert(mensajeLogin("No se pudo conectar con el servidor."));
     }
 });

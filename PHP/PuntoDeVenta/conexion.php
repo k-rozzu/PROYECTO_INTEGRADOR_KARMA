@@ -13,10 +13,13 @@ function db(): PDO {
         return $pdo;
     }
 
-    $host = getenv('KARMA_DB_HOST') ?: '127.0.0.1';
-    $name = getenv('KARMA_DB_NAME') ?: 'pos_multisede';
-    $user = getenv('KARMA_DB_USER') ?: 'root';
-    $pass = getenv('KARMA_DB_PASS') ?: '';
+    // Datos de acceso: variables del sistema o, si no existen, el archivo .env de la raíz (lo normal en un hosting compartido).
+    // Sin ninguna de las dos se usan los valores de XAMPP (root sin contraseña)
+    require_once dirname(__DIR__) . '/entorno.php';
+    $host = karmaEnv('KARMA_DB_HOST', '127.0.0.1');
+    $name = karmaEnv('KARMA_DB_NAME', 'pos_multisede');
+    $user = karmaEnv('KARMA_DB_USER', 'root');
+    $pass = karmaEnv('KARMA_DB_PASS', '');
 
     $dsn = "mysql:host={$host};dbname={$name};charset=utf8mb4";
 

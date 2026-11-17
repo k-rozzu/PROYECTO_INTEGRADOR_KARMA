@@ -1561,3 +1561,33 @@ body.dark .garantia-estado--aceptada{ background:rgba(62,190,133,.16); color:#3E
 @media (max-width:640px){
   .aviso-garantia{ flex-direction:column; align-items:stretch; }
 }
+
+/* ===== CELULARES: toda la página se desplaza y los botones de la barra superior ya no quedan fuera de la pantalla
+   (antes «Cerrar sesión» y la sucursal se cortaban a la derecha y no se podían tocar) ===== */
+@media (max-width:760px){
+  html, body{ height:auto; }
+  body{ overflow-x:hidden; }
+  .app{ height:auto; min-height:100vh; min-height:100dvh; overflow:visible; }
+  .main{ overflow:visible; }
+  .panel{ overflow:visible; padding:20px 16px 28px; }
+  .topbar-main{ padding:12px 16px 10px; flex-wrap:wrap; gap:10px; }
+  .topbar-right{ flex-wrap:wrap; gap:8px; justify-content:flex-start; max-width:100%; }
+  .topbar-sub{ padding-left:16px; padding-right:16px; }
+  .statusbar{ flex-wrap:wrap; gap:6px 14px; }
+  .status-divider{ display:none; }
+  .modal-overlay{ padding:10px; }
+  .modal-card{ max-width:100%; max-height:92vh; max-height:92dvh; }
+}
+
+/* Logo de la barra superior: mismo diseño que el Home y el panel de gerente (logo + «KARMA»), y lleva al Inicio */
+.logo-group{ display:flex; align-items:center; gap:15px; text-decoration:none; cursor:pointer; transition:opacity .25s ease; background:none; border:none; padding:0; }
+.logo-group:hover{ opacity:.8; }
+.logo-img{ height:40px; width:auto; object-fit:contain; }
+.logo-text{
+  font-family:"Times New Roman", Times, serif;
+  font-size:28px; font-weight:700; letter-spacing:2px;
+  color:#ffffff; text-transform:uppercase;
+}
+@media (max-width:768px){
+  .logo-img{ height:35px; }
+}

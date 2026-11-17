@@ -66,6 +66,10 @@ try {
     if ($intentos['n'] >= 5 && time() - $intentos['t'] < 60) {
         loginResponder(['mensaje' => 'Demasiados intentos. Espera un minuto e inténtalo de nuevo.'], 429);
     }
+    // Mismo freno por dirección IP: borrar la cookie de sesión ya no permite seguir probando contraseñas
+    if (karmaDemasiadosFallos('login', 10, 600)) {
+        loginResponder(['mensaje' => 'Demasiados intentos desde esta red. Espera unos minutos e inténtalo de nuevo.'], 429);
+    }
 
     $datos = json_decode((string)file_get_contents('php://input'), true);
     $correo = trim((string)($datos['correo'] ?? ''));
@@ -77,7 +81,7 @@ try {
 
     // Misma consulta que server.js: usuario + nombre del rol
     $stmt = db()->prepare("
-        SELECT u.id_usuario, u.nombre, u.correo, u.password_hash, u.estado, u.id_sucursal, r.nombre_rol
+        SELECT u.*, r.nombre_rol
         FROM usuarios u
         INNER JOIN roles r ON u.id_rol = r.id_rol
         WHERE u.correo = ?
@@ -92,6 +96,7 @@ try {
 
     if (!$usuario || !$passwordCorrecta) {
         $_SESSION['login_intentos'] = ['n' => $intentos['n'] + 1, 't' => time()];
+        karmaRegistrarFallo('login');
         usleep(300000);
         loginResponder(['mensaje' => 'Credenciales incorrectas'], 401);
     }
@@ -112,7 +117,9 @@ try {
             'nombre' => $usuario['nombre'],
             'correo' => $usuario['correo'],
             'rol' => $usuario['nombre_rol'],
-            'id_sucursal' => $usuario['id_sucursal'] !== null ? (int)$usuario['id_sucursal'] : null
+            'id_sucursal' => $usuario['id_sucursal'] !== null ? (int)$usuario['id_sucursal'] : null,
+            // Contraseña temporal del administrador: el login manda primero a cambiarla
+            'debe_cambiar_password' => posDebeCambiarPassword($usuario)
         ]
     ]);
 } catch (Throwable $e) {

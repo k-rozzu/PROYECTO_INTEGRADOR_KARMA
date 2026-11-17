@@ -231,6 +231,9 @@ BREVO_API_KEY=
 BREVO_REMITENTE_EMAIL=
 BREVO_REMITENTE_NOMBRE=
 
+# Dirección pública para los enlaces del correo de avisos de privacidad (opcional)
+KARMA_URL_PUBLICA=
+
 # Traducción ES / EN: deepl o google
 TRADUCTOR_PROVEEDOR=deepl
 DEEPL_API_KEY=
@@ -258,7 +261,26 @@ SOURCE pos_multisede.sql;
 > - El PHP se conecta a `pos_multisede` en `127.0.0.1` con el usuario `root` sin contraseña, los valores por defecto de XAMPP. Puedes cambiarlos con las variables de entorno `KARMA_DB_HOST`, `KARMA_DB_NAME`, `KARMA_DB_USER` y `KARMA_DB_PASS`.
 > - Para que el evento de garantías siga activo al reiniciar, agrega `event_scheduler=ON` en la sección `[mysqld]` de `my.ini`.
 > - Las cuentas de demostración vienen en el volcado; las contraseñas de los cajeros de prueba están en los comentarios de `catalogo_datos_demo.sql`.
-> - **Pendiente:** el volcado no incluye la columna `usuarios.codigo_empleado` ni el trigger `auto_codigo_empleado`, que usa la autorización con gafete.
+> - El volcado no trae todo: después de `pos_multisede.sql` importa también `dashboard_admin.sql` (pedidos, catálogo maestro y auditoría del panel de administrador) y **`avisos_privacidad.sql`** (código de empleado del gafete con su trigger `auto_codigo_empleado`, cambio de contraseña obligatorio y tabla de avisos de privacidad). Los dos se pueden importar varias veces.
+
+```sql
+SOURCE dashboard_admin.sql;
+SOURCE avisos_privacidad.sql;
+```
+
+### Avisos de privacidad y contraseñas
+
+- Al dar de alta a un empleado en **Panel de administrador → Personal**, se le envía por correo (Brevo) el aviso de privacidad simplificado junto con su usuario y su contraseña temporal. No tiene que aceptar nada.
+- La pestaña **Avisos de privacidad** muestra a cada empleado con su rol y el estado del aviso: *Pendiente* (aún no se envía o falló el envío), *Enviado* y *Revisado* (abrió el correo o el enlace al aviso integral, `PHP/Privacidad/aviso.php`). Desde ahí se envía o reenvía.
+- Con una contraseña temporal el sistema obliga a cambiarla al iniciar sesión. Cualquier usuario puede cambiar la suya en **Cambiar contraseña** (menú de perfil del Home y del panel de gerente, barra del panel de administrador y candado del POS).
+- Para que los enlaces del correo apunten al dominio público, agrega `KARMA_URL_PUBLICA=https://tu-dominio` al `.env` (sin él se usa el dominio de la petición).
+
+### Publicación en un dominio
+
+- Usa HTTPS: las cookies de sesión se marcan `Secure` automáticamente.
+- El `.htaccess` de la raíz bloquea `.git`, `Database/`, `backend/`, `tests/`, `vendor/`, los `.sql`/`.md`/`.env` y agrega encabezados de seguridad; el hosting debe permitir `.htaccess` (`AllowOverride All`).
+- El panel de gerente ya no necesita el servidor Node: usa `PHP/Dashboard/gerente_api.php`. El servidor Node solo escucha en `127.0.0.1`.
+- Sube los nombres de carpetas tal cual (`CSS/Home`, `JavaScript/Home`): en Linux las mayúsculas importan.
 
 ### Ejecución
 

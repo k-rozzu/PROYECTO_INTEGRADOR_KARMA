@@ -242,10 +242,12 @@
     }
   }
 
-  function setIdioma(idioma) {
+  // opciones.guardar = false cambia el idioma solo en esta página, sin tocar la preferencia compartida (karma_idioma).
+  // Se usa cuando la traducción falla: la página regresa a español, pero el Home y los paneles conservan el inglés elegido.
+  function setIdioma(idioma, opciones = {}) {
     idioma = String(idioma || IDIOMA_BASE).toLowerCase();
     idiomaActual = idioma;
-    guardarIdioma(idioma);
+    if (opciones.guardar !== false) guardarIdioma(idioma);
     document.documentElement.lang = idioma;
     pendientes.clear();
     pausaHasta = 0;
@@ -275,6 +277,12 @@
 
   function iniciar() {
     if (idiomaActual !== IDIOMA_BASE) setIdioma(idiomaActual);
+    // Si el idioma cambia en otra pestaña del sistema (Home, paneles, POS), esta página lo sigue sin volver a guardarlo
+    window.addEventListener("storage", (e) => {
+      if (e.key !== CLAVE_IDIOMA) return;
+      const nuevo = String(e.newValue || IDIOMA_BASE).toLowerCase();
+      if (nuevo !== idiomaActual) setIdioma(nuevo, { guardar: false });
+    });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", iniciar);
   else iniciar();

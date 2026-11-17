@@ -5,6 +5,8 @@ declare(strict_types=1);
 header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/../PuntoDeVenta/conexion.php';
 require_once __DIR__ . '/../Login/sesion_pos.php';
+// Avisos de privacidad y correo de bienvenida de los empleados (Brevo)
+require_once __DIR__ . '/../Privacidad/avisos.php';
 
 // Lee el cuerpo JSON de la petición y lo regresa como arreglo
 function jsonInput(): array {
@@ -66,15 +68,22 @@ function exigirAdministrador(): array {
     // Usa la sesión única del sistema (KARMAPOS), la misma que abre login.php
     $u = posUsuarioValidado(db());
     if (!$u) fail('Inicia sesión para continuar.', 401);
+    if (posDebeCambiarPassword($u)) posResponderCambioPassword();
     if (!in_array($u['nombre_rol'], ROLES_ADMIN, true)) fail('Sólo el Administrador General puede usar este panel.', 403);
     return ['id' => (string)$u['id_usuario'], 'nombre' => $u['nombre'], 'correo' => $u['correo']];
 }
+
+// Acciones que sólo leen datos (se aceptan por GET); todas las demás modifican la base de datos
+const ACCIONES_LECTURA = ['sesion', 'sucursales', 'cajas', 'usuarios', 'catalogo', 'inventario', 'ventas', 'venta_detalle',
+                          'cortes', 'pedidos', 'auditoria', 'avisos_privacidad'];
 
 // Enrutador: ejecuta la acción pedida en ?action=
 try {
     $admin = exigirAdministrador();
     $action = $_GET['action'] ?? '';
     $id = (int)($_GET['id'] ?? 0);
+    // Protección CSRF: las acciones que escriben sólo llegan por POST con JSON desde este mismo sitio
+    if (!in_array($action, ACCIONES_LECTURA, true) && ($rechazo = posRechazoEscritura()) !== null) fail($rechazo, 403);
     $in = jsonInput();
     switch ($action) {
         case 'sesion':              ok($admin);
@@ -85,6 +94,7 @@ try {
         case 'estado_sucursal':     ok(cambiarEstadoSucursal($id, $in));
         case 'cajas':               ok(obtenerCajas());
         case 'estado_caja':         ok(cambiarEstadoCaja($id, $in));
+        case 'crear_caja':          ok(crearCaja($in));
         case 'usuarios':            ok(obtenerUsuarios());
         case 'crear_usuario':       ok(guardarUsuario(null, $in));
         case 'actualizar_usuario':  ok(guardarUsuario($id, $in));
@@ -105,10 +115,18 @@ try {
         case 'estado_pedido':       ok(cambiarEstadoPedido($id, $in));
         case 'recibir_pedido':      ok(recibirPedido($id));
         case 'auditoria':           ok(obtenerAuditoria());
+        case 'avisos_privacidad':   ok(avisosListar(db()));
+        case 'enviar_aviso':        ok(enviarAvisoDesdePanel($id));
         default:                    fail('Acción no reconocida.', 404);
     }
 } catch (Throwable $e) {
     try { if (db()->inTransaction()) db()->rollBack(); } catch (Throwable) {}
+    // Los errores de la base de datos no se muestran en el panel (revelarían tablas y consultas): quedan en el log del servidor
+    if ($e instanceof PDOException) {
+        if (($e->errorInfo[0] ?? '') === '45000') fail((string)($e->errorInfo[2] ?? 'Operación no permitida.'), 409);
+        error_log('[Dashboard API] ' . ($action ?? '') . ': ' . $e->getMessage());
+        fail('No se pudo completar la operación por un error de la base de datos.', 500);
+    }
     fail($e->getMessage(), 500);
 }
 
@@ -276,6 +294,23 @@ function cambiarEstadoCaja(int $id, array $in): array {
     return $caja[0];
 }
 
+// Agrega una caja a la sucursal con el siguiente número libre; nace «cerrada», igual que las que crea el gerente
+function crearCaja(array $in): array {
+    $pdo = db();
+    $idSucursal = idOpcional($in['sucursalId'] ?? null) ?? fail('Selecciona una sucursal.');
+    $sucursal = obtenerSucursales($idSucursal);
+    if (!$sucursal) fail('La sucursal no existe.', 404);
+    $pdo->beginTransaction();
+    $stmt = $pdo->prepare("SELECT COALESCE(MAX(numero_caja), 0) + 1 FROM cajas WHERE id_sucursal = ? FOR UPDATE");
+    $stmt->execute([$idSucursal]);
+    $numero = (int)$stmt->fetchColumn();
+    $pdo->prepare("INSERT INTO cajas (id_sucursal, numero_caja, estado) VALUES (?, ?, 'cerrada')")->execute([$idSucursal, $numero]);
+    $idCaja = (int)$pdo->lastInsertId();
+    auditar('Alta de caja', "Se agregó la caja {$numero} en {$sucursal[0]['nombre']}");
+    $pdo->commit();
+    return obtenerCajas($idCaja)[0];
+}
+
 /* ==========================================================================
    USUARIOS / PERSONAL
    ========================================================================== */
@@ -331,9 +366,24 @@ function guardarUsuario(?int $id, array $in): array {
 
     if ($id === null) {
         $pdo->prepare("INSERT INTO usuarios (id_rol, id_sucursal, nombre, correo, password_hash) VALUES (?, ?, ?, ?, ?)")
-            ->execute([$idRol, $idSucursal, $nombre, $correo, password_hash($password, PASSWORD_BCRYPT)]);
+            ->execute([$idRol, $idSucursal, $nombre, $correo, password_hash($password, PASSWORD_BCRYPT, ['cost' => 12])]);
         $id = (int)$pdo->lastInsertId();
+        // Gafete: si la base no tiene el trigger auto_codigo_empleado, el código sale del id (EMP-0012)
+        if (avisosColumnaUsuarios($pdo, 'codigo_empleado')) {
+            $pdo->prepare("UPDATE usuarios SET codigo_empleado = ? WHERE id_usuario = ? AND (codigo_empleado IS NULL OR codigo_empleado = '')")
+                ->execute([sprintf('EMP-%04d', $id), $id]);
+        }
+        // La contraseña la eligió el administrador: es temporal y el empleado debe cambiarla al entrar por primera vez
+        if (avisosColumnaUsuarios($pdo, 'debe_cambiar_password')) {
+            $pdo->prepare("UPDATE usuarios SET debe_cambiar_password = 1 WHERE id_usuario = ?")->execute([$id]);
+        }
         auditar('Alta de usuario', "Se registró a {$nombre} como {$nombreRol} en " . nombreSucursal($idSucursal));
+
+        // Correo de bienvenida: aviso de privacidad + datos de acceso. Si falla, el usuario ya quedó creado y el aviso
+        // queda «pendiente» para reenviarlo desde la pestaña Avisos de privacidad
+        $envio = avisoEnviar($pdo, $id, $password);
+        if ($envio['ok']) auditar('Aviso de privacidad', "Se envió el aviso de privacidad a {$nombre}");
+        return obtenerUsuarios($id)[0] + ['aviso' => ['ok' => $envio['ok'], 'mensaje' => $envio['mensaje']]];
     } else {
         $anterior = obtenerUsuarios($id);
         if (!$anterior) fail('El usuario no existe.', 404);
@@ -349,12 +399,42 @@ function guardarUsuario(?int $id, array $in): array {
         }
         if ($password !== '') {
             $pdo->prepare("UPDATE usuarios SET password_hash = ? WHERE id_usuario = ?")
-                ->execute([password_hash($password, PASSWORD_BCRYPT), $id]);
+                ->execute([password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]), $id]);
+            // Contraseña restablecida por el administrador: el empleado debe cambiarla al entrar (salvo que sea la propia)
+            if ((string)$id !== $GLOBALS['admin']['id'] && avisosColumnaUsuarios($pdo, 'debe_cambiar_password')) {
+                $pdo->prepare("UPDATE usuarios SET debe_cambiar_password = 1 WHERE id_usuario = ?")->execute([$id]);
+            }
             auditar('Cambio de credenciales', "Se restableció la contraseña de {$nombre}");
         }
     }
 
     return obtenerUsuarios($id)[0];
+}
+
+// Envía o reenvía el aviso de privacidad a un empleado desde la pestaña «Avisos de privacidad».
+// Si el empleado todavía no cambia su contraseña temporal, se le genera una nueva y va en el mismo correo
+// (la anterior pudo perderse si el primer envío falló); si ya la cambió, el correo solo lleva el aviso.
+function enviarAvisoDesdePanel(int $id): array {
+    $pdo = db();
+    if (!avisosTablaLista($pdo)) fail('Falta importar Database/avisos_privacidad.sql en la base de datos.', 409);
+    $empleado = avisoEmpleado($pdo, $id);
+    if (!$empleado) fail('El empleado no existe.', 404);
+    if ($empleado['estado'] !== 'activo') fail('El empleado está dado de baja: actívalo antes de enviarle el aviso.');
+
+    $passwordTemporal = null;
+    if ((string)$id !== $GLOBALS['admin']['id'] && !empty($empleado['debe_cambiar_password'])) {
+        $passwordTemporal = avisoPasswordTemporal();
+    }
+    $envio = avisoEnviar($pdo, $id, $passwordTemporal);
+    // La contraseña nueva solo se guarda si el correo salió: si no, el empleado conserva la que tenía
+    if ($envio['ok'] && $passwordTemporal !== null) {
+        $pdo->prepare("UPDATE usuarios SET password_hash = ? WHERE id_usuario = ?")
+            ->execute([password_hash($passwordTemporal, PASSWORD_BCRYPT, ['cost' => 12]), $id]);
+    }
+    if ($envio['ok']) {
+        auditar('Aviso de privacidad', "Se envió el aviso de privacidad a {$empleado['nombre']}" . ($passwordTemporal ? ' con una contraseña temporal nueva' : ''));
+    }
+    return ['ok' => $envio['ok'], 'mensaje' => $envio['mensaje'], 'aviso' => $envio['aviso'], 'conPassword' => $passwordTemporal !== null];
 }
 
 // Da de alta o de baja (lógica) a un usuario

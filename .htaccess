@@ -12,3 +12,59 @@
 <FilesMatch "^(ngrok_mercadopago\.yml|iniciar_tunel_mercadopago\.bat)$">
     Require all denied
 </FilesMatch>
+
+# ===== Endurecimiento para el dominio público =====
+
+# Sin listados de carpetas (sin index, Apache mostraba todos los archivos de la carpeta)
+Options -Indexes
+
+# Archivos ocultos (.git, .gitignore, .htaccess), documentación, scripts y archivos de Node que no son parte del sitio
+<FilesMatch "(^\.|\.(md|sql|bak|log|py|sh|bat|yml|yaml|ini|lock|dist)$|^package(-lock)?\.json$)">
+    Require all denied
+</FilesMatch>
+
+# Carpetas internas: repositorio de git, scripts y respaldos de la base de datos (contienen hashes de contraseñas),
+# servidor Node, pruebas de PayPal, librerías de Composer y caché del traductor. Responden 404 como si no existieran.
+RedirectMatch 404 "(?i)/\.git(/|$)"
+RedirectMatch 404 "(?i)/(Database|backend|tests|node_modules)(/|$)"
+RedirectMatch 404 "(?i)/PHP/PuntoDeVenta/vendor(/|$)"
+RedirectMatch 404 "(?i)/PHP/Traduccion/cache(/|$)"
+
+# Encabezados de seguridad en todas las respuestas
+<IfModule mod_headers.c>
+    # El navegador no adivina el tipo de archivo (evita que un archivo se ejecute como script)
+    Header always set X-Content-Type-Options "nosniff"
+    # Nadie puede meter el sistema dentro de un <iframe> de otra página (clickjacking)
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Content-Security-Policy "frame-ancestors 'self'"
+    # Al seguir un enlace a otro sitio solo se manda el dominio, nunca la ruta ni los parámetros
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    # La cámara solo la usa este sitio (lector del gafete QR); micrófono y ubicación quedan apagados
+    Header always set Permissions-Policy "camera=(self), microphone=(), geolocation=(), payment=()"
+    # En HTTPS el navegador recordará usar siempre la conexión cifrada (variable HTTPS que pone mod_ssl)
+    Header always set Strict-Transport-Security "max-age=31536000" env=HTTPS
+    # No revela la versión de PHP
+    Header always unset X-Powered-By
+    Header unset X-Powered-By
+</IfModule>
+
+# PHP: errores al log, nunca en pantalla (revelarían rutas y consultas); cookies de sesión solo por HTTP
+<IfModule php_module>
+    php_flag display_errors Off
+    php_flag log_errors On
+    php_flag expose_php Off
+    php_flag session.cookie_httponly On
+    php_flag session.use_strict_mode On
+</IfModule>
+<IfModule mod_php.c>
+    php_flag display_errors Off
+    php_flag log_errors On
+    php_flag session.cookie_httponly On
+    php_flag session.use_strict_mode On
+</IfModule>
+<IfModule mod_php7.c>
+    php_flag display_errors Off
+    php_flag log_errors On
+    php_flag session.cookie_httponly On
+    php_flag session.use_strict_mode On
+</IfModule>

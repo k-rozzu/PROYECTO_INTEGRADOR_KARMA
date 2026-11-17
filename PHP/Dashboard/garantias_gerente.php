@@ -22,6 +22,7 @@ function responder(array $datos, int $estado = 200): never {
 function exigirGerente(): array {
     $u = posUsuarioValidado(db());
     if (!$u) responder(['ok' => false, 'error' => 'Inicia sesión para continuar.'], 401);
+    if (posDebeCambiarPassword($u)) posResponderCambioPassword();
     if ($u['nombre_rol'] !== 'Gerente') responder(['ok' => false, 'error' => 'Solo un gerente puede revisar solicitudes de garantía.'], 403);
     if ($u['id_sucursal'] === null) responder(['ok' => false, 'error' => 'Tu cuenta no tiene sucursal asignada.'], 403);
     return $u;
@@ -97,6 +98,7 @@ function listarSolicitudes(array $gerente): never {
 /* Acepta o deniega una solicitud pendiente de la sucursal del gerente (denegar exige el motivo) */
 function resolverSolicitud(array $gerente): never {
     if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') responder(['ok' => false, 'error' => 'Usa POST.'], 405);
+    if (!posMismoOrigen()) responder(['ok' => false, 'error' => 'Origen no permitido.'], 403);
     // Solo JSON: un formulario de otro sitio no puede enviar este tipo de contenido sin permiso del navegador
     if (stripos((string)($_SERVER['CONTENT_TYPE'] ?? ''), 'application/json') === false) {
         responder(['ok' => false, 'error' => 'Solicitud no válida.'], 415);

@@ -4,7 +4,9 @@ declare(strict_types=1);
    Sin sesión válida se regresa a la pantalla de login (index.html de la raíz). */
 require_once __DIR__ . '/conexion.php';
 require_once dirname(__DIR__) . '/Login/sesion_pos.php';
-posRequerirPagina(db());
+$usuarioPos = posRequerirPagina(db());
+// El Administrador y el Gerente tienen Inicio (Home): el logo los regresa ahí. El Cajero no lo tiene: su logo lleva a Venta
+$logoAlInicio = $usuarioPos['nombre_rol'] !== 'Cajero';
 // Token CSRF de la sesión: script.js lo envía en cada petición a api.php (lo exigen la autorización de empleado y las acciones protegidas)
 require_once __DIR__ . '/autorizacion_empleado.php';
 $csrfPos = posTokenCsrf();
@@ -21,7 +23,7 @@ $csrfPos = posTokenCsrf();
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../../CSS/PuntoDeVenta/style.css?v=6">
+<link rel="stylesheet" href="../../CSS/PuntoDeVenta/style.css?v=9">
 <!-- Three.js (vista previa 3D) desde el CDN jsDelivr, versión fija para que no cambie sola -->
 <script type="importmap">
 {
@@ -44,14 +46,13 @@ $csrfPos = posTokenCsrf();
     <!-- Fila superior: marca + acciones de cuenta -->
     <div class="topbar-main">
 
-      <!-- Logo: al hacer clic siempre regresa a la vista de Venta -->
-      <button class="brand" id="logoHome" type="button" title="Ir a Venta">
-        <img class="brand-logo" src="../../assets/logo-karma.png" alt="KARMA">
-        <div class="brand-text">
-          <span class="brand-name">KARMA</span>
-          <span class="brand-slogan">Te damos el auto que te mereces</span>
-        </div>
-      </button>
+      <!-- Logo: mismo diseño que el Home y el panel de gerente. Administrador y Gerente regresan al Inicio (Home);
+           el Cajero, que no tiene Inicio, regresa a la vista de Venta -->
+      <a href="<?= $logoAlInicio ? '../../Home/home.html' : '#' ?>" class="logo-group" id="logoHome"
+         data-al-inicio="<?= $logoAlInicio ? '1' : '0' ?>" title="<?= $logoAlInicio ? 'Ir al Inicio' : 'Ir a Venta' ?>" aria-label="<?= $logoAlInicio ? 'Ir al Inicio' : 'Ir a Venta' ?>">
+        <img src="../../assets/logo-karma.png" alt="Karma Logo" class="logo-img">
+        <span class="logo-text">KARMA</span>
+      </a>
 
       <!-- Idioma / tema / sesión / sucursal -->
       <div class="topbar-right">
@@ -69,6 +70,10 @@ $csrfPos = posTokenCsrf();
           <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.4M12 19.1v2.4M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7"/></svg>
           <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a6.8 6.8 0 0 0 10.5 10.5Z"/></svg>
         </button>
+        <!-- Cambiar la contraseña propia (cualquier usuario del sistema) -->
+        <a class="theme-toggle" id="passwordLink" href="../Login/cambiar_password.php" title="Cambiar contraseña" aria-label="Cambiar contraseña">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/><path d="M12 14.5v2.5"/></svg>
+        </a>
         <!-- Avisos de garantía: el gerente aceptó una solicitud enviada desde esta caja (los llena script.js) -->
         <button class="avisos-btn" id="avisosGarantiaBtn" type="button" title="Avisos de garantía" aria-label="Avisos de garantía">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2H4.5l1.5-2Z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg>
@@ -206,9 +211,9 @@ $csrfPos = posTokenCsrf();
 </div>
 
 <!-- API DE TRADUCCIÓN: traductor universal (debe ir antes de script.js) -->
-<script src="../../JavaScript/Traduccion/traductor.js"></script>
+<script src="../../JavaScript/Traduccion/traductor.js?v=2"></script>
 <!-- Lógica principal del punto de venta -->
-<script src="../../JavaScript/PuntoDeVenta/script.js?v=6"></script>
+<script src="../../JavaScript/PuntoDeVenta/script.js?v=8"></script>
 <!-- Autorización de empleado: cámara + lector QR (jsQR se carga solo al abrir el modal) y código manual; el servidor decide -->
 <script src="../../JavaScript/PuntoDeVenta/autorizacion_empleado.js"></script>
 <!-- Crédito automotriz: contrato, firma con el touchpad y visor del PDF -->

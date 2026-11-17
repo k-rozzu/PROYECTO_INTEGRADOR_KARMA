@@ -4,6 +4,8 @@ declare(strict_types=1);
 /* API DE TRADUCCIÓN: recibe textos en JSON, los traduce con DeepL (o Google) y guarda cada traducción en caché */
 header('Content-Type: application/json; charset=utf-8');
 require_once dirname(__DIR__) . '/entorno.php';
+// Freno de peticiones por IP (karmaDemasiadosFallos / karmaRegistrarFallo)
+require_once dirname(__DIR__) . '/Login/sesion_pos.php';
 
 // Idiomas que acepta el traductor (se pueden agregar más, ej. 'fr', 'de')
 const TRAD_IDIOMAS = ['es', 'en'];
@@ -158,8 +160,13 @@ try {
     $cache = tradLeerCache($origen, $destino);
     $faltantes = array_values(array_unique(array_filter($textos, fn($t) => trim($t) !== '' && !array_key_exists($t, $cache))));
 
-    // Traduce lo que falta y lo guarda para la próxima vez
+    // Traduce lo que falta y lo guarda para la próxima vez. Freno por IP a las llamadas a la API de pago: el encabezado
+    // Origin lo puede falsificar un script, así que sin este límite alguien podría gastar toda la cuota de DeepL/Google
     if ($faltantes) {
+        if (karmaDemasiadosFallos('traductor', 120, 600)) {
+            tradResponder(['ok' => false, 'error' => 'Demasiadas traducciones seguidas. Espera unos minutos.'], 429);
+        }
+        karmaRegistrarFallo('traductor');
         $traducidos = tradTraducirConProveedor($faltantes, $origen, $destino);
         $nuevas = array_combine($faltantes, $traducidos);
         tradGuardarCache($origen, $destino, $nuevas);

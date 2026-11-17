@@ -56,8 +56,9 @@ function catCabecera(array $o = []): void {
   // Aplica el tema guardado (o el del sistema) antes de pintar la página para evitar parpadeos
   (function () {
     try {
-      var t = localStorage.getItem('karma_catalogo_tema');
-      if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      // karma_tema es la llave compartida con el POS, el Home y los paneles (karma_catalogo_tema era la anterior del catálogo)
+      var t = localStorage.getItem('karma_tema') || localStorage.getItem('karma_catalogo_tema');
+      if (t !== 'dark' && t !== 'light') t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
       document.documentElement.setAttribute('data-theme', t);
     } catch (e) {}
   })();
@@ -379,7 +380,7 @@ function catPie(array $o = []): void {
   ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?>;
 </script>
 <!-- API DE TRADUCCIÓN existente del proyecto (botón ES / EN de la barra superior) -->
-<script src="<?= CAT_RAIZ ?>JavaScript/Traduccion/traductor.js"></script>
+<script src="<?= CAT_RAIZ ?>JavaScript/Traduccion/traductor.js?v=2"></script>
 <script src="<?= catVersion('JavaScript/Catalogo/app.js') ?>"></script>
 <?php foreach ($o['scripts'] ?? [] as $script): ?>
 <script src="<?= catVersion('JavaScript/Catalogo/' . $script) ?>"></script>

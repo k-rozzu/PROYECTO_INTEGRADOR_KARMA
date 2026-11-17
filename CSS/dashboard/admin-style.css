@@ -950,3 +950,49 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   #modalComprobante .modal-card{ box-shadow:none; border:none; width:100%; max-height:none; }
   #modalComprobante .modal-close, #modalComprobante .no-print{ display:none; }
 }
+
+/* ==========================================================================
+   CELULARES Y TABLETAS ANGOSTAS: la página completa se desplaza (antes la barra superior
+   ocupaba media pantalla y el contenido quedaba en una franja con su propio scroll),
+   las pestañas van en una sola fila deslizable y los modales usan todo el ancho.
+   ========================================================================== */
+@media (max-width:760px){
+  html, body{ height:auto; }
+  body{ overflow-x:hidden; }
+  .app{ height:auto; min-height:100vh; min-height:100dvh; overflow:visible; }
+  .main, .admin-main, .panel{ overflow:visible; }
+  .main{ display:block; }
+  .panel{ padding:20px 16px 32px; }
+  .topbar-main{ padding-left:16px; padding-right:16px; }
+  .topbar-sub{ padding:0 16px 12px; gap:8px; }
+  .sub-nav{ flex-wrap:nowrap; overflow-x:auto; max-width:100%; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+  .sub-nav::-webkit-scrollbar{ display:none; }
+  .sub-nav-btn{ flex:none; }
+  .panel-heading h2{ font-size:21px; }
+  .section-toolbar > *{ max-width:100%; }
+  .search-box{ flex:1 1 100% !important; }
+  .modal-overlay{ padding:10px; align-items:flex-end; }
+  .modal-card{ padding:22px 16px; max-height:92vh; max-height:92dvh; width:100%; }
+  .statusbar{ gap:8px 14px; }
+  .status-divider{ display:none; }
+}
+
+/* Tabletas y laptops chicas: los botones de la barra superior bajan a otra fila en lugar de partir su texto */
+@media (max-width:1100px){
+  .topbar-main{ flex-wrap:wrap; gap:10px; }
+  .topbar-right{ flex-wrap:wrap; gap:8px; justify-content:flex-end; }
+  .topbar-right .lang-toggle, .topbar-right .logout-btn, .sede-pill{ white-space:nowrap; }
+}
+
+/* Logo de la barra superior: mismo diseño que el Home y el panel de gerente (logo + «KARMA»), y lleva al Inicio */
+.logo-group{ display:flex; align-items:center; gap:15px; text-decoration:none; cursor:pointer; transition:opacity .25s ease; background:none; border:none; padding:0; }
+.logo-group:hover{ opacity:.8; }
+.logo-img{ height:40px; width:auto; object-fit:contain; }
+.logo-text{
+  font-family:"Times New Roman", Times, serif;
+  font-size:28px; font-weight:700; letter-spacing:2px;
+  color:#ffffff; text-transform:uppercase;
+}
+@media (max-width:768px){
+  .logo-img{ height:35px; }
+}

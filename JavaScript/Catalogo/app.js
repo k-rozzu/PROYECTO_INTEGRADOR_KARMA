@@ -87,7 +87,8 @@
     aplicarTema(document.documentElement.getAttribute("data-theme") || "light");
     $$("#btnTema, [data-alternar-tema]").forEach(boton => boton.addEventListener("click", () => {
       const nuevo = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
-      try { localStorage.setItem("karma_catalogo_tema", nuevo); } catch (_) {}
+      // Misma llave que el POS, el Home y los paneles: el tema se conserva al pasar de una pantalla a otra
+      try { localStorage.setItem("karma_tema", nuevo); localStorage.removeItem("karma_catalogo_tema"); } catch (_) {}
       aplicarTema(nuevo);
     }));
   }
@@ -305,7 +306,8 @@
       if (avisado) return;
       avisado = true;
       aviso("No se pudo traducir la página: " + (e.detail?.mensaje || "servicio no disponible") + ". Se mostrará en español.", "error");
-      window.KarmaTraductor?.setIdioma("es");
+      // Solo esta página regresa a español: la preferencia compartida con el resto del sistema se conserva
+      window.KarmaTraductor?.setIdioma("es", { guardar: false });
     });
     marcar();
   }

@@ -20,21 +20,9 @@ const POS_AUTORIZACION_ESPERA = 60;
 // Formato del gafete (el trigger auto_codigo_empleado genera EMP- + 4 dígitos). Solo filtra basura: la BD decide.
 const POS_FORMATO_CODIGO_EMPLEADO = '/^EMP-\d{4,16}$/';
 
-/* ===== Protección CSRF de la sesión del POS ===== */
-
-// Token CSRF de la sesión (index.php lo publica en <meta name="karma-csrf">; el JS lo manda en el encabezado X-CSRF-Token)
-function posTokenCsrf(): string {
-    posIniciarSesion();
-    if (empty($_SESSION['pos_csrf'])) $_SESSION['pos_csrf'] = bin2hex(random_bytes(32));
-    return $_SESSION['pos_csrf'];
-}
-
-// Revisa que la petición traiga el token CSRF de esta sesión (comparación en tiempo constante)
-function posCsrfValido(): bool {
-    $recibido = (string)($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
-    $esperado = (string)($_SESSION['pos_csrf'] ?? '');
-    return $recibido !== '' && $esperado !== '' && hash_equals($esperado, $recibido);
-}
+/* ===== Protección CSRF de la sesión del POS =====
+   posTokenCsrf() y posCsrfValido() viven ahora en PHP/Login/sesion_pos.php: los comparten el POS, los paneles
+   de administrador y gerente y la pantalla de cambio de contraseña. */
 
 /* ===== Rutas de api.php que ejecutan una acción sensible ===== */
 

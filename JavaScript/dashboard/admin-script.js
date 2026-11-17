@@ -31,7 +31,7 @@ function iniciales(nombre){
    ========================================================================== */
 const I18N = {
   es:{
-    topHome:"Ir al Dashboard", brandSlogan:"Panel de Administración General",
+    topHome:"Ir al Inicio", brandSlogan:"Panel de Administración General",
     allBranches:"Todas las sucursales", logout:"Cerrar sesión", role:"Rol", roleAdmin:"Administrador General",
     navDashboard:"Dashboard", navSucursales:"Sucursales", navPersonal:"Personal", navInventario:"Inventario",
     syncOk:"Datos en vivo", syncOff:"Sin conexión a BD",
@@ -65,9 +65,9 @@ const I18N = {
     toastSucursalCreated:"Sucursal registrada correctamente", toastSucursalUpdated:"Sucursal actualizada",
     toastSucursalStatus:"Estatus de sucursal actualizado",
     personalTitle:"Personal", personalSub:"Directorio y asignación de personal por rol y sucursal",
-    newGerente:"Nuevo gerente", filterAllRoles:"Todos", roleAdminF:"Administrador", roleGerenteF:"Gerente", roleCajeroF:"Cajero",
+    newGerente:"Nuevo gerente", newCajero:"Nuevo cajero", filterAllRoles:"Todos", roleAdminF:"Administrador", roleGerenteF:"Gerente", roleCajeroF:"Cajero",
     colUsuario:"Usuario", colRol:"Rol", colSucursalAsig:"Sucursal asignada",
-    formPersonalTitle:"Registrar gerente de sede", formPersonalEditTitle:"Editar usuario",
+    formPersonalTitle:"Registrar gerente de sede", formCajeroTitle:"Registrar cajero", formPersonalEditTitle:"Editar usuario",
     formPersonalDesc:"La contraseña se almacena únicamente como password_hash en el servidor; nunca en texto plano.",
     fFullName:"Nombre completo", fEmailUser:"Correo electrónico", fPassword:"Contraseña", fRole:"Rol",
     fAssignedBranch:"Sucursal asignada", passwordHint:"Se encriptará antes de guardarse (password_hash).",
@@ -110,7 +110,16 @@ const I18N = {
     noPedidosSub:"Registra tu primer pedido a proveedor con el botón “Nuevo pedido”.",
     minOneVehicle:"El pedido debe incluir al menos un vehículo",
 
-    navCatalogo:"Catálogo", navVentas:"Ventas", navCortes:"Cortes de caja", navAuditoria:"Auditoría", helpBtn:"F1 · Ayuda", registrarVenta:"Registrar venta",
+    navCatalogo:"Catálogo", navVentas:"Ventas", navCortes:"Cortes de caja", navAuditoria:"Auditoría", navAvisos:"Avisos de privacidad", sessionActive:"Activa",
+    avisosTitle:"Avisos de privacidad", avisosSub:"Estado del aviso de privacidad que se envía por correo a cada empleado al darlo de alta. El empleado no tiene que aceptar nada: el correo solo le informa.",
+    avisoPendiente:"Pendiente", avisoEnviado:"Enviado", avisoRevisado:"Revisado", avisosTodos:"Todos",
+    colEmpleado:"Empleado", colAviso:"Aviso de privacidad", colFechaEnvio:"Enviado el", colFechaRevision:"Revisado el",
+    sendNotice:"Enviar", resendNotice:"Reenviar", sending:"Enviando…", searchAvisos:"Buscar por nombre, correo o sucursal…",
+    avisoUltimoError:"Último error", avisoPwdTemporal:"Contraseña temporal pendiente de cambio",
+    confirmAvisoPwd:"Este empleado todavía no cambia su contraseña temporal. Se generará una contraseña temporal nueva y se enviará en el mismo correo junto con el aviso. ¿Continuar?",
+    toastAvisoOk:"Aviso de privacidad enviado a", toastAvisoErr:"El usuario se guardó, pero el aviso no se pudo enviar:", toastAvisoFallo:"No se pudo enviar el aviso:",
+    noAvisos:"Sin empleados para mostrar", avisosNotaRevisado:"«Revisado» se marca cuando el empleado abre el correo o el enlace al aviso integral.",
+    verAviso:"Ver aviso integral", changePassword:"Cambiar contraseña", helpBtn:"F1 · Ayuda", registrarVenta:"Registrar venta",
     kpiStock:"Unidades en stock", daysSupply:"≈ {n} días de inventario", avgAging:"antigüedad prom. {n} d", agedUnits:"{n} rezagada(s) +90 d",
     kpiMargen:"Margen bruto promedio", perUnit:"por venta · últimos 6 meses", noCostData:"Sin costos capturados",
     kpiFI:"Penetración financiera (F&I)", fiSub:"{c} a crédito · {d} de contado",
@@ -121,7 +130,7 @@ const I18N = {
     cajasBtn:"Cajas", cajasTitle:"Cajas y terminales · {s}", cajasDesc:"Autoriza, cierra o bloquea cada terminal de cobro de la sede.",
     colCaja:"Caja", colTicketsHoy:"Tickets hoy", colTotalHoy:"Cobrado hoy", colUltimaVenta:"Última venta",
     cajaAbierta:"Abierta", cajaCerrada:"Cerrada", cajaMant:"Mantenimiento", toastCaja:"Estado de caja actualizado",
-    noCajas:"Esta sucursal no tiene cajas registradas.",
+    noCajas:"Esta sucursal no tiene cajas registradas.", addCaja:"Agregar caja", toastCajaNueva:"Caja {n} agregada",
     relocate:"Reubicar", relocateTitle:"Reubicar gerente", relocateDesc:"Traslada al gerente a otra agencia; el cambio queda registrado en la auditoría.",
     fNewPassword:"Nueva contraseña (opcional)", newPasswordHint:"Déjalo vacío para conservar la contraseña actual.",
     toastUsuarioEstado:"Estatus de usuario actualizado",
@@ -151,7 +160,7 @@ const I18N = {
     consoleHint:"↑ ↓ para elegir · Enter ejecuta · Esc cierra",
   },
   en:{
-    topHome:"Go to Dashboard", brandSlogan:"General Administration Panel",
+    topHome:"Go to Home", brandSlogan:"General Administration Panel",
     allBranches:"All branches", logout:"Log out", role:"Role", roleAdmin:"General Administrator",
     navDashboard:"Dashboard", navSucursales:"Branches", navPersonal:"Staff", navInventario:"Inventory",
     syncOk:"Live data", syncOff:"DB disconnected",
@@ -185,9 +194,9 @@ const I18N = {
     toastSucursalCreated:"Branch registered successfully", toastSucursalUpdated:"Branch updated",
     toastSucursalStatus:"Branch status updated",
     personalTitle:"Staff", personalSub:"Directory and assignment of staff by role and branch",
-    newGerente:"New manager", filterAllRoles:"All", roleAdminF:"Administrator", roleGerenteF:"Manager", roleCajeroF:"Cashier",
+    newGerente:"New manager", newCajero:"New cashier", filterAllRoles:"All", roleAdminF:"Administrator", roleGerenteF:"Manager", roleCajeroF:"Cashier",
     colUsuario:"User", colRol:"Role", colSucursalAsig:"Assigned branch",
-    formPersonalTitle:"Register branch manager", formPersonalEditTitle:"Edit user",
+    formPersonalTitle:"Register branch manager", formCajeroTitle:"Register cashier", formPersonalEditTitle:"Edit user",
     formPersonalDesc:"The password is stored only as a password_hash on the server; never in plain text.",
     fFullName:"Full name", fEmailUser:"Email", fPassword:"Password", fRole:"Role",
     fAssignedBranch:"Assigned branch", passwordHint:"Will be encrypted before being saved (password_hash).",
@@ -230,7 +239,16 @@ const I18N = {
     noPedidosSub:"Register your first supplier order with the “New order” button.",
     minOneVehicle:"The order must include at least one vehicle",
 
-    navCatalogo:"Catalog", navVentas:"Sales", navCortes:"Cash closings", navAuditoria:"Audit trail", helpBtn:"F1 · Help", registrarVenta:"Record sale",
+    navCatalogo:"Catalog", navVentas:"Sales", navCortes:"Cash closings", navAuditoria:"Audit trail", navAvisos:"Privacy notices", sessionActive:"Active",
+    avisosTitle:"Privacy notices", avisosSub:"Status of the privacy notice emailed to each employee when they are registered. Employees don't have to accept anything: the email only informs them.",
+    avisoPendiente:"Pending", avisoEnviado:"Sent", avisoRevisado:"Reviewed", avisosTodos:"All",
+    colEmpleado:"Employee", colAviso:"Privacy notice", colFechaEnvio:"Sent on", colFechaRevision:"Reviewed on",
+    sendNotice:"Send", resendNotice:"Resend", sending:"Sending…", searchAvisos:"Search by name, email or branch…",
+    avisoUltimoError:"Last error", avisoPwdTemporal:"Temporary password not changed yet",
+    confirmAvisoPwd:"This employee has not changed their temporary password yet. A new temporary password will be generated and sent in the same email along with the notice. Continue?",
+    toastAvisoOk:"Privacy notice sent to", toastAvisoErr:"The user was saved, but the notice could not be sent:", toastAvisoFallo:"The notice could not be sent:",
+    noAvisos:"No employees to show", avisosNotaRevisado:"“Reviewed” is set when the employee opens the email or the link to the full notice.",
+    verAviso:"View full notice", changePassword:"Change password", helpBtn:"F1 · Help", registrarVenta:"Record sale",
     kpiStock:"Units in stock", daysSupply:"≈ {n} days of supply", avgAging:"avg. age {n} d", agedUnits:"{n} aged 90+ d",
     kpiMargen:"Average front-end gross", perUnit:"per sale · last 6 months", noCostData:"No cost data yet",
     kpiFI:"Finance penetration (F&I)", fiSub:"{c} financed · {d} cash",
@@ -241,7 +259,7 @@ const I18N = {
     cajasBtn:"Registers", cajasTitle:"Registers & terminals · {s}", cajasDesc:"Authorize, close or lock every payment terminal at this branch.",
     colCaja:"Register", colTicketsHoy:"Tickets today", colTotalHoy:"Collected today", colUltimaVenta:"Last sale",
     cajaAbierta:"Open", cajaCerrada:"Closed", cajaMant:"Maintenance", toastCaja:"Register status updated",
-    noCajas:"This branch has no registers yet.",
+    noCajas:"This branch has no registers yet.", addCaja:"Add register", toastCajaNueva:"Register {n} added",
     relocate:"Relocate", relocateTitle:"Relocate manager", relocateDesc:"Move the manager to another branch; the change is logged in the audit trail.",
     fNewPassword:"New password (optional)", newPasswordHint:"Leave empty to keep the current password.",
     toastUsuarioEstado:"User status updated",
@@ -287,6 +305,7 @@ const API_BASE = "../PHP/Dashboard/api.php"; // relativa a dashboard/admin.html
 const LOGOUT_URL = "../PHP/PuntoDeVenta/api.php?action=logout"; // cierra la sesión compartida del POS
 const LOGIN_URL = "../index.html";
 const HOME_URL = "../Home/home.html";
+const CAMBIO_PASSWORD_URL = "../PHP/Login/cambiar_password.php?forzado=1";
 
 // Llama a una acción de la API; con `datos` hace POST JSON. Muestra un toast y lanza error si falla.
 async function api(accion, datos, id){
@@ -305,6 +324,8 @@ async function api(accion, datos, id){
   if (!json || !json.ok){
     const mensaje = json?.error || (state.lang === "en" ? "Could not connect to the server" : "No se pudo conectar con el servidor");
     mostrarToast(mensaje, "err");
+    // Contraseña temporal sin cambiar → pantalla de cambio de contraseña
+    if (json?.cambiar_password){ window.location.replace(CAMBIO_PASSWORD_URL); throw new Error(mensaje); }
     // 401 = sin sesión → login; 403 = rol sin permiso → Home
     if (status === 401) setTimeout(() => window.location.replace(LOGIN_URL), 1200);
     if (status === 403) setTimeout(() => window.location.replace(HOME_URL), 1200);
@@ -321,6 +342,7 @@ const DB = {
 
   getCajas(){ return api("cajas"); },
   setCajaEstado(id, estado){ return api("estado_caja", { estado }, id); },
+  createCaja(sucursalId){ return api("crear_caja", { sucursalId }); },
 
   getUsuarios(){ return api("usuarios"); },
   // La contraseña se hashea en el servidor con password_hash()
@@ -341,6 +363,8 @@ const DB = {
   getVentaDetalle(id){ return api("venta_detalle", undefined, id); },
   getCortes(){ return api("cortes"); },
   getAuditoria(){ return api("auditoria"); },
+  getAvisos(){ return api("avisos_privacidad"); },
+  enviarAviso(id){ return api("enviar_aviso", {}, id); },
   setIdioma(idioma){ return api("idioma", { idioma }); },
 
   getPedidos(){ return api("pedidos"); },
@@ -364,7 +388,7 @@ const state = {
   lang: localStorage.getItem("karma_idioma") === "en" ? "en" : "es", // idioma compartido con los demás módulos
   sucursalFiltro:"todas",        // filtro global de sucursal
   sucursales:[], usuarios:[], inventario:[], ventas:[], pedidos:[],
-  catalogo:[], cajas:[], cortes:[], auditoria:[],
+  catalogo:[], cajas:[], cortes:[], auditoria:[], avisos:[],
   adminId:null,                  // usuario en sesión (no puede darse de baja a sí mismo)
   catalogoQuery:"",
   ventasFiltro:"all",            // all | contado | credito (vista Ventas)
@@ -374,6 +398,8 @@ const state = {
   personalRolFiltro:"all",       // all | admin | gerente | cajero (vista Personal)
   inventarioQuery:"",
   pedidosEstadoFiltro:"all",     // all | solicitado | transito | patio | recibido | cancelado
+  avisosFiltro:"all",            // all | pendiente | enviado | revisado (vista Avisos de privacidad)
+  avisosQuery:"",
   cargando:true,
 };
 const PEDIDO_PIPELINE = ["solicitado", "transito", "patio", "recibido"];
@@ -513,6 +539,9 @@ function renderMain(){
     return;
   }
   $$(".sub-nav-btn").forEach(b => b.classList.toggle("is-active", b.dataset.view === state.view));
+  // En celulares las pestañas van en una fila deslizable: la activa se lleva a la vista
+  const pestanaActiva = $(".sub-nav-btn.is-active");
+  if (pestanaActiva && window.innerWidth <= 760) pestanaActiva.scrollIntoView({ block:"nearest", inline:"nearest" });
   applyI18n();
   if (state.view === "dashboard") renderDashboard();
   else if (state.view === "sucursales") renderSucursales();
@@ -523,6 +552,7 @@ function renderMain(){
   else if (state.view === "ventas") renderVentas();
   else if (state.view === "cortes") renderCortes();
   else if (state.view === "auditoria") renderAuditoria();
+  else if (state.view === "avisos") renderAvisos();
 }
 function irAVista(vista){
   state.view = vista;
@@ -1049,8 +1079,22 @@ function abrirModalCajas(sucursalId){
         </tbody>
       </table>
     </div>` : `<div class="empty-state"><strong>${t("noCajas")}</strong></div>`}
-    <div class="form-actions"><button type="button" class="btn btn-ghost" data-close-modal>${t("close")}</button></div>
+    <div class="form-actions">
+      <button type="button" class="btn btn-ghost" data-close-modal>${t("close")}</button>
+      <button type="button" class="btn btn-primary" id="btnAgregarCaja">${iconPlus()} ${t("addCaja")}</button>
+    </div>
   `;
+  $("#btnAgregarCaja").addEventListener("click", async (e) => {
+    e.currentTarget.disabled = true;
+    try{
+      const nueva = await DB.createCaja(sucursalId);
+      state.cajas.push(nueva);
+      state.sucursales = await DB.getSucursales(); // recalcula "cajas activas"
+      mostrarToast(t("toastCajaNueva").replace("{n}", nueva.numero), "ok");
+      if (state.view === "sucursales") renderSucursales();
+    }catch(_){ /* api() ya mostró el error */ }
+    abrirModalCajas(sucursalId);
+  });
   $$("[data-estado-caja]").forEach(sel => sel.addEventListener("change", async () => {
     const actualizada = await DB.setCajaEstado(sel.dataset.estadoCaja, sel.value);
     Object.assign(state.cajas.find(c => c.id === actualizada.id), actualizada);
@@ -1076,6 +1120,7 @@ function renderPersonal(){
         <div><p class="eyebrow-plain">KARMA</p><h2>${t("personalTitle")}</h2></div>
         <div class="panel-heading-actions">
           <button class="btn btn-primary" id="btnNuevoGerente">${iconPlus()} ${t("newGerente")}</button>
+          <button class="btn btn-primary" id="btnNuevoCajero">${iconPlus()} ${t("newCajero")}</button>
         </div>
       </div>
 
@@ -1120,7 +1165,8 @@ function renderPersonal(){
     </div>
   `;
 
-  $("#btnNuevoGerente").addEventListener("click", () => abrirModalPersonal());
+  $("#btnNuevoGerente").addEventListener("click", () => abrirModalPersonal(null, "gerente"));
+  $("#btnNuevoCajero").addEventListener("click", () => abrirModalPersonal(null, "cajero"));
   $$("[data-rfiltro]").forEach(b => b.addEventListener("click", () => { state.personalRolFiltro = b.dataset.rfiltro; renderPersonal(); }));
   $$("[data-editar-usuario]").forEach(b => b.addEventListener("click", () => abrirModalPersonal(b.dataset.editarUsuario)));
   $$("[data-reubicar-usuario]").forEach(b => b.addEventListener("click", () => abrirModalReubicar(b.dataset.reubicarUsuario)));
@@ -1165,12 +1211,14 @@ function abrirModalReubicar(id){
   abrirModal("#modalPersonal");
 }
 
-function abrirModalPersonal(id){
+// rolInicial: "gerente" o "cajero" según el botón con el que se abrió (en edición manda el rol del usuario)
+function abrirModalPersonal(id, rolInicial = "gerente"){
   const editando = !!id;
   const u = editando ? state.usuarios.find(x => x.id === id) : null;
+  const rol = u ? u.rol : rolInicial;
 
   $("#modalPersonalContent").innerHTML = `
-    <h3 class="modal-title">${editando ? t("formPersonalEditTitle") : t("formPersonalTitle")}</h3>
+    <h3 class="modal-title">${editando ? t("formPersonalEditTitle") : rol === "cajero" ? t("formCajeroTitle") : t("formPersonalTitle")}</h3>
     <p class="modal-desc">${t("formPersonalDesc")}</p>
     <form id="formPersonal">
       <div class="form-grid">
@@ -1178,9 +1226,9 @@ function abrirModalPersonal(id){
         <div class="form-field"><label>${t("fEmailUser")} *</label><input type="email" name="correo" required value="${u ? escapeHTML(u.correo) : ""}"></div>
         <div class="form-field"><label>${t("fRole")}</label>
           <select name="rol">
-            <option value="gerente" ${(!u || u.rol==="gerente")?"selected":""}>${t("roleGerenteF")}</option>
-            <option value="cajero" ${u && u.rol==="cajero"?"selected":""}>${t("roleCajeroF")}</option>
-            <option value="admin" ${u && u.rol==="admin"?"selected":""}>${t("roleAdminF")}</option>
+            <option value="gerente" ${rol==="gerente"?"selected":""}>${t("roleGerenteF")}</option>
+            <option value="cajero" ${rol==="cajero"?"selected":""}>${t("roleCajeroF")}</option>
+            <option value="admin" ${rol==="admin"?"selected":""}>${t("roleAdminF")}</option>
           </select>
         </div>
         ${!editando
@@ -1216,14 +1264,117 @@ function abrirModalPersonal(id){
       mostrarToast(t("toastUsuarioUpdated"), "ok");
     }else{
       const nuevo = await DB.createUsuario(payload);
+      const aviso = nuevo.aviso;
+      delete nuevo.aviso;
       state.usuarios.push(nuevo);
       mostrarToast(t("toastUsuarioCreated"), "ok");
+      // Correo de bienvenida con el aviso de privacidad y la contraseña temporal
+      if (aviso) mostrarToast(aviso.ok ? `${t("toastAvisoOk")} ${nuevo.correo}` : `${t("toastAvisoErr")} ${aviso.mensaje.replace(/^No se pudo enviar el aviso de privacidad: /, "")}`, aviso.ok ? "ok" : "err");
     }
     cerrarModales();
     if (state.view === "personal") renderPersonal();
   });
 
   abrirModal("#modalPersonal");
+}
+
+/* ==========================================================================
+   VISTA: AVISOS DE PRIVACIDAD — estado del correo enviado a cada empleado
+   ========================================================================== */
+function badgeAviso(estado){
+  const clase = { pendiente:"badge-warn", enviado:"badge-transito", revisado:"badge-ok" }[estado] || "badge-off";
+  const texto = { pendiente:t("avisoPendiente"), enviado:t("avisoEnviado"), revisado:t("avisoRevisado") }[estado] || estado;
+  return `<span class="badge ${clase}"><span class="badge-dot"></span>${escapeHTML(texto)}</span>`;
+}
+function nombreRol(rol){
+  return rol === "admin" ? t("roleAdminF") : rol === "gerente" ? t("roleGerenteF") : rol === "cajero" ? t("roleCajeroF") : rol;
+}
+async function renderAvisos(recargar = true){
+  if (recargar){
+    try{ state.avisos = await DB.getAvisos(); }catch(_){ state.avisos = []; }
+  }
+  const q = state.avisosQuery.trim().toLowerCase();
+  const conteo = { pendiente:0, enviado:0, revisado:0 };
+  state.avisos.forEach(a => { if (conteo[a.estado] !== undefined) conteo[a.estado]++; });
+  const lista = state.avisos
+    .filter(a => state.avisosFiltro === "all" || a.estado === state.avisosFiltro)
+    .filter(a => !q || `${a.nombre} ${a.correo} ${a.sucursal || ""}`.toLowerCase().includes(q));
+
+  $("#main").innerHTML = `
+    <div class="panel panel-full">
+      <div class="panel-heading fade-in">
+        <div><p class="eyebrow-plain">KARMA</p><h2>${t("avisosTitle")}</h2></div>
+        <div class="panel-heading-actions">
+          <a class="btn btn-ghost" href="../PHP/Privacidad/aviso.php" target="_blank" rel="noopener">${t("verAviso")}</a>
+        </div>
+      </div>
+      <p class="modal-desc" style="margin-top:-14px;">${t("avisosSub")}</p>
+
+      <div class="section-toolbar fade-in fade-in--1">
+        <div class="filter-pills">
+          <button class="filter-pill ${state.avisosFiltro==="all"?"is-active":""}" data-afiltro="all">${t("avisosTodos")} · ${state.avisos.length}</button>
+          <button class="filter-pill ${state.avisosFiltro==="pendiente"?"is-active":""}" data-afiltro="pendiente">${t("avisoPendiente")} · ${conteo.pendiente}</button>
+          <button class="filter-pill ${state.avisosFiltro==="enviado"?"is-active":""}" data-afiltro="enviado">${t("avisoEnviado")} · ${conteo.enviado}</button>
+          <button class="filter-pill ${state.avisosFiltro==="revisado"?"is-active":""}" data-afiltro="revisado">${t("avisoRevisado")} · ${conteo.revisado}</button>
+        </div>
+        ${cajaBusqueda("inpBuscarAvisos", t("searchAvisos"), state.avisosQuery)}
+      </div>
+
+      <div class="table-wrap fade-in fade-in--2">
+        <table class="data-table">
+          <thead><tr>
+            <th>${t("colEmpleado")}</th><th>${t("colRol")}</th><th>${t("colSucursalAsig")}</th><th>${t("colAviso")}</th>
+            <th>${t("colFechaEnvio")}</th><th>${t("colFechaRevision")}</th><th>${t("colAcciones")}</th>
+          </tr></thead>
+          <tbody>
+            ${lista.map(a => `
+              <tr>
+                <td>
+                  <div class="cell-person">
+                    <span class="avatar">${escapeHTML(iniciales(a.nombre))}</span>
+                    <div><div class="cell-person-name">${escapeHTML(a.nombre)}</div><div class="cell-person-email">${escapeHTML(a.correo)}</div></div>
+                  </div>
+                </td>
+                <td><span class="role-badge role-${escapeHTML(a.rol)}">${escapeHTML(nombreRol(a.rol))}</span></td>
+                <td class="cell-muted">${a.sucursal ? escapeHTML(a.sucursal) : "—"}</td>
+                <td>
+                  ${badgeAviso(a.estado)}
+                  ${a.error && a.estado === "pendiente" ? `<div class="cell-muted" style="font-size:12px;margin-top:4px;max-width:260px;">${t("avisoUltimoError")}: ${escapeHTML(a.error)}</div>` : ""}
+                  ${a.debeCambiarPassword ? `<div class="cell-muted" style="font-size:12px;margin-top:4px;">${t("avisoPwdTemporal")}</div>` : ""}
+                </td>
+                <td class="cell-muted">${a.fechaEnvio ? formatoFechaHora(a.fechaEnvio) : "—"}</td>
+                <td class="cell-muted">${a.fechaRevision ? formatoFechaHora(a.fechaRevision) : "—"}</td>
+                <td>
+                  <div class="btn-table-row">
+                    ${a.estadoUsuario === "activo"
+                      ? `<button class="btn-table" data-enviar-aviso="${escapeHTML(a.id)}">${a.estado === "pendiente" ? t("sendNotice") : t("resendNotice")}</button>`
+                      : `<span class="cell-muted">${t("statusInactive")}</span>`}
+                  </div>
+                </td>
+              </tr>
+            `).join("") || `<tr><td colspan="7"><div class="empty-state"><strong>${t("noAvisos")}</strong></div></td></tr>`}
+          </tbody>
+        </table>
+      </div>
+      <p class="modal-desc" style="margin-top:14px;">${t("avisosNotaRevisado")}</p>
+    </div>
+  `;
+
+  $$("[data-afiltro]").forEach(b => b.addEventListener("click", () => { state.avisosFiltro = b.dataset.afiltro; renderAvisos(false); }));
+  bindBusqueda("inpBuscarAvisos", "avisosQuery", () => renderAvisos(false));
+  $$("[data-enviar-aviso]").forEach(b => b.addEventListener("click", async () => {
+    const aviso = state.avisos.find(x => x.id === b.dataset.enviarAviso);
+    if (!aviso) return;
+    if (aviso.debeCambiarPassword && aviso.id !== state.adminId && !confirm(t("confirmAvisoPwd"))) return;
+    b.disabled = true;
+    b.textContent = t("sending");
+    try{
+      const r = await DB.enviarAviso(aviso.id);
+      if (r.aviso) Object.assign(aviso, r.aviso);
+      mostrarToast(r.ok ? `${t("toastAvisoOk")} ${aviso.correo}` : `${t("toastAvisoFallo")} ${r.mensaje.replace(/^No se pudo enviar el aviso de privacidad: /, "")}`, r.ok ? "ok" : "err");
+    }catch(_){ /* api() ya mostró el error */ }
+    if (state.view === "avisos") renderAvisos(false);
+  }));
 }
 
 /* ==========================================================================
@@ -2209,13 +2360,15 @@ const VISTAS = [
   { vista:"catalogo",   nav:"navCatalogo",   tecla:"F8" },
   { vista:"cortes",     nav:"navCortes",     tecla:"F9" },
   { vista:"auditoria",  nav:"navAuditoria",  tecla:"F10" },
+  { vista:"avisos",     nav:"navAvisos" },
 ];
 
 function comandosConsola(){
   return [
     ...VISTAS.map(v => ({ texto:t(v.nav), atajo:v.tecla || "", ejecutar:() => irAVista(v.vista) })),
     { texto:t("qaSucursal"), atajo:"", ejecutar:() => abrirModalSucursal() },
-    { texto:t("newGerente"), atajo:"", ejecutar:() => abrirModalPersonal() },
+    { texto:t("newGerente"), atajo:"", ejecutar:() => abrirModalPersonal(null, "gerente") },
+    { texto:t("newCajero"), atajo:"", ejecutar:() => abrirModalPersonal(null, "cajero") },
     { texto:t("newModelo"), atajo:"", ejecutar:() => abrirModalModelo() },
     { texto:t("newPedido"), atajo:"", ejecutar:() => abrirModalPedido() },
     { texto:t("qaArticulo"), atajo:"", ejecutar:() => abrirModalArticulo() },
@@ -2311,7 +2464,7 @@ async function cerrarSesion(){
    EVENTOS GLOBALES
    ========================================================================== */
 function initEventosGlobales(){
-  $("#logoHome").addEventListener("click", () => { state.view = "dashboard"; renderMain(); });
+  // El logo es un enlace al Home (igual que en el panel de gerente): no necesita evento
   $("#themeToggle").addEventListener("click", toggleTema);
   $("#langToggle").addEventListener("click", toggleIdioma);
   $("#logoutBtn").addEventListener("click", cerrarSesion);
@@ -2335,6 +2488,27 @@ function initEventosGlobales(){
 
   setInterval(actualizarReloj, 1000 * 30);
   actualizarReloj();
+
+  // Si el tema o el idioma cambian en otra pestaña del sistema (Home, POS, panel de gerente), se reflejan aquí
+  window.addEventListener("storage", (e) => {
+    if (e.key === "karma_tema"){
+      document.body.classList.toggle("dark", e.newValue === "dark");
+      if (state.view === "dashboard") renderDashboard();
+    }
+    if (e.key === "karma_idioma" && (e.newValue === "en" ? "en" : "es") !== state.lang){
+      aplicarIdioma(e.newValue === "en" ? "en" : "es");
+      poblarSelectorSucursales();
+      renderMain();
+    }
+  });
+  // Al volver con «Atrás» desde otro módulo, el navegador puede mostrar esta página desde su caché: se releen tema e idioma
+  window.addEventListener("pageshow", (e) => {
+    if (!e.persisted) return;
+    document.body.classList.toggle("dark", localStorage.getItem("karma_tema") === "dark");
+    const idioma = localStorage.getItem("karma_idioma") === "en" ? "en" : "es";
+    if (idioma !== state.lang){ aplicarIdioma(idioma); poblarSelectorSucursales(); }
+    renderMain();
+  });
 }
 
 /* ==========================================================================

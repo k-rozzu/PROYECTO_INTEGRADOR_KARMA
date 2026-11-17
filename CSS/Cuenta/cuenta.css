@@ -1,0 +1,135 @@
+/* KARMA · Páginas de cuenta (cambiar contraseña) y aviso de privacidad.
+   Usa la misma paleta que el POS y los paneles: blanco / papel en claro, #101012 con rojo vino en oscuro. */
+:root{
+  --bg-app:#FFFFFF;
+  --surface-1:#F7F7F5;
+  --surface-2:#FFFFFF;
+  --line:#E2E1DD;
+  --text-main:#17181A;
+  --text-muted:#6E6E6C;
+  --text-faint:#A7A6A2;
+  --red:#9E1B2E;
+  --red-soft:rgba(158,27,46,.10);
+  --accent:#9E1B2E;
+  --navy:#10213F;
+  --ok:#1F7A4D;
+  --ok-soft:rgba(31,122,77,.10);
+  --font-display:'Fraunces', Georgia, serif;
+  --font-ui:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --radius-lg:20px;
+  --radius-md:14px;
+  --radius-sm:9px;
+  color-scheme:light;
+}
+body.dark{
+  --bg-app:#101012;
+  --surface-1:#17181B;
+  --surface-2:#1D1E21;
+  --line:#2B2C2F;
+  --text-main:#F1F1EF;
+  --text-muted:#9A9B99;
+  --text-faint:#6D6E6C;
+  --red-soft:rgba(158,27,46,.18);
+  --accent:#E2697A;
+  --ok:#3EBE85;
+  --ok-soft:rgba(62,190,133,.14);
+  color-scheme:dark;
+}
+
+*{ box-sizing:border-box; }
+html{ -webkit-text-size-adjust:100%; }
+body{
+  margin:0; min-height:100vh; min-height:100dvh;
+  background:var(--bg-app); color:var(--text-main);
+  font-family:var(--font-ui); font-size:15px; line-height:1.6;
+  transition:background .25s ease, color .25s ease;
+}
+a{ color:var(--accent); }
+button, input{ font:inherit; }
+
+/* Barra superior: marca + idioma + tema (mismo lenguaje visual que el POS) */
+.cuenta-topbar{
+  position:sticky; top:0; z-index:5;
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:12px clamp(16px, 4vw, 40px);
+  background:#0B0B0C; color:#F4F4F2;
+  border-bottom:1px solid rgba(255,255,255,.08);
+}
+.cuenta-brand{ display:flex; align-items:center; gap:10px; color:inherit; text-decoration:none; min-width:0; }
+.cuenta-brand img{ width:34px; height:34px; object-fit:contain; flex:none; }
+.cuenta-brand span{ font-family:var(--font-display); font-size:20px; letter-spacing:.16em; }
+.cuenta-acciones{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+.cuenta-chip{
+  display:inline-flex; align-items:center; gap:6px; height:34px; padding:0 13px;
+  border-radius:999px; border:1px solid rgba(255,255,255,.16); background:rgba(255,255,255,.04);
+  color:#A2A2A0; font-size:12px; font-weight:600; letter-spacing:.02em; cursor:pointer; text-decoration:none;
+}
+.cuenta-chip:hover{ background:rgba(255,255,255,.10); color:#F4F4F2; }
+.cuenta-chip .is-active{ color:#F4F4F2; }
+.cuenta-chip:focus-visible, .cuenta-btn:focus-visible, .cuenta-campo input:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+
+/* Contenedor principal */
+.cuenta-main{ width:100%; max-width:560px; margin:0 auto; padding:clamp(24px, 6vw, 56px) 16px 48px; }
+.cuenta-main--ancho{ max-width:860px; }
+.cuenta-eyebrow{ margin:0 0 6px; font-size:12px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); }
+.cuenta-titulo{ margin:0 0 10px; font-family:var(--font-display); font-weight:500; font-size:clamp(26px, 5vw, 36px); line-height:1.15; }
+.cuenta-desc{ margin:0 0 24px; color:var(--text-muted); }
+
+.cuenta-card{
+  background:var(--surface-1); border:1px solid var(--line); border-radius:var(--radius-lg);
+  padding:clamp(18px, 4vw, 28px);
+}
+.cuenta-campo{ display:flex; flex-direction:column; gap:6px; margin-bottom:16px; }
+.cuenta-campo label{ font-size:12px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--text-muted); }
+.cuenta-campo input{
+  width:100%; min-height:46px; padding:10px 14px;
+  border:1px solid var(--line); border-radius:var(--radius-sm);
+  background:var(--surface-2); color:var(--text-main);
+  font-size:16px; /* 16px evita que iOS haga zoom al enfocar */
+}
+.cuenta-ayuda{ margin:0; font-size:13px; color:var(--text-muted); }
+.cuenta-reglas{ margin:0 0 18px; padding:0; list-style:none; display:grid; gap:4px; font-size:13px; color:var(--text-muted); }
+.cuenta-reglas li::before{ content:"○ "; }
+.cuenta-reglas li.ok{ color:var(--ok); }
+.cuenta-reglas li.ok::before{ content:"● "; }
+
+.cuenta-btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  min-height:46px; padding:0 22px; border-radius:999px; border:1px solid transparent;
+  background:var(--navy); color:#FFFFFF; font-weight:600; cursor:pointer; text-decoration:none;
+}
+body.dark .cuenta-btn{ background:rgba(158,27,46,.85); border-color:#9E1B2E; }
+.cuenta-btn:hover{ filter:brightness(1.12); }
+.cuenta-btn:disabled{ opacity:.6; cursor:default; }
+.cuenta-btn--ghost{ background:transparent; color:var(--text-main); border-color:var(--line); }
+body.dark .cuenta-btn--ghost{ background:transparent; border-color:var(--line); }
+.cuenta-botones{ display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; }
+.cuenta-botones .cuenta-btn{ flex:1 1 180px; }
+
+.cuenta-alerta{ margin:0 0 18px; padding:12px 14px; border-radius:var(--radius-sm); font-size:14px; background:var(--red-soft); color:var(--accent); }
+.cuenta-alerta--ok{ background:var(--ok-soft); color:var(--ok); }
+.cuenta-alerta[hidden]{ display:none; }
+
+/* Aviso de privacidad integral */
+.aviso-doc h2{ margin:34px 0 10px; font-family:var(--font-display); font-weight:500; font-size:clamp(20px, 3.6vw, 24px); }
+.aviso-doc h3{ margin:24px 0 8px; font-size:16px; }
+.aviso-doc p, .aviso-doc li{ color:var(--text-main); }
+.aviso-doc ul, .aviso-doc ol{ padding-left:22px; }
+.aviso-tabla{ width:100%; border-collapse:collapse; margin:12px 0 18px; font-size:14px; }
+.aviso-tabla th, .aviso-tabla td{ text-align:left; vertical-align:top; padding:9px 12px; border:1px solid var(--line); }
+.aviso-tabla th{ background:var(--surface-1); color:var(--text-muted); font-weight:600; }
+.aviso-tabla-wrap{ width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+.aviso-nota{ margin:0 0 20px; padding:12px 14px; border-left:3px solid var(--accent); background:var(--surface-1); border-radius:0 var(--radius-sm) var(--radius-sm) 0; font-size:14px; }
+[data-idioma-bloque][hidden]{ display:none; }
+
+.cuenta-pie{ margin-top:36px; font-size:12px; color:var(--text-faint); text-align:center; }
+
+@media (max-width:480px){
+  .cuenta-brand span{ font-size:17px; }
+  .cuenta-chip{ height:32px; padding:0 10px; }
+  .aviso-tabla{ font-size:13px; }
+  .aviso-tabla th, .aviso-tabla td{ padding:7px 8px; }
+}
+@media (prefers-reduced-motion: reduce){
+  *{ transition:none !important; animation:none !important; }
+}
