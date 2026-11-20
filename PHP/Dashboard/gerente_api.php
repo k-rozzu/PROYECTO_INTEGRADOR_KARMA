@@ -13,6 +13,8 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 require_once __DIR__ . '/../PuntoDeVenta/conexion.php';
 require_once __DIR__ . '/../Login/sesion_pos.php';
+// Correo de bienvenida con el aviso de privacidad y la contraseña temporal (el mismo que manda el administrador)
+require_once __DIR__ . '/../Privacidad/avisos.php';
 
 const GER_ROLES = ['Gerente', 'Administrador General', 'Admin_General'];
 const GER_LECTURA = ['sucursal', 'cajeros', 'cajas', 'productos', 'categorias', 'ventas'];
@@ -50,6 +52,7 @@ function gerExigirSesion(): int {
     if (posDebeCambiarPassword($u)) gerResponder(['mensaje' => 'Antes de continuar debes cambiar tu contraseña temporal.', 'cambiar_password' => true], 403);
     if (!in_array($u['nombre_rol'], GER_ROLES, true)) gerError('Tu rol no puede abrir el panel de gerente.', 403);
     if ($u['id_sucursal'] === null) gerError('Tu cuenta no tiene sucursal asignada.', 403);
+    $GLOBALS['gerUsuario'] = $u; // quién hace la operación (bitácora de auditoría)
     return (int)$u['id_sucursal'];
 }
 
@@ -67,6 +70,7 @@ try {
         case 'crear_caja':          gerCrearCaja($sucursal, $in);
         case 'estado_caja':         gerEstadoCaja($sucursal, $in);
         case 'asignar_cajero':      gerAsignarCajero($sucursal, $in);
+        case 'crear_cajero':        gerCrearCajero($sucursal, $in);
         case 'productos':           gerProductos($sucursal);
         case 'categorias':          gerCategorias();
         case 'crear_producto':      gerGuardarProducto($sucursal, null, $in);
@@ -99,6 +103,72 @@ function gerCajeros(int $sucursal): never {
         WHERE r.nombre_rol = 'Cajero' AND u.id_sucursal = ?");
     $stmt->execute([$sucursal]);
     gerResponder($stmt->fetchAll());
+}
+
+// Alta de un cajero en la sucursal del gerente (nunca en otra). Igual que el alta del administrador: contraseña temporal
+// que se debe cambiar al entrar, código de gafete y correo con el aviso de privacidad. Opcionalmente queda asignado a una caja.
+function gerCrearCajero(int $sucursal, array $in): never {
+    $pdo = db();
+    $nombre = trim((string)($in['nombre'] ?? ''));
+    $correo = trim((string)($in['correo'] ?? ''));
+    $password = (string)($in['password'] ?? '');
+    $idCaja = ($in['cajaId'] ?? '') === '' || ($in['cajaId'] ?? null) === null ? null : (gerEntero($in['cajaId']) ?? gerError('Caja inválida'));
+
+    if ($nombre === '' || $correo === '') gerError('El nombre y el correo son obligatorios.');
+    if (mb_strlen($nombre) > 100 || mb_strlen($correo) > 100) gerError('El nombre o el correo son demasiado largos.');
+    if (!filter_var($correo, FILTER_VALIDATE_EMAIL)) gerError('El correo no es válido.');
+    if (mb_strlen($password) < 8) gerError('La contraseña debe tener al menos 8 caracteres.');
+    if (strlen($password) > 72) gerError('La contraseña es demasiado larga (máximo 72 caracteres).');
+
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM usuarios WHERE correo = ?");
+    $stmt->execute([$correo]);
+    if ((int)$stmt->fetchColumn() > 0) gerError('Ya existe un usuario con ese correo.', 409);
+    $idRol = $pdo->query("SELECT id_rol FROM roles WHERE nombre_rol = 'Cajero' LIMIT 1")->fetchColumn();
+    if ($idRol === false) gerError('El rol Cajero no existe en la base de datos.', 500);
+    if ($idCaja !== null) {
+        $stmt = $pdo->prepare("SELECT id_usuario_asignado FROM cajas WHERE id_caja = ? AND id_sucursal = ?");
+        $stmt->execute([$idCaja, $sucursal]);
+        $asignado = $stmt->fetch();
+        if (!$asignado) gerError('Caja no encontrada en esta sucursal', 404);
+        if ($asignado['id_usuario_asignado'] !== null) gerError('Esa caja ya tiene un cajero asignado.', 409);
+    }
+
+    $pdo->beginTransaction();
+    $pdo->prepare("INSERT INTO usuarios (id_rol, id_sucursal, nombre, correo, password_hash) VALUES (?, ?, ?, ?, ?)")
+        ->execute([(int)$idRol, $sucursal, $nombre, $correo, password_hash($password, PASSWORD_BCRYPT, ['cost' => 12])]);
+    $id = (int)$pdo->lastInsertId();
+    if (avisosColumnaUsuarios($pdo, 'codigo_empleado')) {
+        $pdo->prepare("UPDATE usuarios SET codigo_empleado = ? WHERE id_usuario = ? AND (codigo_empleado IS NULL OR codigo_empleado = '')")
+            ->execute([sprintf('EMP-%04d', $id), $id]);
+    }
+    if (avisosColumnaUsuarios($pdo, 'debe_cambiar_password')) {
+        $pdo->prepare("UPDATE usuarios SET debe_cambiar_password = 1 WHERE id_usuario = ?")->execute([$id]);
+    }
+    if ($idCaja !== null) {
+        $pdo->prepare("UPDATE cajas SET id_usuario_asignado = ? WHERE id_caja = ? AND id_sucursal = ?")->execute([$id, $idCaja, $sucursal]);
+    }
+    gerAuditar('Alta de usuario', "{$GLOBALS['gerUsuario']['nombre']} registró a {$nombre} como Cajero en " . gerNombreSucursal($sucursal));
+    $pdo->commit();
+
+    // El correo va después de guardar: si falla, el cajero ya existe y el aviso queda «pendiente» para reenviarlo
+    $envio = avisoEnviar($pdo, $id, $password);
+    if ($envio['ok']) gerAuditar('Aviso de privacidad', "Se envió el aviso de privacidad a {$nombre}");
+    gerResponder(['id' => $id, 'aviso' => ['ok' => $envio['ok'], 'mensaje' => $envio['mensaje']]], 201);
+}
+
+// Nombre de la sucursal para la bitácora
+function gerNombreSucursal(int $sucursal): string {
+    $stmt = db()->prepare("SELECT nombre FROM sucursales WHERE id_sucursal = ?");
+    $stmt->execute([$sucursal]);
+    return (string)($stmt->fetchColumn() ?: 'su sucursal');
+}
+
+// Registro en la bitácora de auditoría del panel de administrador (si la tabla existe)
+function gerAuditar(string $accion, string $detalle): void {
+    try {
+        db()->prepare("INSERT INTO auditoria (id_usuario, accion, detalle) VALUES (?, ?, ?)")
+            ->execute([(int)$GLOBALS['gerUsuario']['id_usuario'], $accion, mb_substr($detalle, 0, 255)]);
+    } catch (Throwable $e) { /* base sin tabla auditoria */ }
 }
 
 /* ===== Cajas ===== */

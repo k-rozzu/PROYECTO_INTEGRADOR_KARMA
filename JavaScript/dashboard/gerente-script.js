@@ -145,6 +145,12 @@ const I18N = {
 
     /* Cajas */
     cajasTitle:"Gestión de cajas", cajasSub:"Puntos de cobro activos e inactivos de tu sucursal",
+    newCajero:"Nuevo cajero", formCajeroTitle:"Registrar cajero",
+    formCajeroDesc:"El cajero queda en esta sucursal. Recibirá por correo el aviso de privacidad y su contraseña temporal, y el sistema le pedirá cambiarla al entrar.",
+    fNombreCompleto:"Nombre completo", fCorreoCajero:"Correo electrónico", fPasswordTemporal:"Contraseña temporal",
+    passwordTemporalHint:"Mínimo 8 caracteres. Se guarda cifrada; el cajero la cambiará por una propia.",
+    fCajaInicial:"Asignar a una caja (opcional)", toastCajeroCreado:"Cajero registrado correctamente",
+    toastAvisoOk:"Aviso de privacidad enviado a", toastAvisoErr:"El cajero se guardó, pero el aviso no se pudo enviar:",
     newCaja:"Nueva caja", colCaja:"Caja", colCajero:"Cajero asignado", colEstado:"Estado",
     formCajaNewTitle:"Registrar caja", formCajaDesc:"Asigna un nombre y cajero a la nueva caja.",
     fNombreCaja:"Número de caja", fCajeroAsignado:"Cajero asignado",
@@ -257,6 +263,12 @@ const I18N = {
     critical:"Critical", low:"Low", ok:"Sufficient",
 
     cajasTitle:"Register management", cajasSub:"Active and inactive checkout points at your branch",
+    newCajero:"New cashier", formCajeroTitle:"Register cashier",
+    formCajeroDesc:"The cashier is added to this branch. They will receive the privacy notice and their temporary password by email, and the system will ask them to change it when they sign in.",
+    fNombreCompleto:"Full name", fCorreoCajero:"Email", fPasswordTemporal:"Temporary password",
+    passwordTemporalHint:"At least 8 characters. It is stored encrypted; the cashier will replace it with their own.",
+    fCajaInicial:"Assign to a register (optional)", toastCajeroCreado:"Cashier registered successfully",
+    toastAvisoOk:"Privacy notice sent to", toastAvisoErr:"The cashier was saved, but the notice could not be sent:",
     newCaja:"New register", colCaja:"Register", colCajero:"Assigned cashier", colEstado:"Status",
     formCajaNewTitle:"Register checkout", formCajaDesc:"Assign a name and cashier to the new register.",
     fNombreCaja:"Register number", fCajeroAsignado:"Assigned cashier",
@@ -428,6 +440,9 @@ const DB = {
   async getCajas(){
     const cajas = await gerenteApi("cajas", undefined, "No se pudieron cargar las cajas");
     return cajas.map(c => ({ ...c, id: String(c.id) }));
+  },
+  async createCajero(payload){
+    return gerenteApi("crear_cajero", payload, "No se pudo registrar al cajero");
   },
   async createCaja(payload){
     return gerenteApi("crear_caja", { numero: payload.numero, cajeroId: payload.cajeroId }, "No se pudo crear la caja");
@@ -1028,6 +1043,10 @@ function renderCajas(){
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
           <span data-i18n="newCaja">Nueva caja</span>
         </button>
+        <button class="btn btn-primary" id="btnNuevoCajero">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
+          <span data-i18n="newCajero">Nuevo cajero</span>
+        </button>
       </div>
     </div>
 
@@ -1070,6 +1089,7 @@ function renderCajas(){
   </div>`;
 
   $("#btnNuevaCaja")?.addEventListener("click", () => abrirModalCaja());
+  $("#btnNuevoCajero")?.addEventListener("click", () => abrirModalCajero());
   $$("[data-caja-filtro]").forEach(btn => {
     btn.addEventListener("click", () => { state.cajasFiltro = btn.dataset.cajaFiltro; renderCajas(); });
   });
@@ -1576,6 +1596,69 @@ function abrirModalCaja(){
     } catch (err) {
       console.error(err);
       toast(err.message, "err");
+    }
+  });
+
+  abrirModal("modalCaja");
+}
+
+// Alta de un cajero en la sucursal del gerente (PHP/Dashboard/gerente_api.php → crear_cajero)
+function abrirModalCajero(){
+  const libres = state.cajas.filter(c => !c.cajeroId && c.estado === "activo");
+  $("#modalCajaContent").innerHTML = `
+    <h2 class="modal-title">${t("formCajeroTitle")}</h2>
+    <p class="modal-desc">${t("formCajeroDesc")}</p>
+    <form id="formCajero" autocomplete="off">
+      <div class="form-grid cols-1">
+        <div class="form-field">
+          <label for="fCajeroNombre">${t("fNombreCompleto")} *</label>
+          <input type="text" id="fCajeroNombre" maxlength="100" required>
+        </div>
+        <div class="form-field">
+          <label for="fCajeroCorreo">${t("fCorreoCajero")} *</label>
+          <input type="email" id="fCajeroCorreo" maxlength="100" required>
+        </div>
+        <div class="form-field">
+          <label for="fCajeroPassword">${t("fPasswordTemporal")} *</label>
+          <input type="password" id="fCajeroPassword" minlength="8" maxlength="72" autocomplete="new-password" required>
+          <p class="form-field-info">${t("passwordTemporalHint")}</p>
+        </div>
+        <div class="form-field">
+          <label for="fCajeroCaja">${t("fCajaInicial")}</label>
+          <select id="fCajeroCaja">
+            <option value="">${t("unassigned")}</option>
+            ${libres.map(c => `<option value="${escapeHTML(c.id)}">${escapeHTML(c.nombre)}</option>`).join("")}
+          </select>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" data-close-modal>${t("cancel")}</button>
+        <button type="submit" class="btn btn-primary" id="btnGuardarCajero">${t("save")}</button>
+      </div>
+    </form>`;
+
+  $("#formCajero").addEventListener("submit", async e => {
+    e.preventDefault();
+    const payload = {
+      nombre: $("#fCajeroNombre").value.trim(),
+      correo: $("#fCajeroCorreo").value.trim(),
+      password: $("#fCajeroPassword").value,
+      cajaId: $("#fCajeroCaja").value || null,
+    };
+    if (!payload.nombre || !payload.correo || payload.password.length < 8){ toast(t("required"), "err"); return; }
+    const boton = $("#btnGuardarCajero");
+    boton.disabled = true;
+    try {
+      const r = await DB.createCajero(payload);
+      [state.cajeros, state.cajas] = await Promise.all([DB.getCajeros(), DB.getCajas()]);
+      toast(t("toastCajeroCreado"), "ok");
+      if (r.aviso) toast(r.aviso.ok ? `${t("toastAvisoOk")} ${payload.correo}` : `${t("toastAvisoErr")} ${r.aviso.mensaje.replace(/^No se pudo enviar el aviso de privacidad: /, "")}`, r.aviso.ok ? "ok" : "err");
+      cerrarModales();
+      renderMain();
+    } catch (err) {
+      console.error(err);
+      toast(err.message, "err");
+      boton.disabled = false;
     }
   });
 
